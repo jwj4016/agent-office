@@ -28,13 +28,15 @@
 **AI 최소 실행**
 - [x] Provider 공통 인터페이스 (Capabilities·Start·Respond·Cancel·Resume·Events)
 - [x] 테스트 provider (fixture 이벤트 재생)
-- [ ] Codex App Server stdio 최소 실행·취소 — 구현·가짜 서버 시험 완료, ⚠️ 실제 CLI 호출 미검증
-- [ ] Claude SDK bridge (TS, JSONL) 최소 실행·취소 — 구현·가짜 bridge 시험 완료, ⚠️ 실제 SDK 호출 미검증
+- [x] Codex App Server stdio 최소 실행 — 실제 CLI 호출 성공 (2026-10-03)
+- [ ] Codex 취소 실제 확인 — 가짜 서버로만 확인, ⚠️ 실제 미검증
+- [x] Claude SDK bridge (TS, JSONL) 최소 실행 — 실제 SDK 호출 성공 (2026-10-03)
+- [ ] Claude 취소 실제 확인 — 가짜 bridge로만 확인, ⚠️ 실제 미검증
 
 **빌드**
 - [x] macOS `wails build` 성공
 - [ ] GitHub Actions로 Windows·Linux 빌드 — `.github/workflows/build.yml` 작성, ⚠️ 원격 실행 전(브랜치 push 필요)
-- [ ] 🚪 게이트: 실제/미검증 연결 구분, 저장·취소 확인, 버전·플랫폼 제약 기록
+- [x] 🚪 게이트: 실제/미검증 연결 구분, 저장·취소 확인, 버전·플랫폼 제약 기록 — 통과 (미검증 3건은 ⚠️로 유지)
 
 ### M1 기본 제품 (테스트 provider 기준)
 **도메인·저장**
@@ -135,3 +137,9 @@
 - 미검증·알려진 제한: Windows·Linux 빌드는 CI 미실행. macOS x64·서명·공증 미시험
 - 마지막 관련 코드/테스트: `.github/workflows/build.yml`
 - 다음에 실행할 구체적인 작업: M0 게이트 보고 — 실제 공급자 시험·CI 실행 여부 사용자 확인
+
+- 현재 단계: M0 게이트
+- 구현 완료: M0 전 항목 구현
+- 이번 검증과 결과: 실제 Codex(codex-cli 0.159.2, 모델 gpt-6.1-sol) 1턴 성공 7초, 비용 미보고(null). 실제 Claude bridge(SDK 0.3.288, 모델 claude-opus-5-5) 1턴 성공 5초, 보고 비용 $0.0485
+- 미검증·알려진 제한: 실제 공급자 취소, Windows·Linux CI 빌드(사용자 결정으로 push 보류)
+- 다음에 실행할 구체적인 작업: 사용자 확인 후 M1 도메인·저장 — 엔터티 스키마 migration 0002

@@ -2,6 +2,13 @@
 
 명세 14장의 T01~T24 구현·시험 증거와 플랫폼별 결과를 기록한다.
 
+## 실제 공급자 시험 기록
+
+| 날짜 | 공급자 | 환경 | 결과 |
+|---|---|---|---|
+| 2026-10-03 | Codex App Server | codex-cli 0.159.2, macOS arm64, `TestCodexReal` | 성공: started→message→usage→completed(succeeded), 7.1s. 취소 미시험 |
+| 2026-10-03 | Claude Agent SDK bridge | SDK 0.3.288, Node 26.10.0, `TestClaudeReal` | 성공: started→message→usage($0.0485)→completed(succeeded), 5.4s. 취소 미시험 |
+
 상태: ⬜ 미착수 · 🟡 구현(자동 테스트만) · ✅ 검증 완료 · ⚠️ 미검증(환경 없음)
 
 | ID | 상황 | 상태 | 증거 (테스트·명령·결과) |
