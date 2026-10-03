@@ -32,8 +32,8 @@
 - [ ] Claude SDK bridge (TS, JSONL) 최소 실행·취소 — 구현·가짜 bridge 시험 완료, ⚠️ 실제 SDK 호출 미검증
 
 **빌드**
-- [ ] macOS `wails build` 성공
-- [ ] GitHub Actions로 Windows·Linux 빌드
+- [x] macOS `wails build` 성공
+- [ ] GitHub Actions로 Windows·Linux 빌드 — `.github/workflows/build.yml` 작성, ⚠️ 원격 실행 전(브랜치 push 필요)
 - [ ] 🚪 게이트: 실제/미검증 연결 구분, 저장·취소 확인, 버전·플랫폼 제약 기록
 
 ### M1 기본 제품 (테스트 provider 기준)
@@ -128,3 +128,10 @@
 - 미검증·알려진 제한: 실제 Codex·Claude 호출 미실행(사용자 계정 사용 승인 필요). Codex·Claude 둘 다 로컬 CLI 로그인 상태는 확인됨. Windows 프로세스 트리 종료는 taskkill 기반, 미시험. Claude bridge는 질문(question) 기능 미지원
 - 마지막 관련 코드/테스트: `internal/providers/{provider,testprovider,codex,claude,process}.go`, `runners/claude/src/bridge.ts`
 - 다음에 실행할 구체적인 작업: macOS `wails build`, GitHub Actions Windows·Linux 빌드
+
+- 현재 단계: M0 / 빌드
+- 구현 완료: `wails build` macOS arm64 앱, `.github/workflows/build.yml` (Ubuntu 24.04 `webkit2_41`·Windows·macOS 매트릭스: frontend·bridge·Go 테스트 후 Wails 빌드, 산출물 업로드)
+- 이번 검증과 결과: macOS arm64 `.app` 12MB, 15초 빌드. 패키지 실행 시 한글·공백 데이터 경로에 DB 생성·migration 0001 적용 확인. workflow YAML 문법 확인
+- 미검증·알려진 제한: Windows·Linux 빌드는 CI 미실행. macOS x64·서명·공증 미시험
+- 마지막 관련 코드/테스트: `.github/workflows/build.yml`
+- 다음에 실행할 구체적인 작업: M0 게이트 보고 — 실제 공급자 시험·CI 실행 여부 사용자 확인

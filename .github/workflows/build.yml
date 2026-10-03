@@ -1,0 +1,72 @@
+name: build
+
+on:
+  push:
+    branches: [main, "feat/**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            wails_tags: webkit2_41
+          - os: windows-latest
+            wails_tags: ""
+          - os: macos-latest
+            wails_tags: ""
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.27.x"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "26"
+
+      - name: Linux WebKit/GTK dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
+
+      - name: Frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run typecheck
+          npm test
+          npm run build
+
+      - name: Claude bridge
+        working-directory: runners/claude
+        run: |
+          npm ci
+          npm run build
+          npm test
+
+      - name: Go tests
+        run: go test ./...
+
+      - name: Wails build
+        shell: bash
+        run: |
+          go install github.com/wailsapp/wails/v2/cmd/wails@v2.16.0
+          tags=""
+          if [ -n "${{ matrix.wails_tags }}" ]; then tags="-tags ${{ matrix.wails_tags }}"; fi
+          wails build -clean $tags
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: agent-office-${{ matrix.os }}
+          path: build/bin
+          retention-days: 7
