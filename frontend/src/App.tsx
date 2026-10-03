@@ -1,57 +1,114 @@
-import {useEffect, useState} from 'react';
-import {GetSettings, Ping, SetSetting, SystemStatus} from '../wailsjs/go/main/App';
-import {main} from '../wailsjs/go/models';
-import {EventsOn} from '../wailsjs/runtime/runtime';
+import {type ReactNode, useEffect, useState} from 'react';
+import {api} from './api';
+import {t} from './i18n';
+import {LiveProvider, useLoad} from './live';
+import {DetailProvider} from './ui';
+import {Dashboard} from './views/Dashboard';
+import {Inbox} from './views/Inbox';
+import {Organization} from './views/Organization';
+import {ProjectView, type ProjectTab} from './views/ProjectView';
+import {Settings} from './views/Settings';
 
-export const EVENT_PING = 'system:ping';
-const REDUCED_MOTION = 'ui.reducedMotion';
+export type Route =
+    | { view: 'dashboard' }
+    | { view: 'inbox' }
+    | { view: 'org' }
+    | { view: 'settings' }
+    | { view: 'project'; projectId: string; tab: ProjectTab; workflowId?: string; runId?: string };
 
-function App() {
-    const [reply, setReply] = useState<main.PingResult | null>(null);
-    const [event, setEvent] = useState<main.PingResult | null>(null);
-    const [status, setStatus] = useState<main.SystemStatus | null>(null);
-    const [reducedMotion, setReducedMotion] = useState(false);
-    const [error, setError] = useState('');
+const LAST_PROJECT = 'ui.lastProjectId';
 
-    useEffect(() => EventsOn(EVENT_PING, (res: main.PingResult) => setEvent(res)), []);
-
-    useEffect(() => {
-        SystemStatus().then(setStatus);
-        GetSettings()
-            .then((s) => setReducedMotion(s[REDUCED_MOTION] === 'true'))
-            .catch((e) => setError(String(e)));
-    }, []);
-
-    function toggleReducedMotion(next: boolean) {
-        setReducedMotion(next);
-        SetSetting(REDUCED_MOTION, String(next)).catch((e) => {
-            setReducedMotion(!next);
-            setError(String(e));
-        });
-    }
-
+export default function App() {
     return (
-        <main style={{padding: 24}}>
-            <h1>Agent Office</h1>
-            <button onClick={() => Ping('연결 확인').then(setReply)}>연결 확인</button>
-            <p data-testid="reply">응답: {reply ? `#${reply.sequence} ${reply.message}` : '없음'}</p>
-            <p data-testid="event">이벤트: {event ? `#${event.sequence} ${event.at}` : '없음'}</p>
-
-            <label>
-                <input type="checkbox" checked={reducedMotion}
-                       onChange={(e) => toggleReducedMotion(e.target.checked)}/>
-                모션 줄이기
-            </label>
-
-            {status && (
-                <p data-testid="status">
-                    저장 위치: {status.dataDir} · 스키마 v{status.schemaVersion} ·
-                    키 저장: {status.secretsPersistent ? 'OS 비밀 저장소' : '이번 세션 메모리만'}
-                </p>
-            )}
-            {(error || status?.error) && <p role="alert">오류: {error || status?.error}</p>}
-        </main>
+        <LiveProvider>
+            <Shell/>
+        </LiveProvider>
     );
 }
 
-export default App;
+function Shell() {
+    const [route, setRoute] = useState<Route>({view: 'dashboard'});
+    const [detail, setDetail] = useState<ReactNode | null>(null);
+    const dash = useLoad(() => api.dashboard(false), [], '*');
+    const inbox = useLoad(() => api.inbox(), [], '*');
+
+    // Restore the last selected service; switching never affects runs.
+    useEffect(() => {
+        api.settings().then((s) => {
+            const id = s[LAST_PROJECT];
+            if (id) setRoute((r) => (r.view === 'dashboard' ? {view: 'project', projectId: id, tab: 'overview'} : r));
+        }).catch(() => {});
+    }, []);
+
+    const go = (r: Route) => {
+        setDetail(null);
+        setRoute(r);
+        if (r.view === 'project') api.setSetting(LAST_PROJECT, r.projectId).catch(() => {});
+    };
+
+    const projects = dash.data ?? [];
+    const current = route.view === 'project' ? projects.find((p) => p.project.id === route.projectId) : undefined;
+    // A remembered project that no longer exists (or is archived) falls back.
+    useEffect(() => {
+        if (route.view === 'project' && dash.data && !current) {
+            api.dashboard(true).then((all) => {
+                if (!all.some((p) => p.project.id === route.projectId)) setRoute({view: 'dashboard'});
+            });
+        }
+    }, [route, dash.data, current]);
+
+    const inboxCount = inbox.data?.length ?? 0;
+    const navButton = (label: string, r: Route, active: boolean, extra?: ReactNode) => (
+        <button className="nav-item" aria-current={active ? 'page' : undefined} onClick={() => go(r)}>
+            <span>{label}</span>{extra}
+        </button>
+    );
+
+    let main: ReactNode;
+    switch (route.view) {
+        case 'dashboard':
+            main = <Dashboard summaries={projects} onOpen={(id) => go({view: 'project', projectId: id, tab: 'overview'})} onCreated={dash.reload}/>;
+            break;
+        case 'inbox':
+            main = <Inbox onOpenRun={(projectId, runId) => go({view: 'project', projectId, tab: 'runs', runId})}/>;
+            break;
+        case 'org':
+            main = <Organization/>;
+            break;
+        case 'settings':
+            main = <Settings/>;
+            break;
+        case 'project':
+            main = <ProjectView key={route.projectId} route={route} onRoute={go} onChanged={dash.reload}/>;
+            break;
+    }
+
+    return (
+        <DetailProvider value={setDetail}>
+            <div className={`shell ${detail ? '' : 'no-detail'}`}>
+                <nav className="sidebar" aria-label="메뉴">
+                    <div className="brand">{t.app.name}</div>
+                    {navButton(t.nav.dashboard, {view: 'dashboard'}, route.view === 'dashboard')}
+                    {navButton(t.nav.inbox, {view: 'inbox'}, route.view === 'inbox',
+                        inboxCount > 0 ? <span className="badge warn" aria-label={`${inboxCount}건`}>{inboxCount}</span> : null)}
+                    {navButton(t.nav.organization, {view: 'org'}, route.view === 'org')}
+                    <div className="section">{t.nav.services}</div>
+                    {projects.map((s) => (
+                        <button key={s.project.id} className="nav-item"
+                                aria-current={route.view === 'project' && route.projectId === s.project.id ? 'page' : undefined}
+                                onClick={() => go({view: 'project', projectId: s.project.id, tab: 'overview'})}>
+                            <span>{s.project.name}</span>
+                            {s.inbox > 0 ? <span className="badge warn">{s.inbox}</span>
+                                : s.activeRuns > 0 ? <span className="badge info">{t.runStatus.running}</span> : null}
+                        </button>
+                    ))}
+                    {projects.length === 0 ? <div className="muted small" style={{padding: '0 8px'}}>아직 서비스가 없습니다</div> : null}
+                    <div className="spacer"/>
+                    {navButton(t.nav.settings, {view: 'settings'}, route.view === 'settings')}
+                </nav>
+                <main className="main">{main}</main>
+                {detail ? <aside className="detail" aria-label="상세">{detail}</aside> : null}
+            </div>
+        </DetailProvider>
+    );
+}

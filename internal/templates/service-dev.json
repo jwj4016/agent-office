@@ -1,0 +1,219 @@
+{
+  "schemaVersion": 1,
+  "title": "서비스 개발",
+  "nodes": [
+    {
+      "id": "plan",
+      "title": "기획",
+      "kind": "task",
+      "assignmentId": "",
+      "dependsOn": [],
+      "instructions": "요구사항과 완료 기준을 작성한다.",
+      "outputs": [
+        {
+          "key": "spec",
+          "type": "markdown"
+        }
+      ]
+    },
+    {
+      "id": "approve",
+      "title": "기획 승인",
+      "kind": "approval",
+      "assignmentId": "",
+      "dependsOn": [
+        "plan"
+      ],
+      "inputs": [
+        {
+          "name": "기획서",
+          "fromStep": "plan",
+          "outputKey": "spec",
+          "required": true
+        }
+      ],
+      "reworkTargets": [
+        "plan"
+      ],
+      "outputs": []
+    },
+    {
+      "id": "design",
+      "title": "구조·API 계약",
+      "kind": "task",
+      "assignmentId": "",
+      "dependsOn": [
+        "approve"
+      ],
+      "inputs": [
+        {
+          "name": "기획서",
+          "fromStep": "plan",
+          "outputKey": "spec",
+          "required": true
+        }
+      ],
+      "outputs": [
+        {
+          "key": "contract",
+          "type": "markdown"
+        }
+      ]
+    },
+    {
+      "id": "backend",
+      "title": "백엔드 개발",
+      "kind": "task",
+      "assignmentId": "",
+      "dependsOn": [
+        "design"
+      ],
+      "inputs": [
+        {
+          "name": "API 계약",
+          "fromStep": "design",
+          "outputKey": "contract",
+          "required": true
+        }
+      ],
+      "outputs": [
+        {
+          "key": "change",
+          "type": "code_change"
+        }
+      ]
+    },
+    {
+      "id": "frontend",
+      "title": "프론트엔드 개발",
+      "kind": "task",
+      "assignmentId": "",
+      "dependsOn": [
+        "design"
+      ],
+      "inputs": [
+        {
+          "name": "API 계약",
+          "fromStep": "design",
+          "outputKey": "contract",
+          "required": true
+        }
+      ],
+      "outputs": [
+        {
+          "key": "change",
+          "type": "code_change"
+        }
+      ]
+    },
+    {
+      "id": "integrate",
+      "title": "통합",
+      "kind": "task",
+      "assignmentId": "",
+      "dependsOn": [
+        "backend",
+        "frontend"
+      ],
+      "inputs": [
+        {
+          "name": "백엔드",
+          "fromStep": "backend",
+          "outputKey": "change",
+          "required": true
+        },
+        {
+          "name": "프론트엔드",
+          "fromStep": "frontend",
+          "outputKey": "change",
+          "required": true
+        }
+      ],
+      "outputs": [
+        {
+          "key": "integrated",
+          "type": "code_change"
+        }
+      ]
+    },
+    {
+      "id": "review",
+      "title": "내 코드 리뷰",
+      "kind": "review",
+      "assignmentId": "",
+      "dependsOn": [
+        "integrate"
+      ],
+      "inputs": [
+        {
+          "name": "통합 변경",
+          "fromStep": "integrate",
+          "outputKey": "integrated",
+          "required": true
+        }
+      ],
+      "reworkTargets": [
+        "backend",
+        "frontend"
+      ],
+      "outputs": [
+        {
+          "key": "review",
+          "type": "report"
+        }
+      ]
+    },
+    {
+      "id": "qa",
+      "title": "검증",
+      "kind": "task",
+      "assignmentId": "",
+      "dependsOn": [
+        "review"
+      ],
+      "inputs": [
+        {
+          "name": "리뷰",
+          "fromStep": "review",
+          "outputKey": "review",
+          "required": true
+        },
+        {
+          "name": "통합 변경",
+          "fromStep": "integrate",
+          "outputKey": "integrated",
+          "required": true
+        }
+      ],
+      "outputs": [
+        {
+          "key": "verification",
+          "type": "report"
+        }
+      ]
+    },
+    {
+      "id": "deliver",
+      "title": "결과 전달",
+      "kind": "task",
+      "assignmentId": "",
+      "dependsOn": [
+        "qa"
+      ],
+      "inputs": [
+        {
+          "name": "검증",
+          "fromStep": "qa",
+          "outputKey": "verification",
+          "required": true
+        }
+      ],
+      "outputs": [
+        {
+          "key": "delivery",
+          "type": "markdown"
+        }
+      ]
+    }
+  ]
+}

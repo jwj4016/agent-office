@@ -1,0 +1,124 @@
+// UI-side shapes of the Go JSON payloads. Written by hand because the
+// generated wailsjs models type json.RawMessage fields as number[].
+
+export type Project = {
+    id: string; organizationId: string; name: string; goal: string; instructions: string;
+    workspacePath: string; budget: unknown; mode: 'review' | 'auto'; status: 'active' | 'archived';
+    createdAt: string; updatedAt: string;
+};
+
+export type RunBrief = { id: string; title: string; status: RunStatus; startedAt: string };
+
+export type ProjectSummary = {
+    project: Project; activeRuns: number; waitingRuns: number; failedRuns: number;
+    pausedRuns: number; inbox: number; lastRun: RunBrief | null;
+};
+
+export type Organization = { id: string; name: string; instructions: string; policy: unknown };
+
+export type Role = {
+    id: string; organizationId: string; parentRoleId: string; name: string; mission: string;
+    instructions: string; outputDefaults: unknown; policy: unknown; appearance: unknown; updatedAt: string;
+};
+
+export type ActorKind = 'ai' | 'human';
+
+export type Assignment = {
+    id: string; projectId: string; roleId: string; actorKind: ActorKind; actorId: string;
+    displayName: string; connectionId: string; model: string;
+    overrides: { instructions?: string; appearance?: unknown };
+};
+
+export type Connection = {
+    id: string; name: string; provider: string; executablePath: string; secretRef: string;
+    config: unknown; verifiedCapabilities: unknown; usable: boolean; note: string;
+};
+
+export type InstructionLayer = { source: string; name: string; text: string };
+export type InstructionPreview = { layers: InstructionLayer[]; composed: string };
+
+export type NodeKind = 'task' | 'review' | 'approval' | 'condition' | 'join';
+export type OutputType = 'markdown' | 'json' | 'file' | 'code_change' | 'report';
+
+export type WorkflowInput = { name: string; fromStep: string; outputKey: string; required?: boolean };
+export type WorkflowOutput = { key: string; type: OutputType; required?: boolean; schema?: unknown };
+export type Branch = { operator: 'eq' | 'ne' | 'in' | 'exists'; value?: unknown; targetStep: string };
+export type Routing = {
+    source: { fromStep: string; outputKey: string; fieldPath: string };
+    branches: Branch[]; defaultTarget: string; joinStep: string;
+};
+
+export type WorkflowNode = {
+    id: string; title: string; kind: NodeKind; assignmentId?: string; dependsOn: string[];
+    inputs?: WorkflowInput[]; instructions?: string; outputs?: WorkflowOutput[];
+    completion?: { commands?: { executable: string; args?: string[]; timeout?: string }[] };
+    reworkTargets?: string[]; limits?: Record<string, unknown>; routing?: Routing;
+};
+
+export type WorkflowSpec = { schemaVersion: number; title: string; nodes: WorkflowNode[] };
+
+export type Workflow = { id: string; projectId: string; title: string; draft: WorkflowSpec; revision: number; updatedAt: string };
+
+export type Template = { id: string; title: string; description: string; workflow: WorkflowSpec };
+
+export type Severity = 'error' | 'run';
+export type Issue = { nodeId?: string; field?: string; code: string; message: string; severity: Severity };
+export type Validation = { issues: Issue[]; canVersion: boolean; canRun: boolean };
+
+export type WorkflowVersion = { id: string; workflowId: string; projectId: string; number: number; createdAt: string };
+export type ConfirmResult = { version: WorkflowVersion | null; validation: Validation };
+export type StartResult = { runId: string; issues: Issue[] };
+
+export type RunStatus = 'running' | 'waiting' | 'paused' | 'succeeded' | 'failed' | 'interrupted' | 'cancelled';
+export type StepStatus =
+    'pending' | 'running' | 'verifying' | 'waiting_human' | 'waiting_approval' | 'waiting_input' |
+    'succeeded' | 'skipped' | 'failed' | 'interrupted' | 'cancelled' | 'superseded';
+
+export type ManifestEntry = {
+    name: string; fromStep: string; outputKey: string; required: boolean;
+    artifactId?: string; path?: string; hash?: string; type?: string;
+};
+
+export type ArtifactView = {
+    id: string; outputKey: string; version: number; type: OutputType; path: string; hash: string;
+    validity: 'valid' | 'stale' | 'invalid';
+};
+
+export type StepView = {
+    id: string; title: string; kind: NodeKind; status: StepStatus; assignmentId: string; attemptId: string;
+    generation: number; attempt: number; round: number; error?: string; approvalId?: string;
+    inputs?: ManifestEntry[] | null; artifacts: ArtifactView[];
+};
+
+export type RunDetail = {
+    id: string; projectId: string; versionId: string; versionNumber: number; title: string;
+    status: RunStatus; paused: boolean; steps: StepView[];
+};
+
+export type ArtifactContent = ArtifactView & {
+    stepId: string; content: string; binary: boolean; truncated: boolean; hashOk: boolean;
+};
+
+export type InboxKind = 'task' | 'review' | 'approval' | 'tool_approval' | 'question';
+
+export type InboxItem = {
+    kind: InboxKind; projectId: string; projectName: string; runId: string; runTitle: string;
+    versionNumber: number; stepId: string; stepTitle: string; instructions: string; attemptId: string;
+    generation: number; attempt: number; round: number; approvalId?: string; messageId?: string;
+    detail?: string; inputs: ManifestEntry[] | null; outputs: WorkflowOutput[];
+    reworkTargets: { id: string; title: string }[]; since: string;
+};
+
+export type Outcome = { status: StepStatus | string; already: boolean; decision?: string };
+export type ActionResult = { outcome: Outcome; problem: string };
+
+export type StoredEvent = {
+    sequence: number; id: string; projectId: string; runId?: string; stepAttemptId?: string;
+    kind: string; payload: unknown; createdAt: string;
+};
+
+export type Delta = { projectId: string; runId: string; stepAttemptId: string; text: string };
+
+export type SystemStatus = {
+    dataDir: string; schemaVersion: number; secretsPersistent: boolean; version: string; error: string;
+};

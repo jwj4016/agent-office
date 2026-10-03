@@ -13,14 +13,14 @@
 
 | ID | 상황 | 상태 | 증거 (테스트·명령·결과) |
 |---|---|---|---|
-| T01 | 사용자가 역할·흐름 생성 | 🟡 | 엔진+테스트 provider: `TestServiceDevFlowEndToEnd` (6.2 흐름이 의존 순서대로 끝까지, 승인·리뷰 포함). UI 구성은 M1 UI |
+| T01 | 사용자가 역할·흐름 생성 | 🟡 | 엔진: `TestServiceDevFlowEndToEnd`. 바인딩: `TestBindingsTwoServicesEndToEnd`. 실제 앱 화면 시험(2026-10-03, macOS, wails dev, 테스트 provider): 역할·담당자·흐름 편집·버전 확정·실행·승인·리뷰 완료. 실제 AI 연결은 M2 |
 | T02 | “게임 출시, 리뷰는 내가” 요청 | ⬜ | |
 | T03 | auto 모드, 허용 범위 충족 | ⬜ | |
-| T04 | 연결 없는 AI 배정 | 🟡 | 검증 단계: `TestValidateAssignments`, `TestConfirmRejectsInvalidAndAllowsUnconnected` (버전 가능, canRun=false). 실행 차단·UI 설명은 엔진·UI 항목에서 |
+| T04 | 연결 없는 AI 배정 | 🟡 | 검증: `TestValidateAssignments`, `TestConfirmRejectsInvalidAndAllowsUnconnected`. 바인딩: `TestBindingsStartBlockedWithoutConnection` (버전 확정 가능, 실행은 설명과 함께 차단). 화면: 담당자 목록에 '확인 필요' 표시 |
 | T05 | 사람이 리뷰 수정 요청 | 🟡 | `TestReviewChangesReworkOnlyAffectedSteps` (백엔드·통합·리뷰·QA·전달만 재실행, 프론트엔드 유지, 이전 결과 stale 보존, 의견 전달) |
 | T06 | 기획 반려 | 🟡 | `TestPlanRejectionKeepsIndependentResults` (기획 의존 범위만 재실행, 독립 분석 유지, 이전 승인 stale) |
-| T07 | 게임·부동산 서비스 실행 | ⬜ | |
-| T08 | 서비스 전환·한 서비스 일시 정지 | 🟡 | `TestPauseOneRunOthersContinue` (정지 실행은 새 업무만 보류·제출은 저장, 다른 서비스 계속). UI 전환은 M1 UI |
+| T07 | 게임·부동산 서비스 실행 | 🟡 | `TestInboxAndDashboardAcrossServices`, `TestBindingsTwoServicesEndToEnd`, 실제 앱 화면 시험: 두 서비스 동시 실행, 내 할 일·대시보드 서비스별 표시, 교차 접근 거절, 이벤트 섞임 0건. 실제 AI 세션 분리는 M2 |
+| T08 | 서비스 전환·한 서비스 일시 정지 | 🟡 | 엔진: `TestPauseOneRunOthersContinue`. 화면: 서비스 전환은 화면 선택만 바꾸며 실행 유지(실제 앱에서 두 서비스 실행 중 전환 확인), 마지막 서비스 재시작 후 복원 |
 | T09 | 조건 분기 한 경로 미선택 | 🟡 | `TestConditionSkipsUntakenBranch`, `TestConditionTakesBranch`, `TestConditionPathErrorFails` |
 | T10 | 실패한 필수 선행 업무 | 🟡 | `TestFailureBlocksOnlyDependents` (후속 차단, 독립 작업 계속, 재시도), `TestRunFailsWhenBlocked` |
 | T11 | 이전 승인·이벤트가 늦게 도착 | 🟡 | `TestLateResultFromSupersededAttemptIsIgnored` (늦은 결과는 provider.late로만 기록, 새 시도는 이전 프로세스 종료 후 시작), 이전 승인 stale (`TestPlanRejectionKeepsIndependentResults`) |
@@ -35,5 +35,5 @@
 | T20 | 키 저장소 없음·내보내기 | ⬜ | 키 저장소 없을 때 메모리 fallback: `secrets_test.go` TestOpenFallsBackToMemory. 내보내기는 M5 |
 | T21 | 한글·공백 경로, 설치 패키지 | ⬜ | DB 경로 한글·공백: `storage_test.go` TestMigrationsApplyOnceAndPersistAcrossReopen, wails dev 수동 확인 (2026-10-03, macOS). 설치 패키지·AI 시작은 미시험 |
 | T22 | 도트 모션 줄이기·키보드 | ⬜ | |
-| T23 | 악성 프로젝트·산출물 ID 참조 | 🟡 | 저장: `TestCrossProjectReferencesRejected`, `TestCheckScope`. 엔진: `TestEngineRejectsCrossProjectIDs`. bindings는 M1 UI |
+| T23 | 악성 프로젝트·산출물 ID 참조 | 🟡 | 저장: `TestCrossProjectReferencesRejected`, `TestCheckScope`. 엔진: `TestEngineRejectsCrossProjectIDs`. 바인딩: `TestBindingsTwoServicesEndToEnd`, 실제 앱 콘솔에서 교차 GetRun·ReadArtifact 거절 확인 |
 | T24 | 두 앱 인스턴스·이중 완료 클릭 | 🟡 | 저장: `TestStepApprovalDecidedOnce`. 엔진: `TestDuplicateApprovalClicks` (동시 8회 중 1회 적용), 사람 제출 반복은 Already. 두 앱 인스턴스 동시 실행은 미시험 |

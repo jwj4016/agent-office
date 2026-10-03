@@ -69,7 +69,8 @@ func (e *Engine) reworkTx(ctx context.Context, c *storage.Change, st *runState, 
 
 	var live []string
 	for _, s := range steps {
-		if a, ok := st.attempts[s]; ok {
+		a, ran := st.attempts[s]
+		if ran {
 			switch {
 			case a.Status == StRunning || a.Status == StVerifying || (a.Status == StWaitingApproval || a.Status == StWaitingInput) && st.graph.Node(s).Kind != domain.KindApproval:
 				live = append(live, a.ID) // ends as superseded when it stops
@@ -81,7 +82,9 @@ func (e *Engine) reworkTx(ctx context.Context, c *storage.Change, st *runState, 
 		}
 		g := st.run.Gens[s]
 		g.G++
-		g.R++
+		if ran {
+			g.R++ // a revision round only counts for steps that had a result
+		}
 		st.run.Gens[s] = g
 		delete(st.attempts, s)
 	}

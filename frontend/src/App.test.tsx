@@ -1,55 +1,32 @@
-import {fireEvent, render, screen, waitFor} from '@testing-library/react';
+import {fireEvent, render, screen, waitFor, within} from '@testing-library/react';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
-import App, {EVENT_PING} from './App';
+import {fakeApi, inboxItem, state} from './test/fakeApi';
 
-const handlers = new Map<string, (data: unknown) => void>();
-const settings: Record<string, string> = {};
+vi.mock('./api', () => ({api: fakeApi, errorText: (e: unknown) => String(e)}));
 
-vi.mock('../wailsjs/runtime/runtime', () => ({
-    EventsOn: (name: string, cb: (data: unknown) => void) => {
-        handlers.set(name, cb);
-        return () => handlers.delete(name);
-    },
-}));
-
-vi.mock('../wailsjs/go/main/App', () => ({
-    Ping: vi.fn(async (message: string) => {
-        const res = {sequence: 1, message, at: '2026-10-03T00:00:00Z'};
-        handlers.get(EVENT_PING)?.(res);
-        return res;
-    }),
-    SystemStatus: vi.fn(async () => ({dataDir: '/data', schemaVersion: 1, secretsPersistent: false, error: ''})),
-    GetSettings: vi.fn(async () => ({...settings})),
-    SetSetting: vi.fn(async (key: string, value: string) => {
-        settings[key] = value;
-    }),
-}));
+import App from './App';
 
 beforeEach(() => {
-    for (const k of Object.keys(settings)) delete settings[k];
+    state.summaries = [];
+    state.inbox = [];
+    state.settings = {};
+    vi.clearAllMocks();
 });
 
-describe('App', () => {
-    it('shows both the binding reply and the emitted event', async () => {
+describe('App shell', () => {
+    it('creates a service from the empty dashboard and opens it', async () => {
         render(<App/>);
-        fireEvent.click(screen.getByRole('button', {name: '연결 확인'}));
-
-        expect(await screen.findByText('응답: #1 연결 확인')).toBeInTheDocument();
-        expect(screen.getByTestId('event')).toHaveTextContent('이벤트: #1 2026-10-03T00:00:00Z');
+        const form = await screen.findByRole('form', {name: '새 서비스'});
+        fireEvent.change(within(form).getByLabelText('서비스 이름'), {target: {value: '게임 서비스'}});
+        fireEvent.click(within(form).getByRole('button', {name: '서비스 만들기'}));
+        await waitFor(() => expect(fakeApi.createProject).toHaveBeenCalledWith(expect.objectContaining({name: '게임 서비스', mode: 'review'})));
+        // Opening a service remembers it for the next start.
+        await waitFor(() => expect(fakeApi.setSetting).toHaveBeenCalledWith('ui.lastProjectId', 'prj-1'));
     });
 
-    it('restores the reduced-motion setting on a fresh mount', async () => {
-        const first = render(<App/>);
-        fireEvent.click(screen.getByLabelText('모션 줄이기'));
-        await waitFor(() => expect(settings['ui.reducedMotion']).toBe('true'));
-        first.unmount();
-
+    it('shows the inbox count across services', async () => {
+        state.inbox = [inboxItem(), inboxItem({projectId: 'prj-2', projectName: '부동산', attemptId: 'att-2', approvalId: 'apr-2'})];
         render(<App/>);
-        await waitFor(() => expect(screen.getByLabelText('모션 줄이기')).toBeChecked());
-    });
-
-    it('says when keys only live in session memory', async () => {
-        render(<App/>);
-        expect(await screen.findByTestId('status')).toHaveTextContent('이번 세션 메모리만');
+        expect(await screen.findByLabelText('2건')).toBeInTheDocument();
     });
 });
