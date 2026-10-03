@@ -126,6 +126,8 @@ CREATE TABLE workspaces (
     FOREIGN KEY (assignment_id, project_id) REFERENCES assignments (id, project_id)
 );
 
+-- 'superseded' marks an attempt replaced by a rework round; its records
+-- and files are kept but it no longer counts as the step's result.
 CREATE TABLE step_attempts (
     id               TEXT PRIMARY KEY,
     project_id       TEXT NOT NULL,
@@ -136,7 +138,8 @@ CREATE TABLE step_attempts (
     generation       INTEGER NOT NULL,
     status           TEXT NOT NULL CHECK (status IN
                      ('pending', 'ready', 'running', 'verifying', 'waiting_human', 'waiting_approval',
-                      'waiting_input', 'succeeded', 'skipped', 'failed', 'interrupted', 'cancelled')),
+                      'waiting_input', 'succeeded', 'skipped', 'failed', 'interrupted', 'cancelled',
+                      'superseded')),
     assignment_id    TEXT,
     input_manifest   TEXT NOT NULL DEFAULT '[]',
     provider_session TEXT NOT NULL DEFAULT '',

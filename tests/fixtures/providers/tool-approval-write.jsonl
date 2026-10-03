@@ -1,0 +1,4 @@
+# 도구 승인 요청 후 결과 작성
+{"request": "approval_request", "payload": {"requestId": "req-1", "action": "shell", "detail": "rm -rf build", "options": ["accept", "decline"]}}
+{"write": {"key": "spec", "content": "# 기획서"}}
+{"complete": {"status": "succeeded"}}

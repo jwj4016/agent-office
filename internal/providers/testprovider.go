@@ -18,16 +18,46 @@ import (
 //	{"emit": "message_delta", "payload": {"text": "hi"}}
 //	{"request": "approval_request", "payload": {"requestId": "r1", "action": "shell"}}
 //	{"sleep": "50ms"}
+//	{"write": {"key": "spec", "content": "# 기획서"}}
 //	{"complete": {"status": "succeeded", "text": "done"}}
 //
 // A request step emits the event and blocks until Respond names its
-// requestId, then emits request_resolved.
+// requestId, then emits request_resolved. A write step writes content to
+// the path the engine gave for that output key.
 type Step struct {
 	Emit     string            `json:"emit,omitempty"`
 	Request  string            `json:"request,omitempty"`
 	Payload  json.RawMessage   `json:"payload,omitempty"`
 	Sleep    string            `json:"sleep,omitempty"`
+	Write    *WriteStep        `json:"write,omitempty"`
 	Complete *CompletedPayload `json:"complete,omitempty"`
+}
+
+type WriteStep struct {
+	Key     string `json:"key"`
+	Content string `json:"content"`
+}
+
+// AutoScenario is built in: it writes a well-formed file for every
+// requested output and succeeds. Whole-workflow tests use it.
+const AutoScenario = "auto"
+
+// autoContent returns plausible content for an output type.
+func autoContent(req StartRequest, o OutputSpec) string {
+	switch o.Type {
+	case "json":
+		return `{"ok":true}`
+	case "report":
+		return `{"summary":"자동 생성된 보고","ok":true}`
+	case "code_change":
+		b, _ := json.Marshal(map[string]any{
+			"baseCommit": "", "changes": []map[string]string{{"path": req.StepID + ".txt", "status": "added"}},
+			"tests": map[string]any{"command": "", "passed": true},
+		})
+		return string(b)
+	default:
+		return "# " + req.StepID + "\n\n자동 생성된 " + o.Key + " 결과\n"
+	}
 }
 
 // ParseScript reads a JSONL script, skipping blank lines and # comments.
@@ -100,10 +130,18 @@ func (p *TestProvider) Start(ctx context.Context, req StartRequest) (Session, er
 		return nil, err
 	}
 	steps, ok := p.Scripts[req.Model]
+	if req.Model == AutoScenario {
+		steps, ok = nil, true
+		for _, o := range req.OutputSpec {
+			steps = append(steps, Step{Write: &WriteStep{Key: o.Key, Content: autoContent(req, o)}})
+		}
+		steps = append(steps, Step{Complete: &CompletedPayload{Status: StatusSucceeded, Text: "자동 완료"}})
+	}
 	if !ok {
 		return nil, fmt.Errorf("test provider: unknown scenario %q", req.Model)
 	}
 	s := &testSession{
+		req:       req,
 		stream:    newStream(req),
 		cancelled: make(chan struct{}),
 		pending:   map[string]chan Response{},
@@ -118,6 +156,7 @@ func (*TestProvider) Resume(context.Context, StartRequest, string) (Session, err
 
 type testSession struct {
 	*stream
+	req        StartRequest
 	cancelOnce sync.Once
 	cancelled  chan struct{}
 	mu         sync.Mutex
@@ -139,6 +178,11 @@ func (s *testSession) run(steps []Step) {
 		case st.Complete != nil:
 			s.complete(*st.Complete)
 			return
+		case st.Write != nil:
+			if err := s.write(*st.Write); err != nil {
+				s.complete(CompletedPayload{Status: StatusFailed, Error: err.Error()})
+				return
+			}
 		case st.Sleep != "":
 			d, _ := time.ParseDuration(st.Sleep)
 			select {
@@ -172,6 +216,21 @@ func (s *testSession) run(steps []Step) {
 	default:
 		s.complete(CompletedPayload{Status: StatusFailed, Error: "script ended without a complete step"})
 	}
+}
+
+func (s *testSession) write(w WriteStep) error {
+	for _, o := range s.req.OutputSpec {
+		if o.Key == w.Key {
+			if o.Path == "" {
+				return fmt.Errorf("no path for output %q", w.Key)
+			}
+			if err := os.MkdirAll(filepath.Dir(o.Path), 0o700); err != nil {
+				return err
+			}
+			return os.WriteFile(o.Path, []byte(w.Content), 0o600)
+		}
+	}
+	return fmt.Errorf("output %q was not requested", w.Key)
 }
 
 func (s *testSession) Respond(_ context.Context, r Response) error {

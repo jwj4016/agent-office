@@ -13,27 +13,27 @@
 
 | ID | 상황 | 상태 | 증거 (테스트·명령·결과) |
 |---|---|---|---|
-| T01 | 사용자가 역할·흐름 생성 | ⬜ | |
+| T01 | 사용자가 역할·흐름 생성 | 🟡 | 엔진+테스트 provider: `TestServiceDevFlowEndToEnd` (6.2 흐름이 의존 순서대로 끝까지, 승인·리뷰 포함). UI 구성은 M1 UI |
 | T02 | “게임 출시, 리뷰는 내가” 요청 | ⬜ | |
 | T03 | auto 모드, 허용 범위 충족 | ⬜ | |
 | T04 | 연결 없는 AI 배정 | 🟡 | 검증 단계: `TestValidateAssignments`, `TestConfirmRejectsInvalidAndAllowsUnconnected` (버전 가능, canRun=false). 실행 차단·UI 설명은 엔진·UI 항목에서 |
-| T05 | 사람이 리뷰 수정 요청 | ⬜ | |
-| T06 | 기획 반려 | ⬜ | |
+| T05 | 사람이 리뷰 수정 요청 | 🟡 | `TestReviewChangesReworkOnlyAffectedSteps` (백엔드·통합·리뷰·QA·전달만 재실행, 프론트엔드 유지, 이전 결과 stale 보존, 의견 전달) |
+| T06 | 기획 반려 | 🟡 | `TestPlanRejectionKeepsIndependentResults` (기획 의존 범위만 재실행, 독립 분석 유지, 이전 승인 stale) |
 | T07 | 게임·부동산 서비스 실행 | ⬜ | |
-| T08 | 서비스 전환·한 서비스 일시 정지 | ⬜ | |
-| T09 | 조건 분기 한 경로 미선택 | ⬜ | |
-| T10 | 실패한 필수 선행 업무 | ⬜ | |
-| T11 | 이전 승인·이벤트가 늦게 도착 | ⬜ | |
-| T12 | 도구 승인 거절 | 🟡 | 공급자 수준: 가짜 Codex/Claude가 decline 수신 확인 (`TestCodexApprovalRoundTrip`, `TestClaudeApprovalRoundTrip`). 엔진 기록은 M2 |
+| T08 | 서비스 전환·한 서비스 일시 정지 | 🟡 | `TestPauseOneRunOthersContinue` (정지 실행은 새 업무만 보류·제출은 저장, 다른 서비스 계속). UI 전환은 M1 UI |
+| T09 | 조건 분기 한 경로 미선택 | 🟡 | `TestConditionSkipsUntakenBranch`, `TestConditionTakesBranch`, `TestConditionPathErrorFails` |
+| T10 | 실패한 필수 선행 업무 | 🟡 | `TestFailureBlocksOnlyDependents` (후속 차단, 독립 작업 계속, 재시도), `TestRunFailsWhenBlocked` |
+| T11 | 이전 승인·이벤트가 늦게 도착 | 🟡 | `TestLateResultFromSupersededAttemptIsIgnored` (늦은 결과는 provider.late로만 기록, 새 시도는 이전 프로세스 종료 후 시작), 이전 승인 stale (`TestPlanRejectionKeepsIndependentResults`) |
+| T12 | 도구 승인 거절 | 🟡 | 공급자: `TestCodexApprovalRoundTrip`, `TestClaudeApprovalRoundTrip`. 엔진: `TestToolApprovalDecline` (거절 기록, 공급자에 decline 전달, 반복 클릭 불변) |
 | T13 | 실행 중 초안·공통 역할 편집 | 🟡 | 버전 스냅샷 고정: `TestVersionSnapshotIsFrozen` (초안·역할 지침·담당자 변경 후 v1 불변, v2에 반영). 실행 중 시나리오는 엔진 항목에서 |
 | T14 | 두 개발 AI의 병렬 변경 | ⬜ | |
-| T15 | 모델은 완료 주장, 테스트 실패 | 🟡 | 공급자 수준: 완료 신호 없으면 failed (`TestClaimedDoneWithoutCompletionIsFailure`, bridge `error result is a failure`). 산출물 검증은 M1 엔진 |
-| T16 | 앱 강제 종료·재시작 | ⬜ | |
+| T15 | 모델은 완료 주장, 테스트 실패 | 🟡 | `TestClaimedDoneWithoutOutputFails`, `TestFailingVerificationCommandFails` (검증 명령 실패 시 failed, 산출물 저장 안 함) |
+| T16 | 앱 강제 종료·재시작 | 🟡 | `TestRecoverMarksInterrupted` (실행 중 시도는 interrupted, 자동 재실행 없음, 사람 대기 유지). 실제 앱 강제 종료 시험은 M2 |
 | T17 | 프로세스 취소 | 🟡 | macOS: 취소 시 손자 프로세스 종료 (`TestCodexCancelKillsStuckProcessTree`), bridge 무응답 시 강제 종료 (`TestClaudeCancel/cancel-ignored`). Windows 미시험 |
 | T18 | 질문이 서로 순환 또는 무응답 | ⬜ | |
 | T19 | 예산·수정 한도 도달 | ⬜ | |
 | T20 | 키 저장소 없음·내보내기 | ⬜ | 키 저장소 없을 때 메모리 fallback: `secrets_test.go` TestOpenFallsBackToMemory. 내보내기는 M5 |
 | T21 | 한글·공백 경로, 설치 패키지 | ⬜ | DB 경로 한글·공백: `storage_test.go` TestMigrationsApplyOnceAndPersistAcrossReopen, wails dev 수동 확인 (2026-10-03, macOS). 설치 패키지·AI 시작은 미시험 |
 | T22 | 도트 모션 줄이기·키보드 | ⬜ | |
-| T23 | 악성 프로젝트·산출물 ID 참조 | 🟡 | 저장 계층: 복합 FK로 교차 참조 거절 (`TestCrossProjectReferencesRejected`), `CheckScope` (`TestCheckScope`). bindings 적용은 M1 UI |
-| T24 | 두 앱 인스턴스·이중 완료 클릭 | 🟡 | 저장 계층: 승인 결정 1회만 적용 (`TestStepApprovalDecidedOnce`). 엔진·두 인스턴스는 미시험 |
+| T23 | 악성 프로젝트·산출물 ID 참조 | 🟡 | 저장: `TestCrossProjectReferencesRejected`, `TestCheckScope`. 엔진: `TestEngineRejectsCrossProjectIDs`. bindings는 M1 UI |
+| T24 | 두 앱 인스턴스·이중 완료 클릭 | 🟡 | 저장: `TestStepApprovalDecidedOnce`. 엔진: `TestDuplicateApprovalClicks` (동시 8회 중 1회 적용), 사람 제출 반복은 Already. 두 앱 인스턴스 동시 실행은 미시험 |

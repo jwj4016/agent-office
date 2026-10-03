@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"agent-office/internal/domain"
+	"agent-office/internal/providers"
 	"agent-office/internal/storage"
 )
 
@@ -55,14 +56,23 @@ type Project struct {
 // every AI assignment and local-owner for a-owner.
 func ServiceDev(t testing.TB, db *storage.DB, name string) Project {
 	t.Helper()
-	return Seed(t, db, name, "workflows/service-dev.json", map[string]string{
-		"a-planner": "기획", "a-architect": "설계", "a-backend": "백엔드", "a-frontend": "프론트엔드", "a-qa": "QA",
-	}, []string{"a-owner"})
+	return Seed(t, db, name, "workflows/service-dev.json", ServiceDevRoles, []string{"a-owner"})
+}
+
+// ServiceDevRoles are the AI roles of service-dev.json.
+var ServiceDevRoles = map[string]string{
+	"a-planner": "기획", "a-architect": "설계", "a-backend": "백엔드", "a-frontend": "프론트엔드", "a-qa": "QA",
 }
 
 // Seed creates a project from a workflow fixture. aiRoles maps fixture
 // assignment ids to role names; humans lists fixture ids for local-owner.
 func Seed(t testing.TB, db *storage.DB, name, workflowFixture string, aiRoles map[string]string, humans []string) Project {
+	t.Helper()
+	return SeedDraft(t, db, name, Fixture(t, workflowFixture), aiRoles, humans)
+}
+
+// SeedDraft is Seed with the workflow JSON given directly.
+func SeedDraft(t testing.TB, db *storage.DB, name string, workflow []byte, aiRoles map[string]string, humans []string) Project {
 	t.Helper()
 	ctx := context.Background()
 	must := func(err error) {
@@ -92,7 +102,7 @@ func Seed(t testing.TB, db *storage.DB, name, workflowFixture string, aiRoles ma
 	for fixtureID, roleName := range aiRoles {
 		a, err := db.SaveAssignment(ctx, domain.Assignment{
 			ProjectID: p.ID, RoleID: roleID(roleName), ActorKind: domain.ActorAI,
-			DisplayName: roleName + " AI", ConnectionID: conn.ID, Model: "plan-success",
+			DisplayName: roleName + " AI", ConnectionID: conn.ID, Model: providers.AutoScenario,
 		})
 		must(err)
 		out.Assignments[fixtureID] = a.ID
@@ -104,7 +114,7 @@ func Seed(t testing.TB, db *storage.DB, name, workflowFixture string, aiRoles ma
 		must(err)
 		out.Assignments[fixtureID] = a.ID
 	}
-	draft := string(Fixture(t, workflowFixture))
+	draft := string(workflow)
 	for fixtureID, real := range out.Assignments {
 		draft = strings.ReplaceAll(draft, `"`+fixtureID+`"`, `"`+real+`"`)
 	}
@@ -112,4 +122,25 @@ func Seed(t testing.TB, db *storage.DB, name, workflowFixture string, aiRoles ma
 	must(err)
 	out.WorkflowID = w.ID
 	return out
+}
+
+// EditFixture loads a workflow fixture, lets fn change node fields
+// (as generic JSON) and returns the edited workflow.
+func EditFixture(t testing.TB, rel string, fn func(nodes map[string]map[string]any)) []byte {
+	t.Helper()
+	var spec map[string]any
+	if err := json.Unmarshal(Fixture(t, rel), &spec); err != nil {
+		t.Fatal(err)
+	}
+	byID := map[string]map[string]any{}
+	for _, n := range spec["nodes"].([]any) {
+		m := n.(map[string]any)
+		byID[m["id"].(string)] = m
+	}
+	fn(byID)
+	data, err := json.Marshal(spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return data
 }

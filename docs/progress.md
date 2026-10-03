@@ -49,13 +49,13 @@
 - [x] WorkflowVersion 스냅샷 고정 (T13)
 
 **엔진**
-- [ ] 스케줄러: ready 판정, 동시 실행 한도(앱 2·프로젝트별), 입력 manifest 고정
-- [ ] 완료 기준 검증 — 모델 "완료" 주장만으로 성공 금지 (T15)
-- [ ] 사람 task·review·approval 대기/제출
-- [ ] 반려·재작업: generation 증가, 영향 범위만 재실행, 최대 3회 (T05·T06)
-- [ ] condition·join·skipped (T09), 실패 전파 (T10)
-- [ ] 늦은 이벤트·stale_request·이중 완료 방지 (T11·T24)
-- [ ] 실행별 pause·cancel (T08)
+- [x] 스케줄러: ready 판정, 동시 실행 한도(앱 2·프로젝트별), 입력 manifest 고정
+- [x] 완료 기준 검증 — 모델 "완료" 주장만으로 성공 금지 (T15)
+- [x] 사람 task·review·approval 대기/제출
+- [x] 반려·재작업: generation 증가, 영향 범위만 재실행, 최대 3회 (T05·T06)
+- [x] condition·join·skipped (T09), 실패 전파 (T10)
+- [x] 늦은 이벤트·stale_request·이중 완료 방지 (T11·T24)
+- [x] 실행별 pause·cancel (T08)
 
 **UI**
 - [ ] 3단 레이아웃 + 서비스 대시보드 (생성·전환·보관)
@@ -158,3 +158,10 @@
 - 미검증·알려진 제한: 결과 JSON schema 자체의 검증은 엔진 완료 검증 항목에서 구현
 - 마지막 관련 코드/테스트: `internal/domain/{workflow,validate,entities}.go`, `internal/storage/repo_*.go`, `repo_test.go`
 - 다음에 실행할 구체적인 작업: 엔진 스케줄러 (`internal/engine`)
+
+- 현재 단계: M1 / 엔진
+- 구현 완료: `internal/engine` — 스케줄러(DB 기준, 앱 2·프로젝트 2 동시 실행, 입력 manifest 고정, 시도 생성 시 트랜잭션 안에서 재확인), AI 시도 실행(이벤트 저장, message_delta는 저장하지 않고 화면용 Ephemeral로 전달), 완료 검증(필수 결과·심볼릭 링크 거절·형식·JSON schema(외부 $ref 금지)·검증 명령은 최소 환경변수), 사람 task·review·approval(제출 검증 실패 시 단계 유지), 반려·재작업(generation·회차, superseded·stale, 수정 의견 전달, 기본 3회 한도), 조건·합류·skipped, 늦은 이벤트(provider.late)·stale_request·이중 클릭, 일시 정지·재개·취소·재시도, 시작 시 복구(interrupted). `superseded` 시도 상태 추가(0002 직접 수정, 실사용 DB 없음 확인)
+- 이번 검증과 결과: `go test -race -count=8 ./internal/engine/` 통과 (테스트 21건)
+- 미검증·알려진 제한: 예산 확인은 M2(T19). 재작업 중인 공급자 질문·도구 승인 대기 프로세스도 동시 실행 슬롯을 차지함. 사람 업무 제출은 텍스트만(파일 첨부는 UI 항목에서)
+- 마지막 관련 코드/테스트: `internal/engine/*.go`, `*_test.go`
+- 다음에 실행할 구체적인 작업: UI — 3단 레이아웃과 서비스 대시보드, App bindings

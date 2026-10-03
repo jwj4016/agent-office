@@ -49,6 +49,8 @@ type OutputSpec struct {
 	Type     string          `json:"type"`
 	Required bool            `json:"required"`
 	Schema   json.RawMessage `json:"schema,omitempty"`
+	// Path is where the provider must write this output.
+	Path string `json:"path"`
 }
 
 type Limits struct {
@@ -69,6 +71,7 @@ type StartRequest struct {
 	ProjectID     string       `json:"projectId"`
 	RunID         string       `json:"runId"`
 	StepAttemptID string       `json:"stepAttemptId"`
+	StepID        string       `json:"stepId"`
 	Generation    int          `json:"generation"`
 	Instructions  string       `json:"instructions"`
 	Prompt        string       `json:"prompt"`
