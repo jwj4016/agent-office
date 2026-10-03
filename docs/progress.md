@@ -21,9 +21,9 @@
 - [x] binding 호출·이벤트 수신 왕복 확인
 
 **저장·비밀정보**
-- [ ] SQLite(modernc) 연결, migration 번호 관리, 쓰기 직렬화
-- [ ] 저장 → 앱 재시작 → 복원 확인
-- [ ] go-keyring 키 저장, 불가 시 세션 메모리 fallback
+- [x] SQLite(modernc) 연결, migration 번호 관리, 쓰기 직렬화
+- [x] 저장 → 앱 재시작 → 복원 확인
+- [x] go-keyring 키 저장, 불가 시 세션 메모리 fallback
 
 **AI 최소 실행**
 - [ ] Provider 공통 인터페이스 (Capabilities·Start·Respond·Cancel·Resume·Events)
@@ -114,3 +114,10 @@
 - 미검증·알려진 제한: Wails dev 브라우저 모드의 오버레이 스크립트 예외(앱 동작과 무관), macOS 링크 경고(아래 environment.md)
 - 마지막 관련 코드/테스트: `app.go`, `app_test.go`, `frontend/src/App.test.tsx`
 - 다음에 실행할 구체적인 작업: SQLite(modernc) 연결과 migration
+
+- 현재 단계: M0 / 저장·비밀정보
+- 구현 완료: `internal/storage` (modernc SQLite, WAL·foreign_keys, 번호형 embed migration, 단일 writer 트랜잭션, 허용 키 설정), `internal/secrets` (OS 키체인 probe 후 사용, 실패 시 세션 메모리, DB에는 `secret://` ref만), App bindings `SystemStatus`·`GetSettings`·`SetSetting`
+- 이번 검증과 결과: `go test -race` 통과(재오픈 복원, 롤백, 동시 쓰기 50건, 한글·공백 경로), 실제 macOS Keychain 저장·조회·삭제 통과(`AGENT_OFFICE_KEYRING_IT=1`), `wails dev` 강제 종료 후 재시작 시 설정 복원 확인
+- 미검증·알려진 제한: Windows Credential Manager·Linux Secret Service 미검증
+- 마지막 관련 코드/테스트: `internal/storage/*_test.go`, `internal/secrets/secrets_test.go`, `app_test.go`
+- 다음에 실행할 구체적인 작업: Provider 공통 인터페이스 정의
