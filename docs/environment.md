@@ -11,6 +11,9 @@
 | Go | 1.27.1 | `brew install go` |
 | Node.js / npm | 26.10.0 / 11.19.1 | `brew install node` |
 | Wails CLI | v2.16.0 | `go install github.com/wailsapp/wails/v2/cmd/wails@latest` |
+| Codex CLI | 0.159.2 (ChatGPT 로그인) | 사용자 설치 (`/opt/homebrew/bin/codex`) |
+| Claude Code CLI | 2.1.288 (claude.ai 로그인) | 사용자 설치 (`/opt/homebrew/bin/claude`) |
+| Claude Agent SDK | 0.3.288 | `runners/claude` npm |
 
 Wails CLI는 `$(go env GOPATH)/bin`에 설치된다. PATH에 추가해야 한다.
 
@@ -43,3 +46,14 @@ Wails CLI는 `$(go env GOPATH)/bin`에 설치된다. PATH에 추가해야 한다
 - 기본: `os.UserConfigDir()/AgentOffice/agent-office.db` (macOS: `~/Library/Application Support/AgentOffice`)
 - `AGENT_OFFICE_DATA_DIR` 환경변수로 바꿀 수 있다 (시험용).
 - 실제 OS 키체인 시험: `AGENT_OFFICE_KEYRING_IT=1 go test ./internal/secrets/ -run TestRealKeychain`
+
+## Claude bridge (runners/claude)
+
+    npm install
+    npm run build      # dist/main.js 생성
+    npm test
+
+## 실제 공급자 시험 (사용자 계정·사용량 사용, 기본 비활성)
+
+    AGENT_OFFICE_CODEX_IT=$(which codex) go test ./internal/providers/ -run TestCodexReal -v
+    AGENT_OFFICE_CLAUDE_IT=1 go test ./internal/providers/ -run TestClaudeReal -v

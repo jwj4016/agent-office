@@ -1,0 +1,6 @@
+# 기획 업무가 정상 완료되는 흐름
+{"emit": "message_delta", "payload": {"text": "요구사항을 "}}
+{"emit": "message_delta", "payload": {"text": "정리합니다."}}
+{"emit": "message", "payload": {"text": "요구사항을 정리합니다."}}
+{"emit": "usage", "payload": {"inputTokens": 120, "outputTokens": 48, "costUsd": null}}
+{"complete": {"status": "succeeded", "text": "# 기획서\n\n- 목표: 작은 웹 게임"}}

@@ -17,12 +17,12 @@
 | T09 | 조건 분기 한 경로 미선택 | ⬜ | |
 | T10 | 실패한 필수 선행 업무 | ⬜ | |
 | T11 | 이전 승인·이벤트가 늦게 도착 | ⬜ | |
-| T12 | 도구 승인 거절 | ⬜ | |
+| T12 | 도구 승인 거절 | 🟡 | 공급자 수준: 가짜 Codex/Claude가 decline 수신 확인 (`TestCodexApprovalRoundTrip`, `TestClaudeApprovalRoundTrip`). 엔진 기록은 M2 |
 | T13 | 실행 중 초안·공통 역할 편집 | ⬜ | |
 | T14 | 두 개발 AI의 병렬 변경 | ⬜ | |
-| T15 | 모델은 완료 주장, 테스트 실패 | ⬜ | |
+| T15 | 모델은 완료 주장, 테스트 실패 | 🟡 | 공급자 수준: 완료 신호 없으면 failed (`TestClaimedDoneWithoutCompletionIsFailure`, bridge `error result is a failure`). 산출물 검증은 M1 엔진 |
 | T16 | 앱 강제 종료·재시작 | ⬜ | |
-| T17 | 프로세스 취소 | ⬜ | |
+| T17 | 프로세스 취소 | 🟡 | macOS: 취소 시 손자 프로세스 종료 (`TestCodexCancelKillsStuckProcessTree`), bridge 무응답 시 강제 종료 (`TestClaudeCancel/cancel-ignored`). Windows 미시험 |
 | T18 | 질문이 서로 순환 또는 무응답 | ⬜ | |
 | T19 | 예산·수정 한도 도달 | ⬜ | |
 | T20 | 키 저장소 없음·내보내기 | ⬜ | 키 저장소 없을 때 메모리 fallback: `secrets_test.go` TestOpenFallsBackToMemory. 내보내기는 M5 |

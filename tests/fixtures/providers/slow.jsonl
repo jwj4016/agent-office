@@ -1,0 +1,4 @@
+# 취소 시험용: 오래 걸리는 작업
+{"emit": "message", "payload": {"text": "긴 작업 시작"}}
+{"sleep": "10s"}
+{"complete": {"status": "succeeded"}}

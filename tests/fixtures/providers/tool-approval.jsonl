@@ -1,0 +1,5 @@
+# 도구 승인을 기다린 뒤 완료
+{"emit": "message", "payload": {"text": "테스트를 실행하겠습니다."}}
+{"request": "approval_request", "payload": {"requestId": "req-1", "action": "shell", "detail": "npm test", "options": ["accept", "decline"]}}
+{"emit": "tool", "payload": {"name": "shell", "status": "completed", "detail": "npm test"}}
+{"complete": {"status": "succeeded", "text": "테스트 통과"}}

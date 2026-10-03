@@ -1,0 +1,3 @@
+# 공급자 오류로 실패
+{"emit": "error", "payload": {"message": "rate limited", "retryable": true}}
+{"complete": {"status": "failed", "error": "rate limited"}}

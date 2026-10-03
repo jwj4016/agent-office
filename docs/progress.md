@@ -26,10 +26,10 @@
 - [x] go-keyring 키 저장, 불가 시 세션 메모리 fallback
 
 **AI 최소 실행**
-- [ ] Provider 공통 인터페이스 (Capabilities·Start·Respond·Cancel·Resume·Events)
-- [ ] 테스트 provider (fixture 이벤트 재생)
-- [ ] Codex App Server stdio 최소 실행·취소
-- [ ] Claude SDK bridge (TS, JSONL) 최소 실행·취소
+- [x] Provider 공통 인터페이스 (Capabilities·Start·Respond·Cancel·Resume·Events)
+- [x] 테스트 provider (fixture 이벤트 재생)
+- [ ] Codex App Server stdio 최소 실행·취소 — 구현·가짜 서버 시험 완료, ⚠️ 실제 CLI 호출 미검증
+- [ ] Claude SDK bridge (TS, JSONL) 최소 실행·취소 — 구현·가짜 bridge 시험 완료, ⚠️ 실제 SDK 호출 미검증
 
 **빌드**
 - [ ] macOS `wails build` 성공
@@ -121,3 +121,10 @@
 - 미검증·알려진 제한: Windows Credential Manager·Linux Secret Service 미검증
 - 마지막 관련 코드/테스트: `internal/storage/*_test.go`, `internal/secrets/secrets_test.go`, `app_test.go`
 - 다음에 실행할 구체적인 작업: Provider 공통 인터페이스 정의
+
+- 현재 단계: M0 / AI 최소 실행
+- 구현 완료: `internal/providers` 공통 계약(정규화 이벤트, 단일 completed 보장), 테스트 provider + `tests/fixtures/providers/*.jsonl`, Codex App Server 어댑터(JSON-RPC stdio, 승인·질문·interrupt, 미지원 요청 거절), Claude bridge(`runners/claude`, Agent SDK `query`·`canUseTool`·abort, `settingSources: []` 격리) + Go `ClaudeBridge`, 하위 프로세스 그룹 종료
+- 이번 검증과 결과: `go test -race -count=3 ./internal/providers/` 통과(가짜 Codex 서버·가짜 bridge를 실제 하위 프로세스로 실행, 취소 시 손자 프로세스까지 종료 확인), `runners/claude` `npm test` 5건 통과
+- 미검증·알려진 제한: 실제 Codex·Claude 호출 미실행(사용자 계정 사용 승인 필요). Codex·Claude 둘 다 로컬 CLI 로그인 상태는 확인됨. Windows 프로세스 트리 종료는 taskkill 기반, 미시험. Claude bridge는 질문(question) 기능 미지원
+- 마지막 관련 코드/테스트: `internal/providers/{provider,testprovider,codex,claude,process}.go`, `runners/claude/src/bridge.ts`
+- 다음에 실행할 구체적인 작업: macOS `wails build`, GitHub Actions Windows·Linux 빌드
