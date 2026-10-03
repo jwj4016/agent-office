@@ -16,9 +16,9 @@
 - [x] `docs/` 진행 파일 4종 생성 (progress·decisions·environment·acceptance)
 
 **프로젝트 골격**
-- [ ] `wails init` (React+TS+Vite), 디렉터리 구성 (`internal/*`, `runners/claude`, `tests/fixtures`)
-- [ ] frontend `test`·`typecheck`·`build` 스크립트 (Vitest)
-- [ ] binding 호출·이벤트 수신 왕복 확인
+- [x] `wails init` (React+TS+Vite), 디렉터리 구성 (`internal/*`, `runners/claude`, `tests/fixtures`)
+- [x] frontend `test`·`typecheck`·`build` 스크립트 (Vitest)
+- [x] binding 호출·이벤트 수신 왕복 확인
 
 **저장·비밀정보**
 - [ ] SQLite(modernc) 연결, migration 번호 관리, 쓰기 직렬화
@@ -107,3 +107,10 @@
 - 이번 검증과 결과: `wails doctor` SUCCESS (macOS 26.4.1 arm64)
 - 미검증·알려진 제한: Windows·Linux 환경 없음
 - 다음에 실행할 구체적인 작업: `wails init` React+TS 골격 생성
+
+- 현재 단계: M0 / 프로젝트 골격
+- 구현 완료: Wails React+TS 골격, `internal/*` 패키지 자리, Vitest·typecheck 스크립트, `Ping` binding + `system:ping` 이벤트
+- 이번 검증과 결과: `go test ./...` 통과, `npm test`·`typecheck`·`build` 통과, `wails dev` 실행 후 브라우저에서 binding 응답과 이벤트 수신 모두 확인
+- 미검증·알려진 제한: Wails dev 브라우저 모드의 오버레이 스크립트 예외(앱 동작과 무관), macOS 링크 경고(아래 environment.md)
+- 마지막 관련 코드/테스트: `app.go`, `app_test.go`, `frontend/src/App.test.tsx`
+- 다음에 실행할 구체적인 작업: SQLite(modernc) 연결과 migration

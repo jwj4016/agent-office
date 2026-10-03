@@ -24,3 +24,16 @@ Wails CLI는 `$(go env GOPATH)/bin`에 설치된다. PATH에 추가해야 한다
 ## 미확인 환경
 
 - Windows 11 x64, Ubuntu LTS x64, macOS x64: 시험 장비 없음
+
+## 프론트엔드 명령 (frontend/)
+
+`main.go`가 `frontend/dist`를 embed하므로 새로 받은 저장소에서는 `go test`/`go build` 전에 `npm run build`를 한 번 실행한다.
+
+    npm test          # Vitest (jsdom)
+    npm run typecheck
+    npm run build
+
+## 알려진 경고
+
+- `wails dev`/`build` 링크 시 `built for newer 'macOS' version (13.0) than being linked (11.0)` 경고. Go 1.27 최소 macOS(13)와 Wails 기본 배포 대상(11) 차이로 보이며, 출시 전 최소 macOS 버전을 정할 때 함께 정리한다.
+- npm 11의 install-scripts 승인 기능 때문에 esbuild·fsevents 설치 스크립트가 실행되지 않았지만 빌드·테스트에는 영향이 없었다.

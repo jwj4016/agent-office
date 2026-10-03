@@ -1,0 +1,23 @@
+:root {
+    --bg: #fff8ec;
+    --surface: #ffffff;
+    --text: #3b3247;
+    --muted: #8a7f96;
+    --mint: #bfe8d8;
+    --lavender: #d9cff5;
+    --apricot: #ffd3b0;
+    --border: #eadfcd;
+}
+
+html, body, #root {
+    height: 100%;
+}
+
+body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo",
+    "Malgun Gothic", "Noto Sans KR", sans-serif;
+    font-size: 14px;
+}

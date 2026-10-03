@@ -1,0 +1,10 @@
+build/bin
+frontend/dist
+frontend/node_modules
+runners/claude/node_modules
+runners/claude/dist
+*.db
+*.db-wal
+*.db-shm
+.DS_Store
+frontend/package.json.md5
