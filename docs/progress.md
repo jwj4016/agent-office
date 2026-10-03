@@ -45,8 +45,8 @@
 - [x] 프로젝트 범위 검증 계층 (T23)
 
 **흐름**
-- [ ] 흐름 JSON 스키마 + 검증 (ID·DAG·입출력 참조·reworkTargets·분기 규칙)
-- [ ] WorkflowVersion 스냅샷 고정 (T13)
+- [x] 흐름 JSON 스키마 + 검증 (ID·DAG·입출력 참조·reworkTargets·분기 규칙)
+- [x] WorkflowVersion 스냅샷 고정 (T13)
 
 **엔진**
 - [ ] 스케줄러: ready 판정, 동시 실행 한도(앱 2·프로젝트별), 입력 manifest 고정
@@ -151,3 +151,10 @@
 - 미검증·알려진 제한: 기존 v1 DB에서 v2로 올리는 경로는 신규 DB 재오픈 시험으로만 확인
 - 마지막 관련 코드/테스트: `internal/storage/{migrations/0002_core_entities.sql,events.go,scope.go}`, `*_test.go`
 - 다음에 실행할 구체적인 작업: 흐름 JSON 스키마와 검증기 (`internal/domain`)
+
+- 현재 단계: M1 / 흐름
+- 구현 완료: `internal/domain` 흐름 타입·엄격 파서(unknown field 거절)·구조 검증(분기는 합류에서 만남, 중첩 분기·분기 밖 의존·모호한 필수 입력 거절)·담당자 검증(SevError=버전 불가, SevRun=실행 불가), 엔터티 타입·지침 합성. `storage` 역할(순환 거절)·프로젝트(보관)·담당자(사람은 local-owner)·연결·흐름 초안(revision 충돌 감지)·`ConfirmVersion`(흐름+담당자+합성 지침+정책 스냅샷). `internal/testenv` 시험용 프로젝트 구성
+- 이번 검증과 결과: `go test -race ./internal/...` 통과. 흐름 오류 28종, T13 스냅샷 고정, T04 연결 없는 AI는 버전 가능·실행 불가
+- 미검증·알려진 제한: 결과 JSON schema 자체의 검증은 엔진 완료 검증 항목에서 구현
+- 마지막 관련 코드/테스트: `internal/domain/{workflow,validate,entities}.go`, `internal/storage/repo_*.go`, `repo_test.go`
+- 다음에 실행할 구체적인 작업: 엔진 스케줄러 (`internal/engine`)

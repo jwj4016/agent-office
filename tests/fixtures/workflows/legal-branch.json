@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "title": "법률 검토가 필요할 때만 수행",
+  "nodes": [
+    {"id": "scope", "title": "범위 정리", "kind": "task", "assignmentId": "a-planner", "dependsOn": [],
+     "outputs": [{"key": "scope", "type": "json"}]},
+    {"id": "route", "title": "법률 검토 필요 여부", "kind": "condition", "dependsOn": ["scope"],
+     "routing": {
+       "source": {"fromStep": "scope", "outputKey": "scope", "fieldPath": "legal.needed"},
+       "branches": [{"operator": "eq", "value": true, "targetStep": "legal"}],
+       "defaultTarget": "merge", "joinStep": "merge"}},
+    {"id": "legal", "title": "법률 쟁점 조사", "kind": "task", "assignmentId": "a-legal", "dependsOn": ["route"],
+     "inputs": [{"name": "범위", "fromStep": "scope", "outputKey": "scope"}],
+     "outputs": [{"key": "memo", "type": "markdown"}]},
+    {"id": "legal_review", "title": "법률 의견 확인", "kind": "review", "assignmentId": "a-owner", "dependsOn": ["legal"],
+     "inputs": [{"name": "의견", "fromStep": "legal", "outputKey": "memo"}],
+     "reworkTargets": ["legal"], "outputs": [{"key": "review", "type": "report"}]},
+    {"id": "merge", "title": "합류", "kind": "join", "dependsOn": ["legal_review", "route"]},
+    {"id": "report", "title": "보고서", "kind": "task", "assignmentId": "a-planner", "dependsOn": ["merge"],
+     "inputs": [
+       {"name": "범위", "fromStep": "scope", "outputKey": "scope"},
+       {"name": "법률 의견", "fromStep": "legal", "outputKey": "memo", "required": false}],
+     "outputs": [{"key": "report", "type": "markdown"}]}
+  ]
+}
