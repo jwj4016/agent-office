@@ -19,6 +19,7 @@ import (
 	"agent-office/internal/storage"
 	"agent-office/internal/templates"
 
+	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
@@ -100,6 +101,13 @@ func (a *App) startup(ctx context.Context) {
 		close(a.engineDone)
 	}()
 	go a.flushDeltas(ectx)
+}
+
+func (a *App) onSecondInstance(options.SecondInstanceData) {
+	if a.ctx != nil {
+		runtime.WindowUnminimise(a.ctx)
+		runtime.Show(a.ctx)
+	}
 }
 
 func (a *App) shutdown(ctx context.Context) {
@@ -628,11 +636,13 @@ func (a *App) SubmitHumanResult(projectID, attemptID string, generation int, out
 	return actionResult(a.eng.SubmitHumanResult(a.ctx, projectID, attemptID, generation, outputs))
 }
 
-func (a *App) SubmitReview(projectID, attemptID string, generation int, decision, comment string, targets []string) (ActionResult, error) {
+// SubmitReview records a review; outputs holds the review step's other
+// outputs (the review report itself is written by the app).
+func (a *App) SubmitReview(projectID, attemptID string, generation int, decision, comment string, targets []string, outputs map[string]string) (ActionResult, error) {
 	if err := a.ready(); err != nil {
 		return ActionResult{}, err
 	}
-	return actionResult(a.eng.SubmitReview(a.ctx, projectID, attemptID, generation, decision, comment, targets))
+	return actionResult(a.eng.SubmitReview(a.ctx, projectID, attemptID, generation, decision, comment, targets, outputs))
 }
 
 func (a *App) DecideApproval(projectID, approvalID string, generation int, decision, reason string, targets []string) (ActionResult, error) {

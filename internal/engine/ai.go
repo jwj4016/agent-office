@@ -94,19 +94,22 @@ func (e *Engine) startAI(ctx context.Context, seen *runState, n *domain.Node, sn
 	if err != nil || id == "" {
 		return err
 	}
-	session, err := prov.Start(e.ctx, req)
-	if err != nil {
-		_, cerr := e.db.Change(ctx, func(c *storage.Change) error {
+	session, startErr := prov.Start(e.ctx, req)
+	if startErr != nil {
+		// A start failure (bad executable path, missing login…) is an
+		// ordinary step failure, never an engine crash.
+		reason := "공급자 시작 실패: " + startErr.Error()
+		_, err := e.db.Change(ctx, func(c *storage.Change) error {
 			st, err := loadState(ctx, c.Tx, seen.run.ID)
 			if err != nil {
 				return err
 			}
-			if _, err := setAttemptStatus(ctx, c, st, st.attempts[n.ID], StFailed, "공급자 시작 실패: "+err.Error(), StRunning); err != nil {
+			if _, err := setAttemptStatus(ctx, c, st, st.attempts[n.ID], StFailed, reason, StRunning); err != nil {
 				return err
 			}
 			return saveRunStatus(ctx, c, st)
 		})
-		return cerr
+		return err
 	}
 	a := &activeAttempt{id: id, projectID: seen.run.ProjectID, runID: seen.run.ID, stepID: n.ID, generation: req.Generation,
 		session: session, questions: map[string]string{}, toolReqs: map[string]string{}}
@@ -120,7 +123,7 @@ func (e *Engine) startAI(ctx context.Context, seen *runState, n *domain.Node, sn
 func (e *Engine) pump(a *activeAttempt, n *domain.Node) {
 	defer e.wg.Done()
 	for ev := range a.session.Events() {
-		if err := e.onEvent(a, n, ev); err != nil {
+		if err := e.safeEvent(a, n, ev); err != nil {
 			e.cfg.Logf("engine: attempt %s event %s: %v", a.id, ev.Kind, err)
 		}
 	}
@@ -128,6 +131,17 @@ func (e *Engine) pump(a *activeAttempt, n *domain.Node) {
 	delete(e.active, a.id)
 	e.mu.Unlock()
 	e.Wake()
+}
+
+// safeEvent handles one provider event, turning a panic into an error so
+// a malformed event cannot crash the app.
+func (e *Engine) safeEvent(a *activeAttempt, n *domain.Node, ev providers.Event) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("panic: %v", r)
+		}
+	}()
+	return e.onEvent(a, n, ev)
 }
 
 func (e *Engine) onEvent(a *activeAttempt, n *domain.Node, ev providers.Event) error {

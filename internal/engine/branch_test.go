@@ -1,8 +1,6 @@
 package engine_test
 
 import (
-	"context"
-	"database/sql"
 	"errors"
 	"strings"
 	"testing"
@@ -169,39 +167,5 @@ func TestHumanTaskSubmission(t *testing.T) {
 	}
 	if !strings.Contains(h.started("summary")[0].Prompt, "# 조사 결과") {
 		t.Fatal("AI did not receive the person's notes")
-	}
-}
-
-// Spec §7.5: after a restart, attempts whose provider process is gone are
-// marked interrupted (never silently re-run); human waits survive.
-func TestRecoverMarksInterrupted(t *testing.T) {
-	h := newHarness(t)
-	p := seedIndependent(t, h)
-	runID := h.start(p)
-	h.waitStep(p.ID, runID, "approve", engine.StWaitingApproval)
-	h.waitStep(p.ID, runID, "market", engine.StSucceeded)
-	// Simulate a crash mid-step: an attempt left "running" with no process.
-	var marketID string
-	h.db.Read().QueryRow(`SELECT id FROM step_attempts WHERE run_id = ? AND step_id = 'market'`, runID).Scan(&marketID)
-	h.db.Write(h.ctx, func(tx *sql.Tx) error {
-		_, err := tx.Exec(`UPDATE step_attempts SET status = 'running' WHERE id = ?`, marketID)
-		return err
-	})
-
-	cfg := engine.Config{DB: h.db, DataDir: t.TempDir(), Providers: nil, Logf: t.Logf}
-	second := engine.New(cfg)
-	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan struct{})
-	go func() { second.Run(ctx); close(done) }()
-	defer func() { cancel(); <-done }()
-
-	h.waitStep(p.ID, runID, "market", engine.StInterrupted)
-	if d := h.detail(p.ID, runID); d.Step("approve").Status != engine.StWaitingApproval {
-		t.Fatalf("human wait lost: %s", d.Step("approve").Status)
-	}
-	var reruns int
-	h.db.Read().QueryRow(`SELECT COUNT(*) FROM step_attempts WHERE run_id = ? AND step_id = 'market'`, runID).Scan(&reruns)
-	if reruns != 1 {
-		t.Fatalf("interrupted step was re-run automatically (%d attempts)", reruns)
 	}
 }

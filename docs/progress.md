@@ -172,3 +172,10 @@
 - 미검증·알려진 제한: 반복 설정(역할 5개, 담당자 일부, 두 번째 서비스 구성)은 화면이 쓰는 같은 bindings를 브라우저 콘솔에서 호출해 진행. 실제 AI 연결로의 실행은 M2. 조건 분기 편집 UI는 M4. 노드 위치는 저장하지 않고 자동 배치
 - 마지막 관련 코드/테스트: `app.go`, `bindings_test.go`, `frontend/src/**`, `internal/engine/inbox.go`, `internal/templates`
 - 다음에 실행할 구체적인 작업: M1 게이트 보고 후 사용자 확인 → M2 Codex 연결 완성
+
+- 현재 단계: M1 검토 결함 수정 (M2 착수 전)
+- 구현 완료: 외부 검토 6건 수정 — ① 공급자 시작 실패 시 오류 변수 가림으로 인한 panic → 업무 실패로 처리, 스케줄·이벤트 처리에 panic 안전망 추가 ② 사람 리뷰 통과에 전체 완료 기준(모든 필수 결과·검증 명령) 적용, 리뷰 단계의 추가 결과 제출 지원(수정 요청은 보고서만) ③ 산출물·결과 읽기 경로를 완전 해석해 데이터 폴더 아래 심볼릭 링크 경로 거절 ④ 데이터 폴더 잠금 파일(`agent-office.db.lock`), DB당 엔진 1개(ClaimEngine), Wails 단일 인스턴스 옵션, 사용 중일 때 안내 화면 ⑤ 흐름 편집기 저장 실패 시 버전 확정 중단 ⑥ 승인 보류 후에도 승인·반려 버튼 유지
+- 이번 검증과 결과: 수정 전 회귀 테스트로 ①③⑤⑥ 실패 재현(①은 nil pointer panic) 후 수정. `go test -race ./...` 통과, 엔진 `-count=2` 통과, 프론트엔드 20건·typecheck·build 통과, Windows·Linux 교차 vet 통과. 빌드한 앱을 같은 데이터 폴더로 두 번 실행 시 두 번째는 즉시 종료되고 1개만 남음
+- 미검증·알려진 제한: Windows LockFileEx·단일 인스턴스는 미시험. 기존 `TestRecoverMarksInterrupted`는 첫 엔진이 살아 있는 상태에서 둘째 엔진을 띄워 잘못된 동작을 정상으로 고정하고 있었으므로 엔진 정지 후 복구하는 `TestRecoverAfterEngineStopped`로 교체
+- 마지막 관련 코드/테스트: `internal/engine/{ai,human,verify,engine,schedule}.go`, `internal/engine/regress_test.go`, `verify_internal_test.go`, `internal/storage/{storage,lock_*}.go`, `frontend/src/views/{WorkflowEditor,Inbox}.tsx`
+- 다음에 실행할 구체적인 작업: 사용자 확인 후 M2 Codex 연결 완성

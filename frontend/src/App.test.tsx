@@ -30,3 +30,13 @@ describe('App shell', () => {
         expect(await screen.findByLabelText('2건')).toBeInTheDocument();
     });
 });
+
+describe('App start-up errors', () => {
+    it('explains when another instance holds the data folder', async () => {
+        fakeApi.systemStatus.mockResolvedValueOnce({dataDir: '/data', schemaVersion: 0, secretsPersistent: true, version: 'test',
+            error: '다른 Agent Office가 이 데이터 폴더를 사용 중입니다'});
+        render(<App/>);
+        expect(await screen.findByRole('alert')).toHaveTextContent('사용 중');
+        expect(screen.queryByRole('navigation')).not.toBeInTheDocument();
+    });
+});

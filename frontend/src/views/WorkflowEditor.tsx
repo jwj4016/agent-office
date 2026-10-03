@@ -95,7 +95,9 @@ export function WorkflowEditor({project, workflowId, onStarted, onClose}: {
     if (loaded.error) return <ErrorBox error={loaded.error}/>;
     if (!draft) return <p className="muted">{t.common.loading}</p>;
 
-    const save = () => action.run(async () => {
+    // persist saves the draft and re-validates. It throws on failure so a
+    // caller (confirm) stops instead of versioning stale content.
+    const persist = async () => {
         const w = await api.saveDraft(project.id, workflowId, revision, draft);
         setRevision(w.revision);
         setDirty(false);
@@ -103,10 +105,12 @@ export function WorkflowEditor({project, workflowId, onStarted, onClose}: {
         setIssues(v.issues);
         setNotice(v.issues.length ? null : '저장했습니다. 문제가 없습니다.');
         return w;
-    });
+    };
+
+    const save = () => action.run(persist);
 
     const confirm = () => action.run(async () => {
-        if (dirty) await save();
+        if (dirty) await persist();
         const w = await api.workflow(project.id, workflowId);
         const res = await api.confirmVersion(project.id, workflowId, w.revision);
         setIssues(res.validation.issues);

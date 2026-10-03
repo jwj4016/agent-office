@@ -60,8 +60,9 @@ export const api = {
     inbox: () => call<InboxItem[]>(Go.Inbox()),
     submitHuman: (projectId: string, attemptId: string, generation: number, outputs: Record<string, string>) =>
         call<ActionResult>(Go.SubmitHumanResult(projectId, attemptId, generation, outputs)),
-    submitReview: (projectId: string, attemptId: string, generation: number, decision: string, comment: string, targets: string[]) =>
-        call<ActionResult>(Go.SubmitReview(projectId, attemptId, generation, decision, comment, targets)),
+    submitReview: (projectId: string, attemptId: string, generation: number, decision: string, comment: string,
+                   targets: string[], outputs: Record<string, string> = {}) =>
+        call<ActionResult>(Go.SubmitReview(projectId, attemptId, generation, decision, comment, targets, outputs)),
     decideApproval: (projectId: string, approvalId: string, generation: number, decision: string, reason: string, targets: string[]) =>
         call<ActionResult>(Go.DecideApproval(projectId, approvalId, generation, decision, reason, targets)),
     decideTool: (projectId: string, approvalId: string, accept: boolean) =>

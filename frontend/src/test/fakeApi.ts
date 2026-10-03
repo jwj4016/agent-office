@@ -1,6 +1,6 @@
 // A controllable stand-in for ../api used by component tests.
 import {vi} from 'vitest';
-import type {InboxItem, ProjectSummary} from '../types';
+import type {ActionResult, InboxItem, ProjectSummary} from '../types';
 
 export const state = {
     summaries: [] as ProjectSummary[],
@@ -9,9 +9,10 @@ export const state = {
 };
 
 const ok = <T, >(v: T) => vi.fn(async (..._args: unknown[]) => v);
+const acted = (status: string) => vi.fn(async (..._args: unknown[]): Promise<ActionResult> => ({outcome: {status, already: false}, problem: ''}));
 
 export const fakeApi = {
-    systemStatus: ok({dataDir: '/data', schemaVersion: 2, secretsPersistent: true, version: 'test', error: ''}),
+    systemStatus: vi.fn(async () => ({dataDir: '/data', schemaVersion: 2, secretsPersistent: true, version: 'test', error: ''})),
     settings: vi.fn(async () => ({...state.settings})),
     setSetting: vi.fn(async (k: string, v: string) => { state.settings[k] = v; }),
     dashboard: vi.fn(async () => state.summaries),
@@ -22,11 +23,16 @@ export const fakeApi = {
         return project;
     }),
     inbox: vi.fn(async () => state.inbox),
-    decideApproval: ok({outcome: {status: 'succeeded', already: false}, problem: ''}),
-    submitReview: ok({outcome: {status: 'succeeded', already: false}, problem: ''}),
-    submitHuman: ok({outcome: {status: 'succeeded', already: false}, problem: ''}),
-    decideTool: ok({outcome: {status: 'running', already: false}, problem: ''}),
-    answer: ok({outcome: {status: 'running', already: false}, problem: ''}),
+    decideApproval: acted('succeeded'),
+    submitReview: acted('succeeded'),
+    submitHuman: acted('succeeded'),
+    decideTool: acted('running'),
+    answer: acted('running'),
+    workflow: vi.fn(),
+    saveDraft: vi.fn(),
+    validate: ok({issues: [], canVersion: true, canRun: true}),
+    confirmVersion: vi.fn(),
+    startRun: vi.fn(),
     roles: ok([]), organization: ok({id: 'org-default', name: '내 회사', instructions: '', policy: {}}),
     assignments: ok([]), connections: ok([]), templates: ok([]), workflows: ok([]), runs: ok([]),
     onEvents: vi.fn(() => () => {}),

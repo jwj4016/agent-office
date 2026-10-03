@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/zalando/go-keyring"
@@ -59,5 +60,28 @@ func TestSettingsSurviveRestart(t *testing.T) {
 	st := b.SystemStatus()
 	if st.SchemaVersion < 1 || st.DataDir != dir || !st.SecretsPersistent {
 		t.Fatalf("unexpected status: %+v", st)
+	}
+}
+
+// Review finding 4: a second app on the same data dir reports the lock
+// and never starts an engine that could disturb the first one.
+func TestSecondAppInstanceRefused(t *testing.T) {
+	dir := t.TempDir()
+	first := startTemp(t, dir)
+	defer first.shutdown(context.Background())
+
+	t.Setenv("AGENT_OFFICE_DATA_DIR", dir)
+	second := NewApp()
+	second.emit = func(context.Context, string, ...interface{}) {}
+	second.startup(context.Background())
+	defer second.shutdown(context.Background())
+	if st := second.SystemStatus(); !strings.Contains(st.Error, "사용 중") {
+		t.Fatalf("second instance status = %+v", st)
+	}
+	if second.eng != nil {
+		t.Fatal("second instance started an engine")
+	}
+	if _, err := second.Dashboard(false); err == nil {
+		t.Fatal("second instance served data")
 	}
 }

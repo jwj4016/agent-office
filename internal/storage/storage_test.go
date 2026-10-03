@@ -116,3 +116,33 @@ func TestConcurrentWritesAreSerialized(t *testing.T) {
 		t.Fatalf("lost updates: n=%d", n)
 	}
 }
+
+// Review finding 4: a second process must not open the same data dir.
+func TestSecondOpenIsLocked(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "a.db")
+	first := openTemp(t, path)
+	if _, err := Open(context.Background(), path); !errors.Is(err, ErrLocked) {
+		t.Fatalf("second open = %v, want ErrLocked", err)
+	}
+	first.Close()
+	again := openTemp(t, path)
+	again.Close()
+}
+
+func TestClaimEngineOnce(t *testing.T) {
+	db := openTemp(t, filepath.Join(t.TempDir(), "a.db"))
+	defer db.Close()
+	release, err := db.ClaimEngine()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ClaimEngine(); !errors.Is(err, ErrEngineClaimed) {
+		t.Fatalf("second claim = %v", err)
+	}
+	release()
+	if r, err := db.ClaimEngine(); err != nil {
+		t.Fatal(err)
+	} else {
+		r()
+	}
+}

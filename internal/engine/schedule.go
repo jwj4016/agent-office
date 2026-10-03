@@ -111,10 +111,21 @@ func (e *Engine) schedule(ctx context.Context) {
 		return
 	}
 	for _, id := range ids {
-		if err := e.advance(ctx, id); err != nil {
+		if err := e.safeAdvance(ctx, id); err != nil {
 			e.cfg.Logf("engine: run %s: %v", id, err)
 		}
 	}
+}
+
+// safeAdvance keeps one run's unexpected panic from taking down the app;
+// the run stays as stored and is retried on the next pass.
+func (e *Engine) safeAdvance(ctx context.Context, runID string) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("panic: %v", r)
+		}
+	}()
+	return e.advance(ctx, runID)
 }
 
 // advance starts everything that can start in one run. Engine nodes

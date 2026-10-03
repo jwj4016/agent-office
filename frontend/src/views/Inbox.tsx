@@ -28,17 +28,26 @@ function InboxCard({item, onDone, onOpenRun}: { item: InboxItem; onDone: () => v
     const setDetail = useDetail();
     const [problem, setProblem] = useState<string | null>(null);
     const [done, setDone] = useState<string | null>(null);
+    const [note, setNote] = useState<string | null>(null);
 
-    const submit = async (fn: () => Promise<ActionResult>) => {
+    // submit returns true when the item was finished (the form can go).
+    const submit = async (fn: () => Promise<ActionResult>): Promise<boolean> => {
         setProblem(null);
+        setNote(null);
         const res = await action.run(fn);
-        if (!res) return;
+        if (!res) return false;
         if (res.problem) {
             setProblem(res.problem);
-            return;
+            return false;
+        }
+        if (res.outcome.decision === 'held') {
+            // A hold is recorded but decides nothing: keep the controls.
+            setNote('보류를 기록했습니다. 승인 또는 반려를 계속 기다립니다.');
+            return true;
         }
         setDone(res.outcome.already ? '이미 처리된 항목입니다.' : '처리했습니다.');
         onDone();
+        return true;
     };
 
     const inputs = item.inputs ?? [];
@@ -82,13 +91,14 @@ function InboxCard({item, onDone, onOpenRun}: { item: InboxItem; onDone: () => v
                     {item.kind === 'question' ? <AnswerForm item={item} busy={action.busy} onSubmit={submit}/> : null}
                 </>
             )}
+            {note ? <p className="notice">{note}</p> : null}
             {problem ? <div className="alert" role="alert">제출이 완료 기준을 충족하지 않습니다: {problem}</div> : null}
             <ErrorBox error={action.error}/>
         </article>
     );
 }
 
-type FormProps = { item: InboxItem; busy: boolean; onSubmit: (fn: () => Promise<ActionResult>) => void };
+type FormProps = { item: InboxItem; busy: boolean; onSubmit: (fn: () => Promise<ActionResult>) => Promise<boolean> };
 
 function TargetPicker({item, targets, setTargets}: { item: InboxItem; targets: string[]; setTargets: (t: string[]) => void }) {
     if (!item.reworkTargets.length) return <p className="muted small">이 업무에는 돌려보낼 대상이 지정되어 있지 않습니다.</p>;
@@ -109,8 +119,14 @@ function ApprovalForm({item, busy, onSubmit}: FormProps) {
     const [mode, setMode] = useState<'none' | 'reject' | 'hold'>('none');
     const [reason, setReason] = useState('');
     const [targets, setTargets] = useState<string[]>(item.reworkTargets.length === 1 ? [item.reworkTargets[0].id] : []);
-    const decide = (decision: string) => onSubmit(() =>
-        api.decideApproval(item.projectId, item.approvalId!, item.generation, decision, reason, decision === 'rejected' ? targets : []));
+    const decide = async (decision: string) => {
+        const ok = await onSubmit(() =>
+            api.decideApproval(item.projectId, item.approvalId!, item.generation, decision, reason, decision === 'rejected' ? targets : []));
+        if (ok && decision === 'held') {
+            setMode('none');
+            setReason('');
+        }
+    };
     return (
         <div className="stack">
             <div className="row">
@@ -138,12 +154,23 @@ function ReviewForm({item, busy, onSubmit}: FormProps) {
     const [comment, setComment] = useState('');
     const [changes, setChanges] = useState(false);
     const [targets, setTargets] = useState<string[]>([]);
+    const [values, setValues] = useState<Record<string, string>>({});
+    // The app writes the review report; other outputs come from the reviewer.
+    const reportKey = item.outputs.find((o) => o.type === 'report')?.key;
+    const extra = item.outputs.filter((o) => o.key !== reportKey);
     const send = (decision: string) => onSubmit(() =>
-        api.submitReview(item.projectId, item.attemptId, item.generation, decision, comment, decision === 'changes_requested' ? targets : []));
+        api.submitReview(item.projectId, item.attemptId, item.generation, decision, comment,
+            decision === 'changes_requested' ? targets : [], decision === 'pass' ? values : {}));
     return (
         <div className="stack">
             <label className="field"><span>리뷰 의견</span>
                 <textarea value={comment} onChange={(e) => setComment(e.target.value)} placeholder="확인한 내용, 수정이 필요한 부분"/></label>
+            {!changes && extra.map((o) => (
+                <label key={o.key} className="field">
+                    <span>{o.key} · {t.outputType[o.type]} · {o.required === false ? t.common.optional : t.common.required} (통과 시 제출)</span>
+                    <textarea value={values[o.key] ?? ''} onChange={(e) => setValues({...values, [o.key]: e.target.value})}/>
+                </label>
+            ))}
             {changes ? <TargetPicker item={item} targets={targets} setTargets={setTargets}/> : null}
             <div className="row">
                 {!changes ? (

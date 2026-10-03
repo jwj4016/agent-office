@@ -138,8 +138,8 @@ export function SubmitHumanResult(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['SubmitHumanResult'](arg1, arg2, arg3, arg4);
 }
 
-export function SubmitReview(arg1, arg2, arg3, arg4, arg5, arg6) {
-  return window['go']['main']['App']['SubmitReview'](arg1, arg2, arg3, arg4, arg5, arg6);
+export function SubmitReview(arg1, arg2, arg3, arg4, arg5, arg6, arg7) {
+  return window['go']['main']['App']['SubmitReview'](arg1, arg2, arg3, arg4, arg5, arg6, arg7);
 }
 
 export function SystemStatus() {

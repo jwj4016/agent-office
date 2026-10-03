@@ -63,3 +63,19 @@ describe('Inbox', () => {
         expect(await screen.findByText('지금 처리할 일이 없습니다.')).toBeInTheDocument();
     });
 });
+
+describe('Inbox holds', () => {
+    // Review finding 6: holding records a reason but keeps the decision open.
+    it('keeps the approval controls after a hold', async () => {
+        state.inbox = [inboxItem()];
+        fakeApi.decideApproval.mockResolvedValueOnce({outcome: {status: 'waiting_approval', already: false, decision: 'held'}, problem: ''});
+        renderInbox();
+        const card = await screen.findByRole('article');
+        fireEvent.click(within(card).getByRole('button', {name: '보류'}));
+        fireEvent.change(within(card).getByLabelText('보류 이유'), {target: {value: '시장 조사 결과를 기다림'}});
+        fireEvent.click(within(card).getByRole('button', {name: '보류 기록'}));
+        expect(await within(card).findByText(/보류를 기록했습니다/)).toBeInTheDocument();
+        expect(within(card).getByRole('button', {name: '승인'})).toBeEnabled();
+        expect(within(card).getByRole('button', {name: '반려'})).toBeEnabled();
+    });
+});

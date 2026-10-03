@@ -237,9 +237,9 @@ func (e *Engine) ReadArtifact(ctx context.Context, projectID, artifactID string)
 	if err != nil {
 		return c, err
 	}
-	full := filepath.Join(e.cfg.DataDir, filepath.FromSlash(c.Path))
-	if rel, err := filepath.Rel(e.cfg.DataDir, full); err != nil || len(rel) >= 2 && rel[:2] == ".." {
-		return c, fmt.Errorf("artifact path outside data dir")
+	full, err := e.resolveInside(filepath.Join(e.cfg.DataDir, filepath.FromSlash(c.Path)))
+	if err != nil {
+		return c, fmt.Errorf("결과 파일을 열 수 없습니다: %w", err)
 	}
 	data, err := os.ReadFile(full)
 	if err != nil {

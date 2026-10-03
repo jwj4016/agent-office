@@ -27,6 +27,21 @@ export default function App() {
 }
 
 function Shell() {
+    const status = useLoad(() => api.systemStatus(), []);
+    if (status.data?.error) {
+        // e.g. another Agent Office already uses this data folder.
+        return (
+            <main className="main" style={{maxWidth: 640}}>
+                <h1>{t.app.name}을 시작할 수 없습니다</h1>
+                <div className="alert" role="alert">{status.data.error}</div>
+                <p className="muted">이미 열려 있는 Agent Office 창을 사용하거나, 그 창을 닫은 뒤 다시 실행하세요.</p>
+            </main>
+        );
+    }
+    return <Workspace/>;
+}
+
+function Workspace() {
     const [route, setRoute] = useState<Route>({view: 'dashboard'});
     const [detail, setDetail] = useState<ReactNode | null>(null);
     const dash = useLoad(() => api.dashboard(false), [], '*');

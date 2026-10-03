@@ -74,7 +74,7 @@ export function StartRun(arg1:string,arg2:string):Promise<main.StartResult>;
 
 export function SubmitHumanResult(arg1:string,arg2:string,arg3:number,arg4:Record<string, string>):Promise<main.ActionResult>;
 
-export function SubmitReview(arg1:string,arg2:string,arg3:number,arg4:string,arg5:string,arg6:Array<string>):Promise<main.ActionResult>;
+export function SubmitReview(arg1:string,arg2:string,arg3:number,arg4:string,arg5:string,arg6:Array<string>,arg7:Record<string, string>):Promise<main.ActionResult>;
 
 export function SystemStatus():Promise<main.SystemStatus>;
 

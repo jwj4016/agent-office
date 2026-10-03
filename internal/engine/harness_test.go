@@ -25,6 +25,9 @@ type harness struct {
 	mu       sync.Mutex
 	override map[string]string // step id -> scenario, applied at start time
 	starts   []providers.StartRequest
+
+	// stopEngine stops the harness engine (as if the app had quit).
+	stopEngine func()
 }
 
 // started returns the start requests seen for a step, oldest first.
@@ -84,7 +87,9 @@ func newHarness(t *testing.T, mutate ...func(*engine.Config)) *harness {
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() { h.eng.Run(ctx); close(done) }()
-	t.Cleanup(func() { cancel(); <-done })
+	var once sync.Once
+	h.stopEngine = func() { once.Do(func() { cancel(); <-done }) }
+	t.Cleanup(h.stopEngine)
 	return h
 }
 
@@ -166,7 +171,7 @@ func (h *harness) approve(projectID, runID, step string) {
 func (h *harness) review(projectID, runID, step, decision, comment string, targets ...string) engine.Outcome {
 	h.t.Helper()
 	s := h.waitStep(projectID, runID, step, engine.StWaitingHuman)
-	out, err := h.eng.SubmitReview(h.ctx, projectID, s.AttemptID, s.Generation, decision, comment, targets)
+	out, err := h.eng.SubmitReview(h.ctx, projectID, s.AttemptID, s.Generation, decision, comment, targets, nil)
 	if err != nil {
 		h.t.Fatal(err)
 	}

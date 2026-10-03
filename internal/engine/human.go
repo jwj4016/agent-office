@@ -151,10 +151,13 @@ const (
 	ReviewChangesRequested = "changes_requested"
 )
 
-// SubmitReview records a human review. Passing stores a report artifact
-// with the reviewed input versions so later steps can use it; requesting
-// changes sends the chosen targets back for a new round (T05).
-func (e *Engine) SubmitReview(ctx context.Context, projectID, attemptID string, generation int, decision, comment string, targets []string) (Outcome, error) {
+// SubmitReview records a human review. The engine writes the review
+// report (decision, comment and the reviewed input versions); outputs
+// holds any other outputs the review step defines. Passing completes the
+// step, so it must meet the step's full completion criteria; requesting
+// changes sends the chosen targets back for a new round (T05) and only
+// stores the report.
+func (e *Engine) SubmitReview(ctx context.Context, projectID, attemptID string, generation int, decision, comment string, targets []string, outputs map[string]string) (Outcome, error) {
 	if err := e.db.CheckScope(ctx, projectID, storage.Ref{Kind: storage.RefStepAttempt, ID: attemptID}); err != nil {
 		return Outcome{}, err
 	}
@@ -185,31 +188,48 @@ func (e *Engine) SubmitReview(ctx context.Context, projectID, attemptID string, 
 		"decision": decision, "comment": comment, "reworkTargets": targets,
 		"reviewer": domain.LocalOwner, "generation": a.Generation, "reviewedInputs": manifest, "at": storage.Now(),
 	}, "", "  ")
-	outputs := map[string]string{}
+	reportKey := ""
 	for _, o := range n.Outputs {
 		if o.Type == domain.OutReport {
-			outputs[o.Key] = string(report)
+			reportKey = o.Key
 			break
 		}
 	}
-	dir, err := e.stage(projectID, st.run.ID, a.ID, n, outputs)
+	staged := map[string]string{}
+	if reportKey != "" {
+		staged[reportKey] = string(report)
+	}
+	if decision == ReviewPass {
+		for k, v := range outputs {
+			if k == reportKey {
+				return Outcome{}, fmt.Errorf("%w: 리뷰 보고서 %q는 앱이 작성합니다", ErrInvalid, k)
+			}
+			staged[k] = v
+		}
+	}
+	dir, err := e.stage(projectID, st.run.ID, a.ID, n, staged)
 	if err != nil {
 		return Outcome{}, err
 	}
+	if decision == ReviewPass {
+		work, _ := e.workspaceDir(st)
+		results, verr := e.verifyOutputs(ctx, n, dir, work)
+		if verr != nil {
+			return Outcome{}, &VerificationError{Problem: verr.Error()}
+		}
+		out, err := e.commitHuman(ctx, projectID, st.run.ID, a, results, nil)
+		out.Decision = decision
+		return out, err
+	}
 	var results []verifiedOutput
 	for _, o := range n.Outputs {
-		if _, ok := outputs[o.Key]; ok {
+		if o.Key == reportKey {
 			v, err := e.verifyOne(o, outputPath(dir, o))
 			if err != nil {
 				return Outcome{}, &VerificationError{Problem: err.Error()}
 			}
 			results = append(results, v)
 		}
-	}
-	if decision == ReviewPass {
-		out, err := e.commitHuman(ctx, projectID, st.run.ID, a, results, nil)
-		out.Decision = decision
-		return out, err
 	}
 	var live []string
 	out, err := e.commitHuman(ctx, projectID, st.run.ID, a, results, func(c *storage.Change, st *runState) error {

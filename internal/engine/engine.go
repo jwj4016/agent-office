@@ -23,6 +23,10 @@ var (
 	// person must change scope, criteria or the limit (spec §7.4).
 	ErrRevisionLimit = errors.New("revision limit reached")
 	ErrInvalid       = errors.New("invalid request")
+	// ErrEngineRunning means another engine already owns this database.
+	// Starting a second one would mark the first one's live work
+	// interrupted during recovery.
+	ErrEngineRunning = errors.New("another engine is already running on this database")
 )
 
 // NotRunnableError lists the issues blocking a run (T04).
@@ -103,6 +107,11 @@ func (e *Engine) Wake() {
 // Run recovers interrupted work, then schedules until ctx is done. On
 // exit it cancels live provider sessions and waits for them briefly.
 func (e *Engine) Run(ctx context.Context) error {
+	release, err := e.db.ClaimEngine()
+	if err != nil {
+		return ErrEngineRunning
+	}
+	defer release()
 	e.mu.Lock()
 	e.ctx = ctx
 	e.mu.Unlock()

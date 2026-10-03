@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"embed"
 	"encoding/base32"
+	"errors"
 	"fmt"
 	"io/fs"
 	"net/url"
@@ -15,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -23,19 +25,37 @@ import (
 //go:embed migrations/*.sql
 var migrationFiles embed.FS
 
+// ErrLocked means another process already has this data directory open.
+var ErrLocked = errors.New("다른 Agent Office가 이 데이터 폴더를 사용 중입니다")
+
+// ErrEngineClaimed means an engine already runs on this database.
+var ErrEngineClaimed = errors.New("engine already running on this database")
+
 // DB wraps SQLite. Reads may run concurrently; writes are serialized
 // through Write so transactions stay short and never contend.
 type DB struct {
 	sql     *sql.DB
 	writeMu sync.Mutex
 	subs    subscribers
+	lock    *os.File
+	engine  atomic.Bool
 }
 
 // Open opens (creating if needed) the database at path and applies
-// pending migrations.
+// pending migrations. It holds an exclusive lock on the data directory
+// so a second app instance cannot run its own engine against the same
+// state (it would mark the first one's live work interrupted).
 func Open(ctx context.Context, path string) (*DB, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return nil, fmt.Errorf("create data dir: %w", err)
+	}
+	lock, err := os.OpenFile(path+".lock", os.O_CREATE|os.O_RDWR, 0o600)
+	if err != nil {
+		return nil, err
+	}
+	if err := lockFile(lock); err != nil {
+		lock.Close()
+		return nil, ErrLocked
 	}
 	q := url.Values{}
 	for _, p := range []string{"foreign_keys(1)", "busy_timeout(5000)", "journal_mode(WAL)", "synchronous(NORMAL)"} {
@@ -44,17 +64,33 @@ func Open(ctx context.Context, path string) (*DB, error) {
 	q.Set("_txlock", "immediate")
 	conn, err := sql.Open("sqlite", "file:"+path+"?"+q.Encode())
 	if err != nil {
+		lock.Close()
 		return nil, err
 	}
-	db := &DB{sql: conn}
+	db := &DB{sql: conn, lock: lock}
 	if err := db.migrate(ctx); err != nil {
-		conn.Close()
+		db.Close()
 		return nil, err
 	}
 	return db, nil
 }
 
-func (db *DB) Close() error { return db.sql.Close() }
+func (db *DB) Close() error {
+	err := db.sql.Close()
+	if db.lock != nil {
+		db.lock.Close() // releases the data directory lock
+	}
+	return err
+}
+
+// ClaimEngine reserves this database for one engine at a time and
+// returns the release function.
+func (db *DB) ClaimEngine() (func(), error) {
+	if !db.engine.CompareAndSwap(false, true) {
+		return nil, ErrEngineClaimed
+	}
+	return func() { db.engine.Store(false) }, nil
+}
 
 // Read exposes the pool for queries. Never use it for writes.
 func (db *DB) Read() *sql.DB { return db.sql }

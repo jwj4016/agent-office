@@ -62,8 +62,39 @@ func (e *Engine) verifyOutputs(ctx context.Context, n *domain.Node, dir, work st
 	return out, nil
 }
 
+// errOutsideData is returned for paths that leave the data dir or pass
+// through a symbolic link on the way.
+var errOutsideData = errors.New("허용된 경로 밖입니다 (심볼릭 링크를 거치는 경로는 허용하지 않음)")
+
+// resolveInside checks that path lies inside the data dir and that no
+// component below the data dir is a symbolic link: the fully resolved
+// path must equal the data dir's resolved path joined with the relative
+// path. The data dir itself may sit behind a link (/tmp on macOS).
+func (e *Engine) resolveInside(path string) (string, error) {
+	rel, err := filepath.Rel(e.cfg.DataDir, path)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
+		return "", errOutsideData
+	}
+	base, err := filepath.EvalSymlinks(e.cfg.DataDir)
+	if err != nil {
+		return "", err
+	}
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return "", err // includes os.ErrNotExist for missing outputs
+	}
+	if resolved != filepath.Join(base, rel) {
+		return "", errOutsideData
+	}
+	return resolved, nil
+}
+
 func (e *Engine) verifyOne(o domain.Output, path string) (verifiedOutput, error) {
-	info, err := os.Lstat(path)
+	resolved, err := e.resolveInside(path)
+	if err != nil {
+		return verifiedOutput{}, err
+	}
+	info, err := os.Lstat(resolved)
 	if err != nil {
 		return verifiedOutput{}, err
 	}
@@ -76,11 +107,8 @@ func (e *Engine) verifyOne(o domain.Output, path string) (verifiedOutput, error)
 	if info.Size() > MaxOutputBytes {
 		return verifiedOutput{}, fmt.Errorf("크기 제한(%dMB)을 넘었습니다", MaxOutputBytes>>20)
 	}
-	rel, err := filepath.Rel(e.cfg.DataDir, path)
-	if err != nil || strings.HasPrefix(rel, "..") {
-		return verifiedOutput{}, errors.New("허용된 경로 밖입니다")
-	}
-	data, err := os.ReadFile(path)
+	rel, _ := filepath.Rel(e.cfg.DataDir, path)
+	data, err := os.ReadFile(resolved)
 	if err != nil {
 		return verifiedOutput{}, err
 	}

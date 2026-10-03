@@ -27,8 +27,8 @@
 | T12 | 도구 승인 거절 | 🟡 | 공급자: `TestCodexApprovalRoundTrip`, `TestClaudeApprovalRoundTrip`. 엔진: `TestToolApprovalDecline` (거절 기록, 공급자에 decline 전달, 반복 클릭 불변) |
 | T13 | 실행 중 초안·공통 역할 편집 | 🟡 | 버전 스냅샷 고정: `TestVersionSnapshotIsFrozen` (초안·역할 지침·담당자 변경 후 v1 불변, v2에 반영). 실행 중 시나리오는 엔진 항목에서 |
 | T14 | 두 개발 AI의 병렬 변경 | ⬜ | |
-| T15 | 모델은 완료 주장, 테스트 실패 | 🟡 | `TestClaimedDoneWithoutOutputFails`, `TestFailingVerificationCommandFails` (검증 명령 실패 시 failed, 산출물 저장 안 함) |
-| T16 | 앱 강제 종료·재시작 | 🟡 | `TestRecoverMarksInterrupted` (실행 중 시도는 interrupted, 자동 재실행 없음, 사람 대기 유지). 실제 앱 강제 종료 시험은 M2 |
+| T15 | 모델은 완료 주장, 테스트 실패 | 🟡 | `TestClaimedDoneWithoutOutputFails`, `TestFailingVerificationCommandFails`, 사람 리뷰도 동일 기준: `TestReviewPassMeetsCompletionCriteria` |
+| T16 | 앱 강제 종료·재시작 | 🟡 | `TestRecoverAfterEngineStopped` (엔진 종료 후 새 엔진이 중단된 시도를 interrupted 처리, 자동 재실행 없음, 사람 대기 유지). 실제 앱 강제 종료 시험은 M2 |
 | T17 | 프로세스 취소 | 🟡 | macOS: 취소 시 손자 프로세스 종료 (`TestCodexCancelKillsStuckProcessTree`), bridge 무응답 시 강제 종료 (`TestClaudeCancel/cancel-ignored`). Windows 미시험 |
 | T18 | 질문이 서로 순환 또는 무응답 | ⬜ | |
 | T19 | 예산·수정 한도 도달 | ⬜ | |
@@ -36,4 +36,4 @@
 | T21 | 한글·공백 경로, 설치 패키지 | ⬜ | DB 경로 한글·공백: `storage_test.go` TestMigrationsApplyOnceAndPersistAcrossReopen, wails dev 수동 확인 (2026-10-03, macOS). 설치 패키지·AI 시작은 미시험 |
 | T22 | 도트 모션 줄이기·키보드 | ⬜ | |
 | T23 | 악성 프로젝트·산출물 ID 참조 | 🟡 | 저장: `TestCrossProjectReferencesRejected`, `TestCheckScope`. 엔진: `TestEngineRejectsCrossProjectIDs`. 바인딩: `TestBindingsTwoServicesEndToEnd`, 실제 앱 콘솔에서 교차 GetRun·ReadArtifact 거절 확인 |
-| T24 | 두 앱 인스턴스·이중 완료 클릭 | 🟡 | 저장: `TestStepApprovalDecidedOnce`. 엔진: `TestDuplicateApprovalClicks` (동시 8회 중 1회 적용), 사람 제출 반복은 Already. 두 앱 인스턴스 동시 실행은 미시험 |
+| T24 | 두 앱 인스턴스·이중 완료 클릭 | 🟡 | 이중 클릭: `TestStepApprovalDecidedOnce`, `TestDuplicateApprovalClicks`. 두 인스턴스: 데이터 폴더 잠금 `TestSecondOpenIsLocked`, `TestSecondAppInstanceRefused`, 엔진 1개 `TestSecondEngineRefusedWhileFirstRuns`, macOS 빌드 앱 두 번 실행 시 두 번째 즉시 종료(2026-10-03). Windows·Linux 미시험 |

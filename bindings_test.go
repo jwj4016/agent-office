@@ -108,7 +108,7 @@ func TestBindingsTwoServicesEndToEnd(t *testing.T) {
 	}
 	// Game: request a backend fix first, then pass.
 	rv := waitInbox(t, a, game.ID, engine.InboxReview)
-	if r := need(a.SubmitReview(game.ID, rv.AttemptID, rv.Generation, engine.ReviewChangesRequested, "테스트 보강", []string{"backend"})); r.Outcome.Status != engine.StSuperseded {
+	if r := need(a.SubmitReview(game.ID, rv.AttemptID, rv.Generation, engine.ReviewChangesRequested, "테스트 보강", []string{"backend"}, nil)); r.Outcome.Status != engine.StSuperseded {
 		t.Fatalf("changes requested: %+v", r)
 	}
 	for _, p := range []domain.Project{game, estate} {
@@ -116,7 +116,7 @@ func TestBindingsTwoServicesEndToEnd(t *testing.T) {
 		for {
 			it := waitInbox(t, a, p.ID, engine.InboxReview)
 			if p.ID != game.ID || it.Generation == rv.Generation+1 {
-				need(a.SubmitReview(p.ID, it.AttemptID, it.Generation, engine.ReviewPass, "통과", nil))
+				need(a.SubmitReview(p.ID, it.AttemptID, it.Generation, engine.ReviewPass, "통과", nil, nil))
 				break
 			}
 			if time.Now().After(deadline) {
