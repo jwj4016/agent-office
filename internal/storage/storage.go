@@ -2,8 +2,10 @@ package storage
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
 	"embed"
+	"encoding/base32"
 	"fmt"
 	"io/fs"
 	"net/url"
@@ -26,6 +28,7 @@ var migrationFiles embed.FS
 type DB struct {
 	sql     *sql.DB
 	writeMu sync.Mutex
+	subs    subscribers
 }
 
 // Open opens (creating if needed) the database at path and applies
@@ -56,8 +59,15 @@ func (db *DB) Close() error { return db.sql.Close() }
 // Read exposes the pool for queries. Never use it for writes.
 func (db *DB) Read() *sql.DB { return db.sql }
 
-// Write runs fn in a transaction, one writer at a time.
+// Write runs fn in a transaction, one writer at a time. Use Change
+// instead when the write must also record execution events.
 func (db *DB) Write(ctx context.Context, fn func(tx *sql.Tx) error) error {
+	return db.write(ctx, fn, nil)
+}
+
+// write runs fn in a transaction and, after a successful commit, calls
+// afterCommit while still holding the writer lock.
+func (db *DB) write(ctx context.Context, fn func(tx *sql.Tx) error, afterCommit func()) error {
 	db.writeMu.Lock()
 	defer db.writeMu.Unlock()
 	tx, err := db.sql.BeginTx(ctx, nil)
@@ -68,11 +78,25 @@ func (db *DB) Write(ctx context.Context, fn func(tx *sql.Tx) error) error {
 		tx.Rollback()
 		return err
 	}
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	if afterCommit != nil {
+		afterCommit()
+	}
+	return nil
 }
 
 // Now returns the canonical stored time format: UTC ISO 8601.
 func Now() string { return time.Now().UTC().Format(time.RFC3339Nano) }
+
+// NewID returns a collision-resistant id with a readable prefix, e.g.
+// "prj-01j9x6k2r8b7m3q4d5f6g7h8". IDs are never display names.
+func NewID(prefix string) string {
+	b := make([]byte, 12)
+	rand.Read(b)
+	return prefix + "-" + strings.ToLower(base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(b))
+}
 
 type migration struct {
 	version int

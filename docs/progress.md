@@ -40,9 +40,9 @@
 
 ### M1 기본 제품 (테스트 provider 기준)
 **도메인·저장**
-- [ ] 엔터티 스키마 14종 + FK·유일성 제약
-- [ ] 상태 변경 + ExecutionEvent 동일 트랜잭션
-- [ ] 프로젝트 범위 검증 계층 (T23)
+- [x] 엔터티 스키마 14종 + FK·유일성 제약
+- [x] 상태 변경 + ExecutionEvent 동일 트랜잭션
+- [x] 프로젝트 범위 검증 계층 (T23)
 
 **흐름**
 - [ ] 흐름 JSON 스키마 + 검증 (ID·DAG·입출력 참조·reworkTargets·분기 규칙)
@@ -143,3 +143,11 @@
 - 이번 검증과 결과: 실제 Codex(codex-cli 0.159.2, 모델 gpt-6.1-sol) 1턴 성공 7초, 비용 미보고(null). 실제 Claude bridge(SDK 0.3.288, 모델 claude-opus-5-5) 1턴 성공 5초, 보고 비용 $0.0485
 - 미검증·알려진 제한: 실제 공급자 취소, Windows·Linux CI 빌드(사용자 결정으로 push 보류)
 - 다음에 실행할 구체적인 작업: 사용자 확인 후 M1 도메인·저장 — 엔터티 스키마 migration 0002
+
+### 2026-10-03 (M1)
+- 현재 단계: M1 / 도메인·저장 (브랜치 `feat/m1-core`)
+- 구현 완료: migration 0002 엔터티 14종(프로젝트 소속 행은 `(id, project_id)` 복합 FK로 다른 프로젝트 참조를 DB가 거절), 기본 회사 `org-default`, 승인 결정 1회(`decision IS NULL` 조건 갱신, 업무 승인은 시도당 1건·도구 승인은 request_key별), `DB.Change`(상태+이벤트 한 트랜잭션, 커밋 후 순서대로 발행), `CheckScope`/`CheckScopeTx`, `NewID`
+- 이번 검증과 결과: `go test -race ./internal/storage/` 통과 — 다른 프로젝트 참조 7종 거절, 중복·CHECK, 롤백 시 저장·발행 없음, 동시 40건 발행 순서 유지, 범위 검사(SQL 주입 문자열 포함)
+- 미검증·알려진 제한: 기존 v1 DB에서 v2로 올리는 경로는 신규 DB 재오픈 시험으로만 확인
+- 마지막 관련 코드/테스트: `internal/storage/{migrations/0002_core_entities.sql,events.go,scope.go}`, `*_test.go`
+- 다음에 실행할 구체적인 작업: 흐름 JSON 스키마와 검증기 (`internal/domain`)

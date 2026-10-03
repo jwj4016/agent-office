@@ -35,5 +35,5 @@
 | T20 | 키 저장소 없음·내보내기 | ⬜ | 키 저장소 없을 때 메모리 fallback: `secrets_test.go` TestOpenFallsBackToMemory. 내보내기는 M5 |
 | T21 | 한글·공백 경로, 설치 패키지 | ⬜ | DB 경로 한글·공백: `storage_test.go` TestMigrationsApplyOnceAndPersistAcrossReopen, wails dev 수동 확인 (2026-10-03, macOS). 설치 패키지·AI 시작은 미시험 |
 | T22 | 도트 모션 줄이기·키보드 | ⬜ | |
-| T23 | 악성 프로젝트·산출물 ID 참조 | ⬜ | |
-| T24 | 두 앱 인스턴스·이중 완료 클릭 | ⬜ | |
+| T23 | 악성 프로젝트·산출물 ID 참조 | 🟡 | 저장 계층: 복합 FK로 교차 참조 거절 (`TestCrossProjectReferencesRejected`), `CheckScope` (`TestCheckScope`). bindings 적용은 M1 UI |
+| T24 | 두 앱 인스턴스·이중 완료 클릭 | 🟡 | 저장 계층: 승인 결정 1회만 적용 (`TestStepApprovalDecidedOnce`). 엔진·두 인스턴스는 미시험 |
