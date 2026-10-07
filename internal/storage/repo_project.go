@@ -11,13 +11,13 @@ import (
 	"agent-office/internal/domain"
 )
 
-const projectCols = `id, organization_id, name, goal, instructions, workspace_path, budget, mode, status, created_at, updated_at`
+const projectCols = `id, organization_id, name, goal, instructions, workspace_path, budget, mode, status, auto_policy, created_at, updated_at`
 
 func scanProject(s interface{ Scan(...any) error }) (domain.Project, error) {
 	var p domain.Project
-	var budget string
-	err := s.Scan(&p.ID, &p.OrganizationID, &p.Name, &p.Goal, &p.Instructions, &p.WorkspacePath, &budget, &p.Mode, &p.Status, &p.CreatedAt, &p.UpdatedAt)
-	p.Budget = json.RawMessage(budget)
+	var budget, auto string
+	err := s.Scan(&p.ID, &p.OrganizationID, &p.Name, &p.Goal, &p.Instructions, &p.WorkspacePath, &budget, &p.Mode, &p.Status, &auto, &p.CreatedAt, &p.UpdatedAt)
+	p.Budget, p.AutoPolicy = json.RawMessage(budget), json.RawMessage(auto)
 	return p, err
 }
 

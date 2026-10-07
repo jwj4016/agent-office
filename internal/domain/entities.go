@@ -48,8 +48,10 @@ type Project struct {
 	Budget         json.RawMessage `json:"budget"`
 	Mode           ProjectMode     `json:"mode"`
 	Status         string          `json:"status"` // active | archived
-	CreatedAt      string          `json:"createdAt"`
-	UpdatedAt      string          `json:"updatedAt"`
+	// AutoPolicy is the scope auto mode may use without asking.
+	AutoPolicy json.RawMessage `json:"autoPolicy"`
+	CreatedAt  string          `json:"createdAt"`
+	UpdatedAt  string          `json:"updatedAt"`
 }
 
 type ActorKind string

@@ -1,0 +1,47 @@
+{
+  "project": {"name": "작은 웹 게임", "goal": "작은 웹 게임을 출시한다", "instructions": "작은 범위로 빠르게 출시한다"},
+  "roles": [
+    {"ref": "planner", "reuseRoleId": "", "name": "기획", "mission": "", "instructions": "", "parentRef": ""},
+    {"ref": "market", "reuseRoleId": "", "name": "시장 분석", "mission": "경쟁 게임과 대상 사용자 조사", "instructions": "출처와 기준일을 적는다", "parentRef": "planner"},
+    {"ref": "legal", "reuseRoleId": "", "name": "법률 검토", "mission": "출시 관련 법적 쟁점 정리", "instructions": "최종 판단은 사람이 한다고 명시한다", "parentRef": ""},
+    {"ref": "dev", "reuseRoleId": "", "name": "게임 개발", "mission": "웹 게임 구현", "instructions": "테스트와 함께 작성한다", "parentRef": ""},
+    {"ref": "qa", "reuseRoleId": "", "name": "QA", "mission": "출시 전 검증", "instructions": "", "parentRef": ""},
+    {"ref": "owner", "reuseRoleId": "", "name": "리뷰어", "mission": "코드 리뷰와 승인", "instructions": "", "parentRef": ""}
+  ],
+  "assignments": [
+    {"ref": "a-planner", "roleRef": "planner", "actorKind": "ai", "displayName": "기획 AI", "connectionId": "CONN_AI", "model": "", "instructions": ""},
+    {"ref": "a-market", "roleRef": "market", "actorKind": "ai", "displayName": "시장 분석 AI", "connectionId": "CONN_AI", "model": "", "instructions": ""},
+    {"ref": "a-legal", "roleRef": "legal", "actorKind": "ai", "displayName": "법률 검토 AI", "connectionId": "CONN_AI", "model": "", "instructions": ""},
+    {"ref": "a-dev", "roleRef": "dev", "actorKind": "ai", "displayName": "개발 AI", "connectionId": "CONN_CODE", "model": "", "instructions": ""},
+    {"ref": "a-qa", "roleRef": "qa", "actorKind": "ai", "displayName": "QA AI", "connectionId": "CONN_AI", "model": "", "instructions": ""},
+    {"ref": "a-owner", "roleRef": "owner", "actorKind": "human", "displayName": "나", "connectionId": "", "model": "", "instructions": ""}
+  ],
+  "workflow": {
+    "schemaVersion": 1, "title": "게임 출시",
+    "nodes": [
+      {"id": "plan", "title": "게임 기획", "kind": "task", "assignmentId": "a-planner", "dependsOn": [],
+       "instructions": "게임 콘셉트, 핵심 기능, 완료 기준을 정리한다", "outputs": [{"key": "spec", "type": "markdown"}]},
+      {"id": "market", "title": "시장 분석", "kind": "task", "assignmentId": "a-market", "dependsOn": ["plan"],
+       "inputs": [{"name": "기획서", "fromStep": "plan", "outputKey": "spec"}], "outputs": [{"key": "market", "type": "markdown"}]},
+      {"id": "legal", "title": "법률 쟁점 정리", "kind": "task", "assignmentId": "a-legal", "dependsOn": ["plan"],
+       "inputs": [{"name": "기획서", "fromStep": "plan", "outputKey": "spec"}], "outputs": [{"key": "legal", "type": "markdown"}]},
+      {"id": "direction", "title": "방향 승인", "kind": "approval", "assignmentId": "a-owner", "dependsOn": ["market", "legal"],
+       "inputs": [{"name": "시장", "fromStep": "market", "outputKey": "market"}, {"name": "법률", "fromStep": "legal", "outputKey": "legal"}],
+       "reworkTargets": ["plan", "market", "legal"]},
+      {"id": "dev", "title": "게임 개발", "kind": "task", "assignmentId": "a-dev", "dependsOn": ["direction"],
+       "inputs": [{"name": "기획서", "fromStep": "plan", "outputKey": "spec"}], "outputs": [{"key": "change", "type": "code_change"}]},
+      {"id": "review", "title": "코드 리뷰", "kind": "review", "assignmentId": "a-owner", "dependsOn": ["dev"],
+       "inputs": [{"name": "변경", "fromStep": "dev", "outputKey": "change"}], "reworkTargets": ["dev"], "outputs": [{"key": "review", "type": "report"}]},
+      {"id": "qa", "title": "출시 전 검증", "kind": "task", "assignmentId": "a-qa", "dependsOn": ["review"],
+       "inputs": [{"name": "리뷰", "fromStep": "review", "outputKey": "review"}], "outputs": [{"key": "verification", "type": "report"}]},
+      {"id": "release", "title": "출시 승인", "kind": "approval", "assignmentId": "a-owner", "dependsOn": ["qa"],
+       "inputs": [{"name": "검증", "fromStep": "qa", "outputKey": "verification"}], "reworkTargets": ["dev"]},
+      {"id": "package", "title": "배포 패키지와 안내", "kind": "task", "assignmentId": "a-planner", "dependsOn": ["release"],
+       "inputs": [{"name": "검증", "fromStep": "qa", "outputKey": "verification"}], "outputs": [{"key": "package", "type": "markdown"}]}
+    ]
+  },
+  "humanSteps": [{"request": "코드 리뷰", "stepId": "review"}],
+  "missing": [],
+  "roleChanges": [],
+  "notes": "기존 '기획' 역할을 재사용했습니다. 실제 배포는 출시 승인 뒤 패키지와 안내로 대신합니다."
+}
