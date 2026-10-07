@@ -68,9 +68,10 @@ function Overview({project, onSaved}: { project: Project; onSaved: () => void })
     const archived = project.status === 'archived';
     const saved = budgetOf(project);
     const dirty = form.name !== project.name || form.goal !== project.goal || form.instructions !== project.instructions || form.mode !== project.mode
-        || budget.maxTokens !== saved.maxTokens || budget.maxCostUsd !== saved.maxCostUsd;
+        || form.workspacePath !== project.workspacePath || budget.maxTokens !== saved.maxTokens || budget.maxCostUsd !== saved.maxCostUsd;
     const save = () => action.run(async () => {
-        await api.updateProject({id: project.id, name: form.name, goal: form.goal, instructions: form.instructions, mode: form.mode, budget});
+        await api.updateProject({id: project.id, name: form.name, goal: form.goal, instructions: form.instructions, mode: form.mode, budget,
+            workspacePath: form.workspacePath});
         onSaved();
         usage.reload();
     });
@@ -84,6 +85,9 @@ function Overview({project, onSaved}: { project: Project; onSaved: () => void })
             <label className="field"><span>{t.project.instructions}</span>
                 <textarea value={form.instructions} disabled={archived} placeholder="이 서비스의 모든 담당자가 따를 지침"
                           onChange={(e) => setForm({...form, instructions: e.target.value})}/></label>
+            <label className="field"><span>작업 폴더 (AI가 코드를 읽고 고치는 폴더, 절대 경로 · 비우면 실행마다 임시 폴더)</span>
+                <input value={form.workspacePath} disabled={archived} placeholder="/Users/me/dev/my-game"
+                       onChange={(e) => setForm({...form, workspacePath: e.target.value})}/></label>
             <label className="field"><span>{t.project.mode}</span>
                 <select value={form.mode} disabled={archived} onChange={(e) => setForm({...form, mode: e.target.value as Project['mode']})}>
                     <option value="review">{t.project.modeReview} (기본)</option>

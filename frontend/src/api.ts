@@ -15,6 +15,7 @@ const call = <T>(p: Promise<unknown>) => p as Promise<T>;
 
 export type ProjectInput = {
     id?: string; name: string; goal: string; instructions: string; mode: string; budget?: { maxTokens?: number; maxCostUsd?: number };
+    workspacePath?: string;
 };
 
 export const api = {

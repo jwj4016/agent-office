@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -184,5 +185,21 @@ func TestBindingsStartBlockedWithoutConnection(t *testing.T) {
 	start := need(a.StartRun(p.ID, res.Version.ID))
 	if start.RunID != "" || len(start.Issues) == 0 || !strings.Contains(start.Issues[0].Message, "연결") {
 		t.Fatalf("start = %+v", start)
+	}
+}
+
+func TestProjectWorkspacePath(t *testing.T) {
+	a := startApp(t)
+	p := need(a.CreateProject(ProjectInput{Name: "x", Mode: "review"}))
+	dir := t.TempDir()
+	in := ProjectInput{ID: p.ID, Name: "x", Mode: "review", WorkspacePath: dir}
+	if got := need(a.UpdateProject(in)); got.WorkspacePath != dir {
+		t.Fatalf("workspace = %q", got.WorkspacePath)
+	}
+	for _, bad := range []string{"relative/dir", filepath.Join(dir, "missing")} {
+		in.WorkspacePath = bad
+		if _, err := a.UpdateProject(in); err == nil {
+			t.Errorf("accepted workspace %q", bad)
+		}
 	}
 }

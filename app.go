@@ -332,6 +332,25 @@ type ProjectInput struct {
 	Instructions string        `json:"instructions"`
 	Mode         string        `json:"mode"`
 	Budget       engine.Budget `json:"budget"`
+	// WorkspacePath is the service's own folder (e.g. its code). Empty
+	// means each run works in a scratch folder in the app's data.
+	WorkspacePath string `json:"workspacePath"`
+}
+
+// checkWorkspace accepts an existing absolute directory (or empty).
+func checkWorkspace(p string) (string, error) {
+	p = strings.TrimSpace(p)
+	if p == "" {
+		return "", nil
+	}
+	if !filepath.IsAbs(p) {
+		return "", errors.New("작업 폴더는 절대 경로여야 합니다")
+	}
+	st, err := os.Stat(p)
+	if err != nil || !st.IsDir() {
+		return "", errors.New("작업 폴더를 찾을 수 없습니다")
+	}
+	return filepath.Clean(p), nil
 }
 
 func (a *App) CreateProject(in ProjectInput) (domain.Project, error) {
@@ -353,8 +372,13 @@ func (a *App) UpdateProject(in ProjectInput) (domain.Project, error) {
 	if (in.Budget.MaxTokens != nil && *in.Budget.MaxTokens <= 0) || (in.Budget.MaxCostUSD != nil && *in.Budget.MaxCostUSD <= 0) {
 		return cur, errors.New("예산은 0보다 커야 합니다 (제한하지 않으려면 비워 두세요)")
 	}
+	ws, err := checkWorkspace(in.WorkspacePath)
+	if err != nil {
+		return cur, err
+	}
 	cur.Name, cur.Goal, cur.Instructions, cur.Mode = in.Name, in.Goal, in.Instructions, domain.ProjectMode(in.Mode)
 	cur.Budget, _ = json.Marshal(in.Budget)
+	cur.WorkspacePath = ws
 	p, err := a.db.UpdateProject(a.ctx, cur)
 	if err == nil {
 		a.eng.Wake() // a raised budget may release held work
