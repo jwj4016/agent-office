@@ -34,7 +34,10 @@ export const fakeApi = {
     confirmVersion: vi.fn(),
     startRun: vi.fn(),
     roles: ok([]), organization: ok({id: 'org-default', name: '내 회사', instructions: '', policy: {}}),
-    assignments: ok([]), connections: ok([]), templates: ok([]), workflows: ok([]), runs: ok([]),
+    assignments: ok([]), connections: vi.fn(async (): Promise<unknown[]> => []),
+    setConnectionKey: ok({}), clearConnectionKey: ok({}), saveConnection: ok({}), detectPaths: ok({codex: '', node: '', bridge: '', claude: ''}),
+    checkConnection: ok({steps: [], ready: false}),
+    testConnectionCall: ok({steps: [{id: 'call', label: '실제 호출', status: 'ok', detail: 'pong'}], ready: true}), templates: ok([]), workflows: ok([]), runs: ok([]),
     onEvents: vi.fn(() => () => {}),
     onDeltas: vi.fn(() => () => {}),
 };

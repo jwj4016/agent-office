@@ -1,3 +1,82 @@
+export namespace connect {
+	
+	export class Config {
+	    authMode?: string;
+	    node?: string;
+	    script?: string;
+	    baseUrl?: string;
+	    inputPerMTok?: number;
+	    outputPerMTok?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new Config(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.authMode = source["authMode"];
+	        this.node = source["node"];
+	        this.script = source["script"];
+	        this.baseUrl = source["baseUrl"];
+	        this.inputPerMTok = source["inputPerMTok"];
+	        this.outputPerMTok = source["outputPerMTok"];
+	    }
+	}
+	export class Step {
+	    id: string;
+	    label: string;
+	    status: string;
+	    detail: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Step(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.label = source["label"];
+	        this.status = source["status"];
+	        this.detail = source["detail"];
+	    }
+	}
+	export class Report {
+	    steps: Step[];
+	    ready: boolean;
+	    version?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Report(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.steps = this.convertValues(source["steps"], Step);
+	        this.ready = source["ready"];
+	        this.version = source["version"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+
+}
+
 export namespace domain {
 	
 	export class AssignmentOverrides {
@@ -987,6 +1066,44 @@ export namespace main {
 		    return a;
 		}
 	}
+	export class ConnectionInput {
+	    id: string;
+	    name: string;
+	    provider: string;
+	    executablePath: string;
+	    settings: connect.Config;
+	
+	    static createFrom(source: any = {}) {
+	        return new ConnectionInput(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.provider = source["provider"];
+	        this.executablePath = source["executablePath"];
+	        this.settings = this.convertValues(source["settings"], connect.Config);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class ConnectionView {
 	    id: string;
 	    name: string;
@@ -997,6 +1114,8 @@ export namespace main {
 	    verifiedCapabilities: number[];
 	    usable: boolean;
 	    note: string;
+	    hasKey: boolean;
+	    settings: connect.Config;
 	
 	    static createFrom(source: any = {}) {
 	        return new ConnectionView(source);
@@ -1013,6 +1132,44 @@ export namespace main {
 	        this.verifiedCapabilities = source["verifiedCapabilities"];
 	        this.usable = source["usable"];
 	        this.note = source["note"];
+	        this.hasKey = source["hasKey"];
+	        this.settings = this.convertValues(source["settings"], connect.Config);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class DetectedPaths {
+	    codex: string;
+	    node: string;
+	    bridge: string;
+	    claude: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DetectedPaths(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.codex = source["codex"];
+	        this.node = source["node"];
+	        this.bridge = source["bridge"];
+	        this.claude = source["claude"];
 	    }
 	}
 	export class InstructionPreview {

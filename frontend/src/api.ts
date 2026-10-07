@@ -3,7 +3,8 @@
 import * as Go from '../wailsjs/go/main/App';
 import {EventsOn} from '../wailsjs/runtime/runtime';
 import type {
-    ActionResult, ArtifactContent, Assignment, ConfirmResult, Connection, Delta, InboxItem, InstructionPreview,
+    ActionResult, ArtifactContent, Assignment, CheckReport, ConfirmResult, Connection, ConnectionKind, ConnectionSettings, Delta,
+    DetectedPaths, InboxItem, InstructionPreview,
     Organization, Project, ProjectSummary, Role, RunDetail, StartResult, StoredEvent, SystemStatus, Template,
     Validation, Workflow, WorkflowSpec,
 } from './types';
@@ -36,6 +37,13 @@ export const api = {
         call<InstructionPreview>(Go.InstructionPreview(projectId, assignmentId)),
     connections: () => call<Connection[]>(Go.ListConnections()),
     ensureTestConnection: () => call<Connection>(Go.EnsureTestConnection()),
+    saveConnection: (c: { id?: string; name: string; provider: ConnectionKind; executablePath: string; settings: ConnectionSettings }) =>
+        call<Connection>(Go.SaveConnection(c as never)),
+    setConnectionKey: (id: string, key: string) => call<Connection>(Go.SetConnectionKey(id, key)),
+    clearConnectionKey: (id: string) => call<Connection>(Go.ClearConnectionKey(id)),
+    checkConnection: (id: string) => call<CheckReport>(Go.CheckConnection(id)),
+    testConnectionCall: (id: string, model: string) => call<CheckReport>(Go.TestConnectionCall(id, model)),
+    detectPaths: () => call<DetectedPaths>(Go.DetectPaths()),
 
     templates: () => call<Template[]>(Go.WorkflowTemplates()),
     workflows: (projectId: string) => call<Workflow[]>(Go.ListWorkflows(projectId)),

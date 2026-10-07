@@ -29,10 +29,22 @@ export type Assignment = {
     overrides: { instructions?: string; appearance?: unknown };
 };
 
-export type Connection = {
-    id: string; name: string; provider: string; executablePath: string; secretRef: string;
-    config: unknown; verifiedCapabilities: unknown; usable: boolean; note: string;
+export type ConnectionKind = 'test' | 'codex' | 'claude' | 'claude_api' | 'openai_api';
+
+export type ConnectionSettings = {
+    authMode?: 'api_key' | 'local_login'; node?: string; script?: string; baseUrl?: string;
+    inputPerMTok?: number; outputPerMTok?: number;
 };
+
+export type Connection = {
+    id: string; name: string; provider: ConnectionKind; executablePath: string; secretRef: string;
+    config: unknown; verifiedCapabilities: unknown; usable: boolean; note: string; hasKey: boolean;
+    settings: ConnectionSettings;
+};
+
+export type CheckStep = { id: string; label: string; status: 'ok' | 'failed' | 'skipped'; detail: string };
+export type CheckReport = { steps: CheckStep[]; ready: boolean; version?: string };
+export type DetectedPaths = { codex: string; node: string; bridge: string; claude: string };
 
 export type InstructionLayer = { source: string; name: string; text: string };
 export type InstructionPreview = { layers: InstructionLayer[]; composed: string };

@@ -3,13 +3,13 @@ import {api} from '../api';
 import {t} from '../i18n';
 import {useLoad} from '../live';
 import {ErrorBox} from '../ui';
+import {Connections} from './Connections';
 
 const REDUCED_MOTION = 'ui.reducedMotion';
 
 export function Settings() {
     const status = useLoad(() => api.systemStatus(), []);
     const settings = useLoad(() => api.settings(), []);
-    const conns = useLoad(() => api.connections(), []);
     const [error, setError] = useState<string | null>(null);
     const reduced = settings.data?.[REDUCED_MOTION] === 'true';
     return (
@@ -23,17 +23,7 @@ export function Settings() {
                     모션 줄이기
                 </label>
             </section>
-            <section className="card stack">
-                <h2>AI 연결</h2>
-                <p className="muted small">실제 Codex·Claude 연결 설정과 연결 시험은 다음 단계(M2)에서 제공합니다.</p>
-                {(conns.data ?? []).map((c) => (
-                    <div key={c.id} className="row between">
-                        <span>{c.name} <span className="muted small">({c.provider})</span></span>
-                        <span className={`badge ${c.usable ? 'ok' : 'bad'}`}>{c.note}</span>
-                    </div>
-                ))}
-                {(conns.data ?? []).length === 0 ? <p className="muted small">연결이 없습니다.</p> : null}
-            </section>
+            <Connections/>
             <section className="card stack">
                 <h2>정보</h2>
                 {status.data ? (

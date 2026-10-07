@@ -8,10 +8,12 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"agent-office/internal/connect"
 	"agent-office/internal/domain"
 	"agent-office/internal/engine"
 	"agent-office/internal/providers"
@@ -120,19 +122,53 @@ func (a *App) shutdown(ctx context.Context) {
 	}
 }
 
+// apiKey reads a connection's key from the secret store.
+func (a *App) apiKey(c domain.ProviderConnection) (string, error) {
+	if c.SecretRef == "" {
+		return "", errors.New("API 키가 설정되지 않았습니다")
+	}
+	key, err := a.secrets.Get(c.SecretRef)
+	if errors.Is(err, secrets.ErrNotFound) {
+		return "", errors.New("API 키를 찾을 수 없습니다. 연결 설정에서 다시 입력하세요")
+	}
+	return key, err
+}
+
 func (a *App) providerFor(c domain.ProviderConnection) (providers.Provider, error) {
+	cfg := connect.ParseConfig(c.Config)
+	prices := providers.Prices{InputPerMTok: cfg.InputPerMTok, OutputPerMTok: cfg.OutputPerMTok}
 	switch c.Provider {
-	case "test":
+	case connect.KindTest:
 		return a.testProvider, nil
-	case "codex":
-		return &providers.Codex{Executable: c.ExecutablePath, Version: appVersion}, nil
-	case "claude":
-		var cfg struct {
-			Node   string `json:"node"`
-			Script string `json:"script"`
+	case connect.KindCodex:
+		exe := c.ExecutablePath
+		if exe == "" {
+			exe, _ = connect.FindExecutable("codex")
 		}
-		json.Unmarshal(c.Config, &cfg)
-		return &providers.ClaudeBridge{Node: cfg.Node, Script: cfg.Script}, nil
+		return &providers.Codex{Executable: exe, Version: appVersion}, nil
+	case connect.KindClaude:
+		node, script := cfg.Node, cfg.Script
+		if node == "" {
+			node, _ = connect.FindExecutable("node")
+		}
+		if script == "" {
+			script, _ = connect.FindBridge()
+		}
+		b := &providers.ClaudeBridge{Node: node, Script: script}
+		if cfg.AuthMode != connect.AuthLocalLogin {
+			key, err := a.apiKey(c)
+			if err != nil {
+				return nil, err
+			}
+			b.APIKey = key
+		}
+		return b, nil
+	case connect.KindClaudeAPI, connect.KindOpenAIAPI:
+		key, err := a.apiKey(c)
+		if err != nil {
+			return nil, err
+		}
+		return &providers.ModelAPI{Kind: c.Provider, APIKey: key, BaseURL: cfg.BaseURL, Prices: prices}, nil
 	}
 	return nil, fmt.Errorf("지원하지 않는 연결 종류 %q", c.Provider)
 }
@@ -403,11 +439,33 @@ func (a *App) InstructionPreview(projectID, assignmentID string) (InstructionPre
 	return InstructionPreview{Layers: layers, Composed: domain.ComposeInstructions(layers)}, nil
 }
 
-// ConnectionView adds readiness to a stored connection.
+// ConnectionView adds readiness to a stored connection. The secret
+// itself is never returned, only whether one is stored.
 type ConnectionView struct {
 	domain.ProviderConnection
-	Usable bool   `json:"usable"`
-	Note   string `json:"note"`
+	Usable bool           `json:"usable"`
+	Note   string         `json:"note"`
+	HasKey bool           `json:"hasKey"`
+	Config connect.Config `json:"settings"`
+}
+
+func (a *App) connectionView(c domain.ProviderConnection) ConnectionView {
+	v := ConnectionView{ProviderConnection: c, Config: connect.ParseConfig(c.Config)}
+	if c.SecretRef != "" {
+		_, err := a.secrets.Get(c.SecretRef)
+		v.HasKey = err == nil
+	}
+	switch {
+	case c.Provider == connect.KindTest:
+		v.Usable, v.Note = true, "테스트용 가짜 응답입니다. 실제 AI 연결이 아닙니다."
+	case c.Verified():
+		var vc verified
+		json.Unmarshal(c.VerifiedCapabilities, &vc)
+		v.Usable, v.Note = true, "실제 호출 확인됨 ("+vc.VerifiedAt+")"
+	default:
+		v.Note = "실제 호출 시험 전이라 실행할 수 없습니다"
+	}
+	return v
 }
 
 func (a *App) ListConnections() ([]ConnectionView, error) {
@@ -417,18 +475,248 @@ func (a *App) ListConnections() ([]ConnectionView, error) {
 	list, err := a.db.Connections(a.ctx)
 	out := []ConnectionView{}
 	for _, c := range list {
-		v := ConnectionView{ProviderConnection: c}
-		switch {
-		case c.Provider == "test":
-			v.Usable, v.Note = true, "테스트용 가짜 응답입니다. 실제 AI 연결이 아닙니다."
-		case c.Verified():
-			v.Usable, v.Note = true, "연결 확인됨"
-		default:
-			v.Note = "연결 확인 전이라 실행할 수 없습니다 (연결 시험은 M2에서 제공)"
-		}
-		out = append(out, v)
+		out = append(out, a.connectionView(c))
 	}
 	return out, err
+}
+
+// ConnectionInput is what the settings form edits.
+type ConnectionInput struct {
+	ID             string         `json:"id"`
+	Name           string         `json:"name"`
+	Provider       string         `json:"provider"`
+	ExecutablePath string         `json:"executablePath"`
+	Settings       connect.Config `json:"settings"`
+}
+
+// SaveConnection creates or updates a connection. Any change clears its
+// verification: it must pass a real call again before it can run.
+func (a *App) SaveConnection(in ConnectionInput) (ConnectionView, error) {
+	if err := a.ready(); err != nil {
+		return ConnectionView{}, err
+	}
+	switch in.Provider {
+	case connect.KindCodex, connect.KindClaude, connect.KindClaudeAPI, connect.KindOpenAIAPI:
+	default:
+		return ConnectionView{}, fmt.Errorf("지원하지 않는 연결 종류 %q", in.Provider)
+	}
+	if in.Provider == connect.KindClaude && in.Settings.AuthMode == "" {
+		in.Settings.AuthMode = connect.AuthAPIKey
+	}
+	c := domain.ProviderConnection{ID: in.ID, Name: in.Name, Provider: in.Provider, ExecutablePath: in.ExecutablePath}
+	if in.ID != "" {
+		cur, err := a.db.Connection(a.ctx, in.ID)
+		if err != nil {
+			return ConnectionView{}, uiErr(err)
+		}
+		c.SecretRef = cur.SecretRef
+	}
+	c.Config, _ = json.Marshal(in.Settings)
+	saved, err := a.db.SaveConnection(a.ctx, c)
+	if err != nil {
+		return ConnectionView{}, uiErr(err)
+	}
+	return a.connectionView(saved), nil
+}
+
+// SetConnectionKey stores an API key in the OS secret store (or session
+// memory when none exists); the DB keeps only a secret:// reference.
+func (a *App) SetConnectionKey(connectionID, key string) (ConnectionView, error) {
+	if err := a.ready(); err != nil {
+		return ConnectionView{}, err
+	}
+	key = strings.TrimSpace(key)
+	if key == "" {
+		return ConnectionView{}, errors.New("API 키가 비어 있습니다")
+	}
+	c, err := a.db.Connection(a.ctx, connectionID)
+	if err != nil {
+		return ConnectionView{}, uiErr(err)
+	}
+	ref := c.SecretRef
+	if ref == "" {
+		ref = secrets.NewRef()
+	}
+	if err := a.secrets.Set(ref, key); err != nil {
+		return ConnectionView{}, fmt.Errorf("키를 저장하지 못했습니다: %w", err)
+	}
+	c.SecretRef = ref
+	c.VerifiedCapabilities = nil // a new key must be verified again
+	saved, err := a.db.SaveConnection(a.ctx, c)
+	if err != nil {
+		return ConnectionView{}, uiErr(err)
+	}
+	return a.connectionView(saved), nil
+}
+
+// ClearConnectionKey removes the stored key.
+func (a *App) ClearConnectionKey(connectionID string) (ConnectionView, error) {
+	if err := a.ready(); err != nil {
+		return ConnectionView{}, err
+	}
+	c, err := a.db.Connection(a.ctx, connectionID)
+	if err != nil {
+		return ConnectionView{}, uiErr(err)
+	}
+	if c.SecretRef != "" {
+		a.secrets.Delete(c.SecretRef)
+	}
+	c.SecretRef, c.VerifiedCapabilities = "", nil
+	saved, err := a.db.SaveConnection(a.ctx, c)
+	if err != nil {
+		return ConnectionView{}, uiErr(err)
+	}
+	return a.connectionView(saved), nil
+}
+
+// DetectedPaths suggests executables for the settings form.
+type DetectedPaths struct {
+	Codex  string `json:"codex"`
+	Node   string `json:"node"`
+	Bridge string `json:"bridge"`
+	Claude string `json:"claude"`
+}
+
+func (a *App) DetectPaths() DetectedPaths {
+	var d DetectedPaths
+	d.Codex, _ = connect.FindExecutable("codex")
+	d.Node, _ = connect.FindExecutable("node")
+	d.Claude, _ = connect.FindExecutable("claude")
+	d.Bridge, _ = connect.FindBridge()
+	return d
+}
+
+func (a *App) checkTarget(c domain.ProviderConnection) connect.Target {
+	t := connect.Target{Kind: c.Provider, ExecutablePath: c.ExecutablePath, Config: connect.ParseConfig(c.Config)}
+	if c.SecretRef != "" {
+		_, err := a.secrets.Get(c.SecretRef)
+		t.HasAPIKey = err == nil
+	}
+	return t
+}
+
+// CheckConnection runs the free checks (executable, version, auth). It
+// never calls a model.
+func (a *App) CheckConnection(connectionID string) (connect.Report, error) {
+	if err := a.ready(); err != nil {
+		return connect.Report{}, err
+	}
+	c, err := a.db.Connection(a.ctx, connectionID)
+	if err != nil {
+		return connect.Report{}, uiErr(err)
+	}
+	return connect.Check(a.ctx, a.checkTarget(c)), nil
+}
+
+type verified struct {
+	VerifiedAt string `json:"verifiedAt"`
+	Version    string `json:"version,omitempty"`
+	AuthMode   string `json:"authMode,omitempty"`
+	Model      string `json:"model,omitempty"`
+}
+
+// TestConnectionCall runs the free checks and then one tiny real request
+// ("pong"). It uses the person's AI quota, so the UI asks first. Only a
+// successful call marks the connection usable.
+func (a *App) TestConnectionCall(connectionID, model string) (connect.Report, error) {
+	if err := a.ready(); err != nil {
+		return connect.Report{}, err
+	}
+	c, err := a.db.Connection(a.ctx, connectionID)
+	if err != nil {
+		return connect.Report{}, uiErr(err)
+	}
+	r := connect.Check(a.ctx, a.checkTarget(c))
+	if !r.Passed() {
+		r.Steps = append(r.Steps, connect.Step{ID: "call", Label: "실제 호출", Status: connect.Skipped, Detail: "앞 단계 실패로 시도하지 않음"})
+		return r, nil
+	}
+	detail, usedModel, callErr := a.pingProvider(c, model)
+	if callErr != nil {
+		r.Steps = append(r.Steps, connect.Step{ID: "call", Label: "실제 호출", Status: connect.Failed, Detail: callErr.Error()})
+		return r, nil
+	}
+	r.Steps = append(r.Steps, connect.Step{ID: "call", Label: "실제 호출", Status: connect.OK, Detail: detail})
+	r.Ready = true
+	vc, _ := json.Marshal(verified{VerifiedAt: time.Now().Format("2006-01-02 15:04"), Version: r.Version,
+		AuthMode: connect.ParseConfig(c.Config).AuthMode, Model: usedModel})
+	c.VerifiedCapabilities = vc
+	if _, err := a.db.SaveConnection(a.ctx, c); err != nil {
+		return r, uiErr(err)
+	}
+	return r, nil
+}
+
+// pingProvider asks the provider for the single word "pong" in a scratch
+// folder, declining any tool request.
+func (a *App) pingProvider(c domain.ProviderConnection, model string) (string, string, error) {
+	prov, err := a.providerFor(c)
+	if err != nil {
+		return "", "", err
+	}
+	dir, err := os.MkdirTemp("", "agent-office-ping-")
+	if err != nil {
+		return "", "", err
+	}
+	defer os.RemoveAll(dir)
+	req := providers.StartRequest{
+		ProjectID: "connection-test", RunID: "connection-test", StepAttemptID: "ping-" + c.ID, StepID: "ping",
+		Prompt:    "Reply with exactly the word: pong. Do not use any tools.",
+		Workspace: dir, Model: model, Policy: providers.Policy{Sandbox: "read-only"},
+	}
+	if c.Provider == connect.KindClaudeAPI || c.Provider == connect.KindOpenAIAPI {
+		req.OutputSpec = []providers.OutputSpec{{Key: "reply", Type: "markdown", Required: true, Path: filepath.Join(dir, "reply.md")}}
+	}
+	ctx, cancel := context.WithTimeout(a.ctx, 3*time.Minute)
+	defer cancel()
+	s, err := prov.Start(ctx, req)
+	if err != nil {
+		return "", "", err
+	}
+	var final providers.CompletedPayload
+	var usedModel string
+	for {
+		select {
+		case <-ctx.Done():
+			s.Cancel(context.Background())
+			return "", "", errors.New("3분 안에 응답하지 않았습니다")
+		case ev, ok := <-s.Events():
+			if !ok {
+				if final.Status != providers.StatusSucceeded {
+					return "", usedModel, fmt.Errorf("실패: %s", firstNonEmpty(final.Error, final.Status))
+				}
+				reply := final.Text
+				if data, err := os.ReadFile(filepath.Join(dir, "reply.md")); err == nil {
+					reply = string(data)
+				}
+				if !strings.Contains(strings.ToLower(reply), "pong") {
+					return "", usedModel, fmt.Errorf("예상과 다른 응답: %.80q", reply)
+				}
+				return "응답 확인 (" + firstNonEmpty(usedModel, "모델 미보고") + ")", usedModel, nil
+			}
+			switch ev.Kind {
+			case providers.KindStarted:
+				var p providers.StartedPayload
+				json.Unmarshal(ev.Payload, &p)
+				usedModel = p.Model
+			case providers.KindApprovalRequest, providers.KindQuestion:
+				var p providers.RequestPayload
+				json.Unmarshal(ev.Payload, &p)
+				s.Respond(context.Background(), providers.Response{RequestID: p.RequestID, Decision: providers.DecisionDecline, Answer: "연결 시험 중입니다"})
+			case providers.KindCompleted:
+				json.Unmarshal(ev.Payload, &final)
+			}
+		}
+	}
+}
+
+func firstNonEmpty(xs ...string) string {
+	for _, x := range xs {
+		if x != "" {
+			return x
+		}
+	}
+	return ""
 }
 
 // EnsureTestConnection creates the built-in test connection if missing.

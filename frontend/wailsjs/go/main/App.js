@@ -10,6 +10,14 @@ export function CancelRun(arg1, arg2) {
   return window['go']['main']['App']['CancelRun'](arg1, arg2);
 }
 
+export function CheckConnection(arg1) {
+  return window['go']['main']['App']['CheckConnection'](arg1);
+}
+
+export function ClearConnectionKey(arg1) {
+  return window['go']['main']['App']['ClearConnectionKey'](arg1);
+}
+
 export function ConfirmVersion(arg1, arg2, arg3) {
   return window['go']['main']['App']['ConfirmVersion'](arg1, arg2, arg3);
 }
@@ -36,6 +44,10 @@ export function DecideToolApproval(arg1, arg2, arg3) {
 
 export function DeleteRole(arg1) {
   return window['go']['main']['App']['DeleteRole'](arg1);
+}
+
+export function DetectPaths() {
+  return window['go']['main']['App']['DetectPaths']();
 }
 
 export function EnsureTestConnection() {
@@ -114,12 +126,20 @@ export function SaveAssignment(arg1) {
   return window['go']['main']['App']['SaveAssignment'](arg1);
 }
 
+export function SaveConnection(arg1) {
+  return window['go']['main']['App']['SaveConnection'](arg1);
+}
+
 export function SaveRole(arg1) {
   return window['go']['main']['App']['SaveRole'](arg1);
 }
 
 export function SaveWorkflowDraft(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['SaveWorkflowDraft'](arg1, arg2, arg3, arg4);
+}
+
+export function SetConnectionKey(arg1, arg2) {
+  return window['go']['main']['App']['SetConnectionKey'](arg1, arg2);
 }
 
 export function SetProjectArchived(arg1, arg2) {
@@ -144,6 +164,10 @@ export function SubmitReview(arg1, arg2, arg3, arg4, arg5, arg6, arg7) {
 
 export function SystemStatus() {
   return window['go']['main']['App']['SystemStatus']();
+}
+
+export function TestConnectionCall(arg1, arg2) {
+  return window['go']['main']['App']['TestConnectionCall'](arg1, arg2);
 }
 
 export function UpdateOrganization(arg1, arg2) {
