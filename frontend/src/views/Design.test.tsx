@@ -67,6 +67,17 @@ describe('Design', () => {
         expect(within(section).queryByRole('button', {name: '적용하고 자동 시작'})).not.toBeInTheDocument();
     });
 
+    it('updates the request list when a draft finishes', async () => {
+        fakeApi.designs.mockResolvedValue([view({status: 'drafting'})]);
+        fakeApi.design.mockResolvedValueOnce(view({status: 'drafting'})).mockResolvedValue(view());
+        renderIt();
+        fireEvent.click(await screen.findByRole('button', {name: /게임 출시, 리뷰는 내가/}));
+        const list = await screen.findByLabelText('설계 요청');
+        await within(list).findByText('설계 중');
+        fakeApi.designs.mockResolvedValue([view()]);
+        await waitFor(() => expect(within(list).getByText('검토 대기')).toBeInTheDocument(), {timeout: 4000});
+    });
+
     it('disables auto start when the scope does not allow it', async () => {
         const auto = view({mode: 'auto', autoIssues: [{code: 'auto_needs_budget', message: '예산을 정해야 합니다', severity: 'run'}]});
         fakeApi.designs.mockResolvedValue([auto]);

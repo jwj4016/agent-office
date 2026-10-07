@@ -141,6 +141,12 @@ function DesignDetail({id, onOpenWorkflow, onOpenRun, onChanged}: {
         const t = window.setInterval(reload, 2000);
         return () => window.clearInterval(t);
     }, [data?.status, reload]);
+    // The request list shows the status too: refresh it when this one changes.
+    const status = data?.status;
+    useEffect(() => {
+        if (status) onChanged();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [status]);
     if (error) return <ErrorBox error={error}/>;
     if (!data) return <p className="muted">{t.common.loading}</p>;
     const r = data.result;

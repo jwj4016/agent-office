@@ -17,8 +17,8 @@
 | ID | 상황 | 상태 | 증거 (테스트·명령·결과) |
 |---|---|---|---|
 | T01 | 사용자가 역할·흐름 생성 | 🟡 | 테스트 provider: `TestServiceDevFlowEndToEnd`, M1 화면 시험. 실제 AI(2026-10-07, macOS): 사용자 구성 흐름이 실제 Claude·Codex로 의존 순서대로 완료(M2 게이트). Windows·Linux 미시험 |
-| T02 | “게임 출시, 리뷰는 내가” 요청 | ⬜ | |
-| T03 | auto 모드, 허용 범위 충족 | ⬜ | |
+| T02 | “게임 출시, 리뷰는 내가” 요청 | 🟡 | 테스트 provider: `TestDesignReviewModeNewService`(사람 업무→local-owner 배정을 코드로 검증). 실제 AI(2026-10-08, macOS, Codex): 설계안이 기존 역할 4개(기획·개발·QA·리뷰어)를 모두 재사용(중복 역할 없음), '코드 리뷰' 단계가 사람(local-owner)에게 배정, 검토 후 적용 → 흐름 편집기에서 버전 1 확정(M3 게이트). 배포 자료 부족은 '부족한 항목'으로 표시되어 실행은 보류. Windows·Linux 미시험 |
+| T03 | auto 모드, 허용 범위 충족 | 🟡 | `TestDesignAutoModeStartsAndWaitsForPeople`(범위 충족 시 적용·실행 후 사람 업무에서 대기), `TestDesignAutoModeRefusedOutsideScope`(허용 밖 연결·예산 없음·부족 항목이면 거부). 화면: `Design.test.tsx`(범위 밖이면 자동 시작 비활성). 실제 AI로는 미시험 |
 | T04 | 연결 없는 AI 배정 | 🟡 | 검증: `TestValidateAssignments`, `TestConfirmRejectsInvalidAndAllowsUnconnected`. 바인딩: `TestBindingsStartBlockedWithoutConnection` (버전 확정 가능, 실행은 설명과 함께 차단). 화면: 담당자 목록에 '확인 필요' 표시 |
 | T05 | 사람이 리뷰 수정 요청 | 🟡 | `TestReviewChangesReworkOnlyAffectedSteps` (백엔드·통합·리뷰·QA·전달만 재실행, 프론트엔드 유지, 이전 결과 stale 보존, 의견 전달) |
 | T06 | 기획 반려 | 🟡 | `TestPlanRejectionKeepsIndependentResults` (기획 의존 범위만 재실행, 독립 분석 유지, 이전 승인 stale) |
