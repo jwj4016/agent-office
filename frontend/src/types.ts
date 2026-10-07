@@ -159,7 +159,7 @@ export type DesignResult = {
 };
 export type DesignStatus = 'drafting' | 'ready' | 'failed' | 'applied' | 'discarded';
 export type DesignView = {
-    id: string; projectId: string; goal: string; mode: 'review' | 'auto'; connectionId: string; status: DesignStatus;
+    id: string; projectId: string; goal: string; mode: 'review' | 'auto'; connectionId: string; status: DesignStatus; proposal?: unknown;
     error: string; createdAt: string; updatedAt: string; applied: { projectId?: string; workflowId?: string } | null;
     request: { goal: string; projectId: string; projectName: string; humanTasks: string[] | null; mode: string; model: string };
     result: DesignResult | null; autoIssues: Issue[];

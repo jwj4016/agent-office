@@ -23,7 +23,7 @@ export const fakeApi = {
         return project;
     }),
     inbox: vi.fn(async () => state.inbox),
-    designs: vi.fn(async (): Promise<unknown[]> => []), design: vi.fn(), startDesign: vi.fn(), applyDesign: vi.fn(), discardDesign: ok(undefined), setAutoPolicy: ok(undefined),
+    designs: vi.fn(async (): Promise<unknown[]> => []), design: vi.fn(), startDesign: vi.fn(), applyDesign: vi.fn(), discardDesign: ok(undefined), reparseDesign: vi.fn(), setAutoPolicy: ok(undefined),
     projectUsage: ok({inputTokens: 0, outputTokens: 0, costUsd: 0, unknownCostAttempts: 0, attempts: 0, budget: {}}),
     decideApproval: acted('succeeded'),
     submitReview: acted('succeeded'),

@@ -171,6 +171,12 @@ func (s *Service) draft(ctx context.Context, id string, in StoredInput, conn dom
 	}
 	p, err := Parse(raw)
 	if err != nil {
+		// Keep the raw answer so it can be re-checked after a fix
+		// without calling the model again.
+		if json.Valid(raw) {
+			s.DB.UpdateDesign(context.Background(), id, StatusFailed, raw, nil, nil, err.Error(), "", StatusDrafting)
+			return
+		}
 		fail(err)
 		return
 	}
@@ -302,6 +308,34 @@ func (s *Service) Apply(ctx context.Context, id string, auto bool) (ApplyResult,
 	}
 	out.RunID = runID
 	return out, nil
+}
+
+// Reparse re-checks the stored raw answer of a failed design (e.g. after
+// the app learned to accept it) without calling the model again.
+func (s *Service) Reparse(ctx context.Context, id string) error {
+	rec, err := s.DB.Design(ctx, id)
+	if err != nil {
+		return err
+	}
+	if rec.Status != StatusFailed || len(rec.Proposal) <= 2 {
+		return ErrNotReady
+	}
+	var in StoredInput
+	json.Unmarshal(rec.Input, &in)
+	p, err := Parse(rec.Proposal)
+	if err != nil {
+		s.DB.UpdateDesign(ctx, id, StatusFailed, nil, nil, nil, err.Error(), "", StatusFailed)
+		return err
+	}
+	c, _, err := s.context(ctx, in)
+	if err != nil {
+		return err
+	}
+	res := Check(p, c, in.ProjectID == "")
+	proposal, _ := json.Marshal(res.Proposal)
+	check, _ := json.Marshal(res)
+	_, err = s.DB.UpdateDesign(ctx, id, StatusReady, proposal, check, nil, "", "", StatusFailed)
+	return err
 }
 
 // Discard drops a draft that will not be applied.

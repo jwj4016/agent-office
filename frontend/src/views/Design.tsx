@@ -164,6 +164,13 @@ function DesignDetail({id, onOpenWorkflow, onOpenRun, onChanged}: {
             {data.request.humanTasks?.length ? <p className="small">내가 맡을 업무: {data.request.humanTasks.join(', ')}</p> : null}
             {data.status === 'drafting' ? <p className="muted">설계 AI가 작업 중입니다…</p> : null}
             {data.status === 'failed' ? <div className="alert" role="alert">{data.error}</div> : null}
+            {data.status === 'failed' && data.proposal && typeof data.proposal === 'object' && Object.keys(data.proposal).length > 0 ? (
+                <div className="row">
+                    <button className="btn" disabled={action.busy}
+                            onClick={() => action.run(async () => { await api.reparseDesign(id); onChanged(); reload(); })}>
+                        저장된 답변 다시 검사 (AI 호출 없음)</button>
+                </div>
+            ) : null}
             {data.status === 'applied' && data.applied?.projectId && data.applied.workflowId ? (
                 <button className="btn" onClick={() => onOpenWorkflow(data.applied!.projectId!, data.applied!.workflowId!)}>적용된 업무 흐름 열기</button>
             ) : null}

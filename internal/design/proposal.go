@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"agent-office/internal/domain"
 )
@@ -28,7 +29,26 @@ type Proposal struct {
 	// RoleChanges suggests edits to existing company roles. They are shown
 	// separately and never applied automatically.
 	RoleChanges []RoleChange `json:"roleChanges"`
-	Notes       string       `json:"notes"`
+	Notes       Text         `json:"notes"`
+}
+
+// Text is a display-only string that also accepts an array of strings
+// (joined by newlines): agents that do not enforce the schema sometimes
+// send a list, and a note must not sink a whole design.
+type Text string
+
+func (t *Text) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := json.Unmarshal(data, &s); err == nil {
+		*t = Text(s)
+		return nil
+	}
+	var list []string
+	if err := json.Unmarshal(data, &list); err != nil {
+		return fmt.Errorf("문자열 또는 문자열 목록이어야 합니다")
+	}
+	*t = Text(strings.Join(list, "\n"))
+	return nil
 }
 
 type ProposedProject struct {

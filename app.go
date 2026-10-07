@@ -1132,6 +1132,18 @@ func (a *App) ApplyDesign(id string, auto bool) (design.ApplyResult, error) {
 	return r, uiErr(err)
 }
 
+// ReparseDesign re-checks a failed design's stored answer without
+// calling the model again.
+func (a *App) ReparseDesign(id string) (DesignView, error) {
+	if err := a.ready(); err != nil {
+		return DesignView{}, err
+	}
+	if err := a.design.Reparse(a.ctx, id); err != nil {
+		return a.GetDesign(id)
+	}
+	return a.GetDesign(id)
+}
+
 func (a *App) DiscardDesign(id string) error {
 	if err := a.ready(); err != nil {
 		return err

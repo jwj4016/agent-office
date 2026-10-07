@@ -77,6 +77,7 @@ export const api = {
     design: (id: string) => call<DesignView>(Go.GetDesign(id)),
     applyDesign: (id: string, auto: boolean) => call<ApplyResult>(Go.ApplyDesign(id, auto)),
     discardDesign: (id: string) => call<void>(Go.DiscardDesign(id)),
+    reparseDesign: (id: string) => call<DesignView>(Go.ReparseDesign(id)),
     setAutoPolicy: (projectId: string, ids: string[]) => call<void>(Go.SetAutoPolicy(projectId, ids)),
 
     inbox: () => call<InboxItem[]>(Go.Inbox()),

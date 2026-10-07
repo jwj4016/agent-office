@@ -74,6 +74,8 @@ export function ProjectUsage(arg1:string):Promise<engine.Usage>;
 
 export function ReadArtifact(arg1:string,arg2:string):Promise<engine.ArtifactContent>;
 
+export function ReparseDesign(arg1:string):Promise<main.DesignView>;
+
 export function ResumeRun(arg1:string,arg2:string):Promise<void>;
 
 export function RetryStep(arg1:string,arg2:string,arg3:string):Promise<void>;

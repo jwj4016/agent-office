@@ -251,3 +251,30 @@ func TestRecoverMarksDraftingFailed(t *testing.T) {
 		t.Fatalf("after recover: %+v", got)
 	}
 }
+
+// Real-Codex finding: notes sent as a list are accepted, and a design that
+// failed parsing keeps its raw answer for a re-check without a new call.
+func TestNotesListAndReparse(t *testing.T) {
+	e := newEnv(t)
+	e.designer("list-notes", func(s string) string {
+		return strings.Replace(s, `"notes": "기존 '기획' 역할을 재사용했습니다. 실제 배포는 출시 승인 뒤 패키지와 안내로 대신합니다."`, `"notes": ["기획 재사용", "배포는 안내로 대신"]`, 1)
+	})
+	in := gameRequest("review")
+	in.Model = "list-notes"
+	if rec := e.draft(in); rec.Status != design.StatusReady {
+		t.Fatalf("list notes: %s %s", rec.Status, rec.Error)
+	}
+
+	e.designer("bad-type", func(s string) string { return strings.Replace(s, `"missing": []`, `"missing": "없음"`, 1) })
+	in.Model = "bad-type"
+	rec := e.draft(in)
+	if rec.Status != design.StatusFailed || len(rec.Proposal) <= 2 {
+		t.Fatalf("raw answer not kept: %s %q", rec.Status, rec.Proposal)
+	}
+	if err := e.svc.Reparse(e.ctx, rec.ID); err == nil {
+		t.Fatal("still-invalid design reparsed as ready")
+	}
+	if got, _ := e.db.Design(e.ctx, rec.ID); got.Status != design.StatusFailed {
+		t.Fatalf("status = %s", got.Status)
+	}
+}

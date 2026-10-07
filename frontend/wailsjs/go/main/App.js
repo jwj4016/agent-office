@@ -134,6 +134,10 @@ export function ReadArtifact(arg1, arg2) {
   return window['go']['main']['App']['ReadArtifact'](arg1, arg2);
 }
 
+export function ReparseDesign(arg1) {
+  return window['go']['main']['App']['ReparseDesign'](arg1);
+}
+
 export function ResumeRun(arg1, arg2) {
   return window['go']['main']['App']['ResumeRun'](arg1, arg2);
 }
