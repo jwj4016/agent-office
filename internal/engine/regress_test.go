@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -165,7 +166,7 @@ func TestArtifactsAreFrozenCopies(t *testing.T) {
 		t.Fatalf("artifact not in the store: %s", art.Path)
 	}
 	reqs := h.started("plan")
-	if len(reqs) != 1 || len(reqs[0].WritableDirs) != 1 || !strings.HasSuffix(reqs[0].WritableDirs[0], "/out") {
+	if len(reqs) != 1 || len(reqs[0].WritableDirs) != 1 || filepath.Base(reqs[0].WritableDirs[0]) != "out" {
 		t.Fatalf("writable dirs = %v", reqs[0].WritableDirs)
 	}
 	// Tamper with the original output; the stored artifact is unaffected.
