@@ -124,6 +124,8 @@ func Run(ctx context.Context, prov providers.Provider, model, prompt string) ([]
 	out := filepath.Join(dir, "out", "design.json")
 	os.MkdirAll(filepath.Dir(out), 0o700)
 	schema, _ := json.Marshal(Schema())
+	// CLI agents only see the prompt, so it must name the exact file.
+	prompt += "\n결과 파일 경로: " + out + "\n이 경로에 JSON 객체 하나만 담은 파일을 저장한 뒤 작업을 마친다. 다른 파일은 만들지 않는다.\n"
 	req := providers.StartRequest{
 		ProjectID: "design", RunID: "design", StepAttemptID: "design-" + time.Now().Format("150405.000"), StepID: "design",
 		Instructions: instructions, Prompt: prompt, Workspace: dir, WritableDirs: []string{filepath.Dir(out)}, Model: model,
@@ -164,10 +166,34 @@ func Run(ctx context.Context, prov providers.Provider, model, prompt string) ([]
 	if data, err := os.ReadFile(out); err == nil {
 		return data, nil
 	}
-	if text := strings.TrimSpace(final.Text); json.Valid([]byte(text)) {
-		return []byte(text), nil // a text-only provider answered inline
+	if text, ok := jsonFromReply(final.Text); ok {
+		return []byte(text), nil // the agent answered inline instead
 	}
-	return nil, errors.New("설계 AI가 설계안 파일을 만들지 않았습니다")
+	snippet := strings.TrimSpace(final.Text)
+	if len(snippet) > 200 {
+		snippet = snippet[:200] + "…"
+	}
+	return nil, fmt.Errorf("설계 AI가 설계안 파일을 만들지 않았습니다 (마지막 응답: %q)", snippet)
+}
+
+// jsonFromReply accepts a reply that is JSON, or that contains one JSON
+// object in a ```json fenced block.
+func jsonFromReply(text string) (string, bool) {
+	text = strings.TrimSpace(text)
+	if json.Valid([]byte(text)) {
+		return text, true
+	}
+	if i := strings.Index(text, "```"); i >= 0 {
+		rest := text[i+3:]
+		rest = strings.TrimPrefix(rest, "json")
+		if j := strings.Index(rest, "```"); j >= 0 {
+			block := strings.TrimSpace(rest[:j])
+			if json.Valid([]byte(block)) {
+				return block, true
+			}
+		}
+	}
+	return "", false
 }
 
 func firstNonEmpty(xs ...string) string {
