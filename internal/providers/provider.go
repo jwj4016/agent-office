@@ -78,10 +78,13 @@ type StartRequest struct {
 	InputManifest []InputRef   `json:"inputManifest"`
 	OutputSpec    []OutputSpec `json:"outputSpec"`
 	Workspace     string       `json:"workspace"`
-	Limits        Limits       `json:"limits"`
-	Policy        Policy       `json:"policy"`
-	ConnectionRef string       `json:"connectionRef"`
-	Model         string       `json:"model"`
+	// WritableDirs are extra directories the provider may write besides
+	// Workspace (the attempt's output folder). Nothing else is granted.
+	WritableDirs  []string `json:"writableDirs"`
+	Limits        Limits   `json:"limits"`
+	Policy        Policy   `json:"policy"`
+	ConnectionRef string   `json:"connectionRef"`
+	Model         string   `json:"model"`
 }
 
 func (r StartRequest) validate() error {

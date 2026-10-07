@@ -105,6 +105,9 @@ func (e *Engine) SubmitHumanResult(ctx context.Context, projectID, attemptID str
 	if verr != nil {
 		return Outcome{}, &VerificationError{Problem: verr.Error()}
 	}
+	if results, err = e.freeze(projectID, st.run.ID, a.ID, results); err != nil {
+		return Outcome{}, err
+	}
 	return e.commitHuman(ctx, projectID, st.run.ID, a, results, nil)
 }
 
@@ -217,6 +220,9 @@ func (e *Engine) SubmitReview(ctx context.Context, projectID, attemptID string, 
 		if verr != nil {
 			return Outcome{}, &VerificationError{Problem: verr.Error()}
 		}
+		if results, err = e.freeze(projectID, st.run.ID, a.ID, results); err != nil {
+			return Outcome{}, err
+		}
 		out, err := e.commitHuman(ctx, projectID, st.run.ID, a, results, nil)
 		out.Decision = decision
 		return out, err
@@ -230,6 +236,9 @@ func (e *Engine) SubmitReview(ctx context.Context, projectID, attemptID string, 
 			}
 			results = append(results, v)
 		}
+	}
+	if results, err = e.freeze(projectID, st.run.ID, a.ID, results); err != nil {
+		return Outcome{}, err
 	}
 	var live []string
 	out, err := e.commitHuman(ctx, projectID, st.run.ID, a, results, func(c *storage.Change, st *runState) error {

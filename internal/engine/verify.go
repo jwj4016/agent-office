@@ -18,6 +18,7 @@ import (
 	"github.com/santhosh-tekuri/jsonschema/v6"
 
 	"agent-office/internal/domain"
+	"agent-office/internal/storage"
 )
 
 // MaxOutputBytes bounds a single step output file.
@@ -228,3 +229,40 @@ func (t *tail) Write(p []byte) (int, error) {
 func (t *tail) String() string { return string(t.b) }
 
 var _ io.Writer = (*tail)(nil)
+
+// freeze copies verified outputs into the artifact store as read-only
+// files and re-checks each copy's hash. Recorded artifacts then never
+// change, even if the attempt's working folder is touched later.
+func (e *Engine) freeze(projectID, runID, attemptID string, results []verifiedOutput) ([]verifiedOutput, error) {
+	dir := filepath.Join(e.projectDir(projectID), "artifacts", runID, attemptID)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return nil, err
+	}
+	out := make([]verifiedOutput, 0, len(results))
+	for _, r := range results {
+		src, err := e.resolveInside(filepath.Join(e.cfg.DataDir, filepath.FromSlash(r.RelPath)))
+		if err != nil {
+			return nil, err
+		}
+		data, err := os.ReadFile(src)
+		if err != nil {
+			return nil, err
+		}
+		sum := sha256.Sum256(data)
+		if hex.EncodeToString(sum[:]) != r.Hash {
+			return nil, fmt.Errorf("결과 %q가 검증 후 바뀌었습니다", r.Key)
+		}
+		// A unique name per freeze: read-only files are never overwritten
+		// (e.g. two submissions racing for the same attempt).
+		base := filepath.Base(src)
+		ext := filepath.Ext(base)
+		dst := filepath.Join(dir, strings.TrimSuffix(base, ext)+"-"+storage.NewID("v")[2:10]+ext)
+		if err := os.WriteFile(dst, data, 0o400); err != nil {
+			return nil, err
+		}
+		rel, _ := filepath.Rel(e.cfg.DataDir, dst)
+		r.RelPath = filepath.ToSlash(rel)
+		out = append(out, r)
+	}
+	return out, nil
+}

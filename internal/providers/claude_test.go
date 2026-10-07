@@ -52,6 +52,12 @@ func fakeClaude(mode string) {
 	case "cancel-ignored":
 		emit("started", map[string]any{"sessionId": "sess-1"})
 		time.Sleep(time.Hour)
+	case "env-check":
+		key := "unset"
+		if os.Getenv("ANTHROPIC_API_KEY") != "" {
+			key = "set:" + strings.Repeat("*", len(os.Getenv("ANTHROPIC_API_KEY")))
+		}
+		emit("completed", map[string]any{"status": "succeeded", "text": fmt.Sprint(key, " dirs=", start["writableDirs"])})
 	case "crash":
 		fmt.Fprintln(os.Stderr, "Error: Claude Code executable not found")
 		os.Exit(1)
@@ -173,5 +179,24 @@ func TestClaudeReal(t *testing.T) {
 	}
 	if c := completed(t, evs); c.Status != StatusSucceeded || !strings.Contains(strings.ToLower(c.Text), "pong") {
 		t.Fatalf("completed = %+v", c)
+	}
+}
+
+func TestClaudeAuthAndWritableDirs(t *testing.T) {
+	r := codexReq()
+	r.WritableDirs = []string{"/data/out"}
+	// Local login: an inherited key is removed so the CLI login is used.
+	p := fakeClaudeProvider(t, "env-check")
+	p.Env = append(p.Env, "ANTHROPIC_API_KEY=from-shell")
+	s, _ := p.Start(context.Background(), r)
+	if c := completed(t, drain(t, s)); c.Text != "unset dirs=[/data/out]" {
+		t.Fatalf("local login: %q", c.Text)
+	}
+	// API key mode: only the configured key reaches the bridge.
+	p = fakeClaudeProvider(t, "env-check")
+	p.APIKey = "sk-ant-test"
+	s, _ = p.Start(context.Background(), r)
+	if c := completed(t, drain(t, s)); c.Text != "set:*********** dirs=[/data/out]" {
+		t.Fatalf("api key: %q", c.Text)
 	}
 }

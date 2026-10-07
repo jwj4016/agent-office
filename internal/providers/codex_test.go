@@ -66,6 +66,15 @@ func fakeCodex(mode string) {
 			send(map[string]any{"id": m["id"], "result": map[string]any{"thread": map[string]any{"id": "th1"}, "model": "fake-model"}})
 			continue
 		case "turn/start":
+			if want := os.Getenv("FAKE_EXPECT_ROOT"); want != "" {
+				p, _ := m["params"].(map[string]any)
+				sp, _ := p["sandboxPolicy"].(map[string]any)
+				roots, _ := sp["writableRoots"].([]any)
+				if sp["type"] != "workspaceWrite" || len(roots) != 1 || roots[0] != want {
+					fmt.Fprintf(os.Stderr, "bad sandboxPolicy: %v\n", p["sandboxPolicy"])
+					os.Exit(6)
+				}
+			}
 			send(map[string]any{"id": m["id"], "result": map[string]any{"turn": map[string]any{"id": "tu1", "status": "inProgress"}}})
 		}
 		break
@@ -265,6 +274,21 @@ func TestCodexReal(t *testing.T) {
 		}
 	}
 	if c := completed(t, evs); c.Status != StatusSucceeded || !strings.Contains(strings.ToLower(c.Text), "pong") {
+		t.Fatalf("completed = %+v", c)
+	}
+}
+
+// The attempt's output folder is granted as the only extra writable root.
+func TestCodexGrantsOutputFolder(t *testing.T) {
+	out := t.TempDir()
+	req := codexReq()
+	req.Policy.Sandbox = "workspace-write"
+	req.WritableDirs = []string{out}
+	s, err := fakeCodexProvider(t, "success", "FAKE_EXPECT_ROOT="+out).Start(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c := completed(t, drain(t, s)); c.Status != StatusSucceeded {
 		t.Fatalf("completed = %+v", c)
 	}
 }

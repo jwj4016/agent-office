@@ -261,10 +261,20 @@ func (s *codexSession) run(ctx context.Context, req StartRequest, version string
 	s.emit(KindStarted, StartedPayload{SessionID: ts.Thread.ID, Model: ts.Model})
 
 	// readLoop records the turn id from this reply.
-	if _, err := s.call(ctx, "turn/start", map[string]any{
+	turn := map[string]any{
 		"threadId": ts.Thread.ID,
 		"input":    []any{map[string]any{"type": "text", "text": req.Prompt, "text_elements": []any{}}},
-	}); err != nil {
+	}
+	if sandbox == "workspace-write" {
+		// The workspace stays writable; only the listed extra folders
+		// (the attempt's output folder) are added.
+		roots := append([]string{}, req.WritableDirs...)
+		turn["sandboxPolicy"] = map[string]any{
+			"type": "workspaceWrite", "writableRoots": roots, "networkAccess": req.Policy.AllowNetwork,
+			"excludeTmpdirEnvVar": false, "excludeSlashTmp": false,
+		}
+	}
+	if _, err := s.call(ctx, "turn/start", turn); err != nil {
 		fail(fmt.Errorf("turn/start: %w", err))
 		return
 	}

@@ -23,6 +23,10 @@ type ClaudeBridge struct {
 	Env []string
 	// AllowedTools run without approval (e.g. Read, Grep).
 	AllowedTools []string
+	// APIKey, when set, is given to the bridge process only (as
+	// ANTHROPIC_API_KEY). When empty the local Claude login is used and
+	// any inherited ANTHROPIC_API_KEY is removed so the choice is explicit.
+	APIKey string
 	// CancelGrace bounds how long Cancel waits for the bridge to stop.
 	CancelGrace time.Duration
 }
@@ -30,7 +34,18 @@ type ClaudeBridge struct {
 func (*ClaudeBridge) Name() string { return "claude" }
 
 func (*ClaudeBridge) Capabilities() Capabilities {
-	return Capabilities{Streaming: true, ToolApproval: true, Cancel: true, Usage: true, Coding: true}
+	return Capabilities{Streaming: true, ToolApproval: true, Question: true, Cancel: true, Usage: true, Coding: true}
+}
+
+// withoutEnv drops every entry for key from env.
+func withoutEnv(env []string, key string) []string {
+	out := make([]string, 0, len(env))
+	for _, kv := range env {
+		if !strings.HasPrefix(kv, key+"=") {
+			out = append(out, kv)
+		}
+	}
+	return out
 }
 
 func (*ClaudeBridge) Resume(context.Context, StartRequest, string) (Session, error) {
@@ -45,6 +60,7 @@ type bridgeStart struct {
 	Model        string   `json:"model,omitempty"`
 	AllowedTools []string `json:"allowedTools,omitempty"`
 	AskApproval  bool     `json:"askApproval"`
+	WritableDirs []string `json:"writableDirs,omitempty"`
 }
 
 type bridgeLine struct {
@@ -64,6 +80,10 @@ func (c *ClaudeBridge) Start(ctx context.Context, req StartRequest) (Session, er
 	if env == nil {
 		env = os.Environ()
 	}
+	env = withoutEnv(env, "ANTHROPIC_API_KEY")
+	if c.APIKey != "" {
+		env = append(env, "ANTHROPIC_API_KEY="+c.APIKey)
+	}
 	p, err := startProc(context.Background(), c.Node, []string{c.Script}, req.Workspace, env)
 	if err != nil {
 		return nil, err
@@ -75,7 +95,7 @@ func (c *ClaudeBridge) Start(ctx context.Context, req StartRequest) (Session, er
 	s := &claudeSession{stream: newStream(req), proc: p, grace: grace, pending: map[string]bool{}, cancelCh: make(chan struct{})}
 	if err := p.send(bridgeStart{
 		Type: "start", Prompt: req.Prompt, Instructions: req.Instructions, Cwd: req.Workspace,
-		Model: req.Model, AllowedTools: c.AllowedTools, AskApproval: req.Policy.AskApproval,
+		Model: req.Model, AllowedTools: c.AllowedTools, AskApproval: req.Policy.AskApproval, WritableDirs: req.WritableDirs,
 	}); err != nil {
 		p.stop(time.Second)
 		return nil, fmt.Errorf("claude: send start: %w", err)

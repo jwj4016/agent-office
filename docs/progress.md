@@ -65,9 +65,9 @@
 - [x] 🚪 게이트: 6.2 예시 흐름 끝까지 실행 + 두 서비스 분리 (T01·T07) — 통과 (테스트 provider 기준)
 
 ### M2 실제 AI 실행
-- [ ] Codex 연결 완성: 이벤트 정규화·승인/질문 응답·사용량
-- [ ] Claude bridge 완성: canUseTool·훅·질문·취소
-- [ ] OpenAI Responses·Claude Messages API 연결 (구조화 출력)
+- [x] Codex 연결 완성: 이벤트 정규화·승인/질문 응답·사용량 — 가짜 서버 시험, 실제 흐름 시험은 게이트에서
+- [x] Claude bridge 완성: canUseTool·훅·질문·취소 — 가짜 bridge·단위 시험, 실제 흐름 시험은 게이트에서
+- [x] OpenAI Responses·Claude Messages API 연결 (구조화 출력) — 가짜 HTTP 서버 시험, ⚠️ 실제 API 키 시험 전
 - [ ] 연결·설정 화면: 탐지·버전·인증·호출 성공 분리 표시 (T04)
 - [ ] 도구 승인 (T12), 사용량·비용·예산 (T19)
 - [ ] 재시작 시 interrupted 처리·취소 확인 (T16·T17)
@@ -179,3 +179,10 @@
 - 미검증·알려진 제한: Windows LockFileEx·단일 인스턴스는 미시험. 기존 `TestRecoverMarksInterrupted`는 첫 엔진이 살아 있는 상태에서 둘째 엔진을 띄워 잘못된 동작을 정상으로 고정하고 있었으므로 엔진 정지 후 복구하는 `TestRecoverAfterEngineStopped`로 교체
 - 마지막 관련 코드/테스트: `internal/engine/{ai,human,verify,engine,schedule}.go`, `internal/engine/regress_test.go`, `verify_internal_test.go`, `internal/storage/{storage,lock_*}.go`, `frontend/src/views/{WorkflowEditor,Inbox}.tsx`
 - 다음에 실행할 구체적인 작업: 사용자 확인 후 M2 Codex 연결 완성
+
+### 2026-10-07 (M2)
+- 현재 단계: M2 / 공급자 연결 (브랜치 `feat/m2-real-ai`)
+- 구현 완료: 결과 폴더만 추가 쓰기 허용(Codex `sandboxPolicy.writableRoots`, Claude `additionalDirectories`), 검증 통과 결과를 `projects/<id>/artifacts/`로 읽기 전용 복사·해시 재확인(고정), Claude 인증 방식(API 키는 해당 프로세스에만 환경변수로 전달, 개인용 로그인 모드는 상속된 키 제거), Claude AskUserQuestion → 내 할 일 질문 연결, PreToolUse 쓰기 경로 훅(작업 폴더·결과 폴더 밖 파일 쓰기 거부, 심볼릭 링크 해석), 모델 API 공급자(Claude Messages: 구조화 출력 + `fallbacks: default`, 기본 모델 claude-opus-5-5 / OpenAI Responses: strict JSON schema, `store: false`, 모델 지정 필수), 단가 설정 시에만 비용 계산
+- 이번 검증과 결과: `go test -race ./...` 통과(가짜 Codex의 writableRoots 확인, Claude 인증 환경 확인, 모델 API 가짜 HTTP 서버 5건), bridge `npm test` 9건 통과
+- 미검증·알려진 제한: Codex는 이 PC의 CLI 로그인만 지원(API 키 방식은 키를 Codex 인증 파일에 저장하므로 제외). Bash 명령은 경로를 해석하지 않으므로 사람 승인에 의존. 실제 API 키 시험 없음
+- 다음에 실행할 구체적인 작업: 연결·설정 화면(탐지·버전·인증·호출 시험 분리 표시, API 키 입력)

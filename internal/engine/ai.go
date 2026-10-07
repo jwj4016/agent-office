@@ -75,6 +75,7 @@ func (e *Engine) startAI(ctx context.Context, seen *runState, n *domain.Node, sn
 			Instructions: domain.ComposeInstructions(instructionLayers(snap, n, feedback)),
 			Prompt:       buildPrompt(e.cfg.DataDir, st, n, manifest, dir),
 			Workspace:    work,
+			WritableDirs: []string{filepath.Join(dir, "out")},
 			Model:        snap.Model,
 			Policy:       providers.Policy{Sandbox: "workspace-write", AskApproval: true},
 		}
@@ -272,6 +273,9 @@ func (e *Engine) complete(ctx context.Context, a *activeAttempt, n *domain.Node,
 	fallbackText(dir, n, p.Text)
 	work, _ := e.workspaceDir(&runState{run: runRow{ID: a.runID, ProjectID: a.projectID}, version: e.versionFor(ctx, a.runID)})
 	results, verr := e.verifyOutputs(ctx, n, dir, work)
+	if verr == nil {
+		results, verr = e.freeze(a.projectID, a.runID, a.id, results)
+	}
 	return e.finishVerification(ctx, a.runID, a.id, n, results, verr)
 }
 

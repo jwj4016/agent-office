@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -149,5 +150,30 @@ func TestRecoverAfterEngineStopped(t *testing.T) {
 	h.db.Read().QueryRow(`SELECT COUNT(*) FROM step_attempts WHERE run_id = ? AND step_id = 'market'`, runID).Scan(&attempts)
 	if attempts != 1 {
 		t.Fatalf("interrupted step was re-run automatically (%d attempts)", attempts)
+	}
+}
+
+// Verified outputs are copied into the artifact store read-only, so
+// later changes to the attempt's working folder never alter a result.
+func TestArtifactsAreFrozenCopies(t *testing.T) {
+	h := newHarness(t)
+	p := testenv.ServiceDev(t, h.db, "게임")
+	runID := h.start(p)
+	plan := h.waitStep(p.ID, runID, "plan", engine.StSucceeded)
+	art := plan.Artifacts[0]
+	if !strings.Contains(art.Path, "/artifacts/") {
+		t.Fatalf("artifact not in the store: %s", art.Path)
+	}
+	reqs := h.started("plan")
+	if len(reqs) != 1 || len(reqs[0].WritableDirs) != 1 || !strings.HasSuffix(reqs[0].WritableDirs[0], "/out") {
+		t.Fatalf("writable dirs = %v", reqs[0].WritableDirs)
+	}
+	// Tamper with the original output; the stored artifact is unaffected.
+	if err := os.WriteFile(reqs[0].OutputSpec[0].Path, []byte("tampered"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	c, err := h.eng.ReadArtifact(h.ctx, p.ID, art.ID)
+	if err != nil || !c.HashOK || c.Content == "tampered" {
+		t.Fatalf("frozen artifact changed: %+v %v", c, err)
 	}
 }
