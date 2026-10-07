@@ -58,6 +58,16 @@ func fakeClaude(mode string) {
 			key = "set:" + strings.Repeat("*", len(os.Getenv("ANTHROPIC_API_KEY")))
 		}
 		emit("completed", map[string]any{"status": "succeeded", "text": fmt.Sprint(key, " dirs=", start["writableDirs"])})
+	case "orphan":
+		// Like the real SDK: a child process outlives the bridge's exit.
+		child := exec.Command("sleep", "300")
+		child.Start()
+		os.WriteFile(os.Getenv("FAKE_PIDFILE"), []byte(fmt.Sprint(child.Process.Pid)), 0o600)
+		emit("started", map[string]any{"sessionId": "sess-1"})
+		for read()["type"] != "cancel" {
+		}
+		emit("completed", map[string]any{"status": "cancelled"})
+		os.Exit(0)
 	case "crash":
 		fmt.Fprintln(os.Stderr, "Error: Claude Code executable not found")
 		os.Exit(1)

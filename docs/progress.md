@@ -29,9 +29,9 @@
 - [x] Provider 공통 인터페이스 (Capabilities·Start·Respond·Cancel·Resume·Events)
 - [x] 테스트 provider (fixture 이벤트 재생)
 - [x] Codex App Server stdio 최소 실행 — 실제 CLI 호출 성공 (2026-10-03)
-- [ ] Codex 취소 실제 확인 — 가짜 서버로만 확인, ⚠️ 실제 미검증
+- [x] Codex 취소 실제 확인 — `TestCodexRealCancel` 통과 (2026-10-07)
 - [x] Claude SDK bridge (TS, JSONL) 최소 실행 — 실제 SDK 호출 성공 (2026-10-03)
-- [ ] Claude 취소 실제 확인 — 가짜 bridge로만 확인, ⚠️ 실제 미검증
+- [x] Claude 취소 실제 확인 — `TestClaudeRealCancel` 통과 (2026-10-07, 남은 하위 프로세스 결함 수정 후)
 
 **빌드**
 - [x] macOS `wails build` 성공
@@ -71,7 +71,7 @@
 - [x] 연결·설정 화면: 탐지·버전·인증·호출 성공 분리 표시 (T04)
 - [x] 도구 승인 (T12), 사용량·비용·예산 (T19) — 테스트 provider 기준, 실제 공급자 확인은 게이트에서
 - [x] 재시작 시 interrupted 처리·취소 확인 (T16·T17) — 실제 앱(테스트 provider) 확인, ⚠️ 실제 공급자 취소는 게이트에서
-- [ ] 🚪 게이트: 실제 기획 → 승인 → 개발 → 사람 리뷰 → 검증
+- [x] 🚪 게이트: 실제 기획 → 승인 → 개발 → 사람 리뷰 → 검증 — 통과 (2026-10-07, 실제 Claude·Codex)
 
 ### M3 AI 설계
 - [ ] 설계 요청 → JSON 초안 스키마·검증 (권한·키 자동 생성 금지)
@@ -204,3 +204,15 @@
 - 이번 검증과 결과: 실제 앱(`wails dev`, 새 데이터 폴더)에서 기획 AI(auto-slow) 실행 중 앱 프로세스를 `kill -9`로 강제 종료 → DB에 running으로 남음 → 같은 데이터 폴더로 재시작 시 잠금 정상 획득, 기획은 자동 재실행 없이 interrupted(이유 표시), 대시보드에 '막힘 1' → '다시 시도'로 시도 2 실행 → 실행 취소 시 2초 안에 실행·기획 모두 '취소됨', 되돌리지 않았다는 안내 표시. 프론트엔드 23건·Go 전체 통과
 - 미검증·알려진 제한: 실제 Codex·Claude 프로세스 취소(T17 실기)는 게이트에서 사용자 승인 후
 - 다음에 실행할 구체적인 작업: M2 게이트 — 실제 AI로 기획 → 승인 → 개발 → 사람 리뷰 → 검증 (사용자 승인 필요)
+
+- 현재 단계: M2 게이트
+- 구현 완료: 서비스 작업 폴더 설정(절대 경로·존재하는 폴더만), Claude bridge — 작업·결과 폴더 안 파일 쓰기는 자동 허용(쓰기 경로 훅과 같은 판정, Bash 등은 계속 승인), 승인 표시 500자 제한, 공급자 주 프로세스가 스스로 끝나도 프로세스 그룹 정리
+- 이번 검증과 결과 (실제 앱 `wails dev`, 새 데이터 폴더, 작업 폴더는 한글·공백 경로):
+  - 연결: Codex(codex-cli 0.160.0, ChatGPT 로그인, 모델 gpt-6.1-sol)·Claude(Agent SDK, 개인용 claude.ai 로그인, claude-opus-5-5) 모두 실행 파일→버전→인증→실제 호출 4단계 통과, '사용 가능'
+  - 흐름 "슬러그 함수 개발": 기획(Claude) → 기획 승인(나) → 개발(Codex: slug.py·test_slug.py 작성, 결과 폴더 쓰기 승인 요청 없음, 앱 검증 명령 unittest 8개 통과) → 코드 리뷰(나, 코드·테스트 직접 확인 후 통과) → 검증(Claude: 기준별 근거 JSON 보고, 검증 명령 통과) → 실행 완료
+  - 결과는 artifacts/에 읽기 전용 고정, 해시 일치. 사용량 기록(Codex 비용 미보고는 별도 표시)
+  - 도구 승인 2건: 수정 전 Claude 결과 파일 쓰기(→ 수정), Claude의 Bash(ls·cat·unittest, 사람이 허용)
+  - 실제 취소: Codex 즉시 cancelled·남은 프로세스 없음 / Claude는 처음에 bridge 종료 후 SDK가 띄운 프로세스가 몇 초 남는 결함 발견 → 가짜 bridge 재현 테스트 작성 후 수정 → 재시험 통과
+- 미검증·알려진 제한: Windows는 주 프로세스 종료 후 taskkill /T로 하위 트리를 찾을 수 없어 Job Object 필요(M6). 실제 API 키(Claude·OpenAI API) 시험 없음. 브라우저 자동화의 좌표 클릭이 간헐적으로 버튼에 닿지 않아 일부 조작은 요소 참조·JS 클릭으로 진행(앱 동작은 정상 확인)
+- 마지막 관련 코드/테스트: `runners/claude/src/bridge.ts`, `internal/providers/{process,claude}.go`, `real_cancel_test.go`, `codex_unix_test.go`
+- 다음에 실행할 구체적인 작업: M2 게이트 보고 후 사용자 확인 → M3 AI 설계

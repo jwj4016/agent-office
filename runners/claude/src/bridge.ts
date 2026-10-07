@@ -64,6 +64,24 @@ function inside(root: string, p: string): boolean {
 
 const fileWriteTools = new Set(['Write', 'Edit', 'MultiEdit', 'NotebookEdit']);
 
+// writeTarget returns where a file-writing tool would really write, or
+// undefined for other tools.
+function writeTarget(cwd: string, toolName: string, toolInput: unknown): string | undefined {
+    if (!fileWriteTools.has(toolName)) return undefined;
+    const ti = (toolInput ?? {}) as Record<string, unknown>;
+    const target = ti.file_path ?? ti.notebook_path;
+    return typeof target === 'string' ? realpathNearest(resolve(cwd, target)) : undefined;
+}
+
+// writeAllowed reports whether a file-writing tool stays inside the work
+// and output folders: such writes need no per-file approval.
+export function writeAllowed(cwd: string, writable: string[], toolName: string, toolInput: unknown): boolean {
+    const real = writeTarget(cwd, toolName, toolInput);
+    if (real === undefined) return false;
+    const roots = [cwd, ...writable].map((r) => realpathNearest(resolve(r)));
+    return roots.some((r) => inside(r, real));
+}
+
 // writeGuard is a PreToolUse hook: file-writing tools may only touch the
 // working folder and the granted output folders, whatever the permission
 // settings say. (Shell commands are not parsed; they go through approval.)
@@ -135,10 +153,16 @@ export function runBridge({input, output, query, log = () => {}}: BridgeIO): Pro
                 return {behavior: 'allow', updatedInput: {...toolInput, answers}};
             }
             if (allowed.has(toolName)) return {behavior: 'allow', updatedInput: toolInput};
+            // Writing inside the work or output folder is the task itself;
+            // the PreToolUse guard still blocks every other location.
+            if (writeAllowed(cmd.cwd ?? process.cwd(), cmd.writableDirs ?? [], toolName, toolInput)) {
+                return {behavior: 'allow', updatedInput: toolInput};
+            }
             if (!cmd.askApproval) {
                 return {behavior: 'deny', message: 'Agent Office 정책에서 허용되지 않은 도구입니다.'};
             }
-            const detail = opts.title ?? `${toolName} ${JSON.stringify(toolInput)}`;
+            const full = opts.title ?? `${toolName} ${JSON.stringify(toolInput)}`;
+            const detail = full.length > 500 ? full.slice(0, 500) + '…' : full;
             const r = await ask('approval_request', {action: toolName, detail, options: ['accept', 'decline']});
             write('request_resolved', {requestId: r.requestId, decision: r.decision === 'accept' ? 'accept' : 'decline'});
             return r.decision === 'accept'

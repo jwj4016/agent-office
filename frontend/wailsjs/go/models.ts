@@ -1284,6 +1284,7 @@ export namespace main {
 	    instructions: string;
 	    mode: string;
 	    budget: engine.Budget;
+	    workspacePath: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new ProjectInput(source);
@@ -1297,6 +1298,7 @@ export namespace main {
 	        this.instructions = source["instructions"];
 	        this.mode = source["mode"];
 	        this.budget = this.convertValues(source["budget"], engine.Budget);
+	        this.workspacePath = source["workspacePath"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

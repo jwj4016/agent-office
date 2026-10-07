@@ -2,7 +2,7 @@ import type {Options, SDKMessage} from '@anthropic-ai/claude-agent-sdk';
 import assert from 'node:assert/strict';
 import {PassThrough} from 'node:stream';
 import {test} from 'node:test';
-import {type QueryFn, runBridge, writeGuard} from './bridge.js';
+import {type QueryFn, runBridge, writeAllowed, writeGuard} from './bridge.js';
 import {mkdirSync, mkdtempSync, symlinkSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
@@ -178,4 +178,25 @@ test('the guard is installed as a PreToolUse hook', async () => {
     h.send({type: 'start', prompt: 'x', cwd: '/tmp', writableDirs: ['/tmp/out']});
     await h.done;
     assert.equal(seen!.hooks!.PreToolUse!.length, 1);
+});
+
+test('writes inside the work and output folders need no approval; others still ask', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'allow-'));
+    const work = join(root, 'work'), out = join(root, 'out');
+    mkdirSync(work); mkdirSync(out);
+    assert.equal(writeAllowed(work, [out], 'Write', {file_path: join(out, 'spec.md')}), true);
+    assert.equal(writeAllowed(work, [out], 'Edit', {file_path: 'slug.py'}), true);
+    assert.equal(writeAllowed(work, [out], 'Write', {file_path: join(root, 'elsewhere.md')}), false);
+    assert.equal(writeAllowed(work, [out], 'Bash', {command: 'echo hi > x'}), false);
+
+    const decisions: string[] = [];
+    const h = harness(async function* ({options}) {
+        const a = await options.canUseTool!('Write', {file_path: join(out, 'spec.md'), content: 'x'}, {signal: new AbortController().signal} as any);
+        decisions.push(a!.behavior);
+        yield result('ok');
+    });
+    h.send({type: 'start', prompt: 'x', cwd: work, writableDirs: [out], askApproval: true});
+    await h.done;
+    assert.deepEqual(decisions, ['allow']);
+    assert.ok(!h.events.some((e) => e.kind === 'approval_request'));
 });

@@ -11,7 +11,7 @@
 | Go | 1.27.1 | `brew install go` |
 | Node.js / npm | 26.10.0 / 11.19.1 | `brew install node` |
 | Wails CLI | v2.16.0 | `go install github.com/wailsapp/wails/v2/cmd/wails@latest` |
-| Codex CLI | 0.159.2 (ChatGPT 로그인) | 사용자 설치 (`/opt/homebrew/bin/codex`) |
+| Codex CLI | 0.159.2 → 0.160.0 (2026-10-07 확인, ChatGPT 로그인) | 사용자 설치 (`/opt/homebrew/bin/codex`) |
 | Claude Code CLI | 2.1.288 (claude.ai 로그인) | 사용자 설치 (`/opt/homebrew/bin/claude`) |
 | Claude Agent SDK | 0.3.288 | `runners/claude` npm |
 
@@ -57,3 +57,8 @@ Wails CLI는 `$(go env GOPATH)/bin`에 설치된다. PATH에 추가해야 한다
 
     AGENT_OFFICE_CODEX_IT=$(which codex) go test ./internal/providers/ -run TestCodexReal -v
     AGENT_OFFICE_CLAUDE_IT=1 go test ./internal/providers/ -run TestClaudeReal -v
+
+## 실제 공급자 취소 시험 (사용량 사용, 기본 비활성)
+
+    AGENT_OFFICE_CODEX_IT=$(which codex) go test ./internal/providers/ -run TestCodexRealCancel -v
+    AGENT_OFFICE_CLAUDE_IT=1 go test ./internal/providers/ -run TestClaudeRealCancel -v

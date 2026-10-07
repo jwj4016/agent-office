@@ -77,16 +77,18 @@ func (p *proc) send(v any) error {
 }
 
 // stop closes stdin and, if the process has not exited within grace,
-// kills it (and its process group where supported).
+// kills it. Either way it then clears the process group: a provider may
+// exit while processes it started (the CLI the SDK spawned, a test
+// runner) are still alive, and those must not outlive the attempt.
 func (p *proc) stop(grace time.Duration) {
 	p.stdin.Close()
 	select {
 	case <-p.exited:
-		return
 	case <-time.After(grace):
+		killProc(p.cmd)
+		<-p.exited
 	}
 	killProc(p.cmd)
-	<-p.exited
 }
 
 // stderrTail returns recent stderr output for diagnostics.

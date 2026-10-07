@@ -152,7 +152,9 @@ func (s *claudeSession) readLoop() {
 		}
 		s.emit(l.Kind, l.Payload)
 	}
-	// stdout closed without a completion: the bridge died.
+	// stdout closed: make sure nothing the bridge started is left running.
+	go s.proc.stop(2 * time.Second)
+	// Without a completion the bridge died.
 	if s.cancelled() {
 		s.complete(CompletedPayload{Status: StatusCancelled})
 		return
