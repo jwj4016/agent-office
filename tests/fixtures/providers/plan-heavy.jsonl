@@ -1,0 +1,4 @@
+# 기획서를 쓰면서 토큰을 많이 쓰는 기획 업무
+{"write": {"key": "spec", "content": "# 기획서"}}
+{"emit": "usage", "payload": {"inputTokens": 400, "outputTokens": 200, "costUsd": 0.05}}
+{"complete": {"status": "succeeded"}}

@@ -739,6 +739,20 @@ export namespace engine {
 	        this.validity = source["validity"];
 	    }
 	}
+	export class Budget {
+	    maxTokens?: number;
+	    maxCostUsd?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new Budget(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.maxTokens = source["maxTokens"];
+	        this.maxCostUsd = source["maxCostUsd"];
+	    }
+	}
 	export class StepRef {
 	    id: string;
 	    title: string;
@@ -997,6 +1011,49 @@ export namespace engine {
 		}
 	}
 	
+	
+	export class Usage {
+	    inputTokens: number;
+	    outputTokens: number;
+	    costUsd: number;
+	    unknownCostAttempts: number;
+	    attempts: number;
+	    budget: Budget;
+	    holdReason?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Usage(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.inputTokens = source["inputTokens"];
+	        this.outputTokens = source["outputTokens"];
+	        this.costUsd = source["costUsd"];
+	        this.unknownCostAttempts = source["unknownCostAttempts"];
+	        this.attempts = source["attempts"];
+	        this.budget = this.convertValues(source["budget"], Budget);
+	        this.holdReason = source["holdReason"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 
 }
 
@@ -1226,6 +1283,7 @@ export namespace main {
 	    goal: string;
 	    instructions: string;
 	    mode: string;
+	    budget: engine.Budget;
 	
 	    static createFrom(source: any = {}) {
 	        return new ProjectInput(source);
@@ -1238,7 +1296,26 @@ export namespace main {
 	        this.goal = source["goal"];
 	        this.instructions = source["instructions"];
 	        this.mode = source["mode"];
+	        this.budget = this.convertValues(source["budget"], engine.Budget);
 	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class StartResult {
 	    runId: string;

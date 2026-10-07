@@ -16,7 +16,7 @@ export function Inbox({onOpenRun}: { onOpenRun: (projectId: string, runId: strin
             <ErrorBox error={error}/>
             {data && items.length === 0 ? <p className="notice">지금 처리할 일이 없습니다.</p> : null}
             {items.map((it) => (
-                <InboxCard key={`${it.kind}:${it.attemptId}:${it.approvalId ?? ''}:${it.messageId ?? ''}`} item={it}
+                <InboxCard key={`${it.kind}:${it.runId}:${it.attemptId}:${it.approvalId ?? ''}:${it.messageId ?? ''}`} item={it}
                            onDone={reload} onOpenRun={() => onOpenRun(it.projectId, it.runId)}/>
             ))}
         </div>
@@ -89,6 +89,7 @@ function InboxCard({item, onDone, onOpenRun}: { item: InboxItem; onDone: () => v
                         </div>
                     ) : null}
                     {item.kind === 'question' ? <AnswerForm item={item} busy={action.busy} onSubmit={submit}/> : null}
+                    {item.kind === 'budget' ? <p className="muted small">‘{item.stepTitle}’ 등 새 AI 업무가 시작되지 않고 있습니다. 해당 서비스의 개요에서 예산을 올리면 이어서 진행합니다.</p> : null}
                 </>
             )}
             {note ? <p className="notice">{note}</p> : null}

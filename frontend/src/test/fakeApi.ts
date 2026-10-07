@@ -23,6 +23,7 @@ export const fakeApi = {
         return project;
     }),
     inbox: vi.fn(async () => state.inbox),
+    projectUsage: ok({inputTokens: 0, outputTokens: 0, costUsd: 0, unknownCostAttempts: 0, attempts: 0, budget: {}}),
     decideApproval: acted('succeeded'),
     submitReview: acted('succeeded'),
     submitHuman: acted('succeeded'),

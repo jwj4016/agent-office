@@ -21,6 +21,7 @@ const (
 	InboxApproval     = "approval"
 	InboxToolApproval = "tool_approval"
 	InboxQuestion     = "question"
+	InboxBudget       = "budget"
 )
 
 type StepRef struct {
@@ -75,6 +76,11 @@ func (e *Engine) Inbox(ctx context.Context) ([]InboxItem, error) {
 		st, err := loadState(ctx, q, r.id)
 		if err != nil {
 			return nil, err
+		}
+		if item, ok, err := budgetItem(ctx, q, st, r.project); err != nil {
+			return nil, err
+		} else if ok {
+			items = append(items, item)
 		}
 		for _, id := range st.graph.Order() {
 			a, ok := st.attempts[id]
@@ -256,4 +262,37 @@ func (e *Engine) ReadArtifact(ctx context.Context, projectID, artifactID string)
 		c.Binary = true
 	}
 	return c, nil
+}
+
+// budgetItem reports a run whose ready AI work is held by the budget.
+func budgetItem(ctx context.Context, q querier, st *runState, projectName string) (InboxItem, bool, error) {
+	if st.run.Status != RunWaiting || st.run.Paused {
+		return InboxItem{}, false, nil
+	}
+	held := ""
+	for _, id := range st.graph.Order() {
+		n := st.graph.Node(id)
+		if st.status(id) != StPending || n.Kind == domain.KindCondition || n.Kind == domain.KindJoin || n.Kind == domain.KindApproval {
+			continue
+		}
+		if a := st.version.Assignments[n.AssignmentID]; a.ActorKind != domain.ActorAI {
+			continue
+		}
+		if done, _ := st.depsDone(n); done {
+			held = n.Title
+			break
+		}
+	}
+	if held == "" {
+		return InboxItem{}, false, nil
+	}
+	u, err := projectUsage(ctx, q, st.run.ProjectID)
+	if err != nil || u.HoldReason == "" {
+		return InboxItem{}, false, err
+	}
+	return InboxItem{
+		Kind: InboxBudget, ProjectID: st.run.ProjectID, ProjectName: projectName, RunID: st.run.ID,
+		RunTitle: st.version.Spec.Title, VersionNumber: st.version.Number, StepTitle: held, Detail: u.HoldReason,
+		Inputs: json.RawMessage("[]"), Outputs: []domain.Output{}, ReworkTargets: []StepRef{},
+	}, true, nil
 }

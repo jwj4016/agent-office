@@ -3,7 +3,7 @@ import type {Route} from '../App';
 import {api} from '../api';
 import {t} from '../i18n';
 import {useLoad} from '../live';
-import type {Project} from '../types';
+import type {Budget, Project} from '../types';
 import {ConfirmButton, ErrorBox, useAction} from '../ui';
 import {Runs} from './Runs';
 import {Team} from './Team';
@@ -56,16 +56,25 @@ export function ProjectView({route, onRoute, onChanged}: {
     );
 }
 
+const budgetOf = (p: Project): Budget => (p.budget && typeof p.budget === 'object' ? p.budget as Budget : {});
+const optNum = (v: string) => (v.trim() === '' ? undefined : Number(v));
+
 function Overview({project, onSaved}: { project: Project; onSaved: () => void }) {
     const [form, setForm] = useState(project);
-    useEffect(() => setForm(project), [project]);
+    const [budget, setBudget] = useState<Budget>(budgetOf(project));
+    useEffect(() => { setForm(project); setBudget(budgetOf(project)); }, [project]);
+    const usage = useLoad(() => api.projectUsage(project.id), [project.id], project.id);
     const action = useAction();
     const archived = project.status === 'archived';
-    const dirty = form.name !== project.name || form.goal !== project.goal || form.instructions !== project.instructions || form.mode !== project.mode;
+    const saved = budgetOf(project);
+    const dirty = form.name !== project.name || form.goal !== project.goal || form.instructions !== project.instructions || form.mode !== project.mode
+        || budget.maxTokens !== saved.maxTokens || budget.maxCostUsd !== saved.maxCostUsd;
     const save = () => action.run(async () => {
-        await api.updateProject({id: project.id, name: form.name, goal: form.goal, instructions: form.instructions, mode: form.mode});
+        await api.updateProject({id: project.id, name: form.name, goal: form.goal, instructions: form.instructions, mode: form.mode, budget});
         onSaved();
+        usage.reload();
     });
+    const u = usage.data;
     return (
         <div className="stack" style={{maxWidth: 640}}>
             <label className="field"><span>{t.project.name}</span>
@@ -81,6 +90,27 @@ function Overview({project, onSaved}: { project: Project; onSaved: () => void })
                     <option value="auto">{t.project.modeAuto}</option>
                 </select>
             </label>
+            <section className="card stack" aria-label="사용량과 예산">
+                <h2>AI 사용량과 예산</h2>
+                {u ? (
+                    <div className="small">
+                        <div>토큰: 입력 {u.inputTokens.toLocaleString()} · 출력 {u.outputTokens.toLocaleString()} (AI 업무 {u.attempts}건)</div>
+                        <div>보고된 비용: ${u.costUsd.toFixed(4)}
+                            {u.unknownCostAttempts > 0 ? <span className="badge warn" style={{marginLeft: 6}}>비용 미보고 {u.unknownCostAttempts}건 (합계에 포함되지 않음)</span> : null}</div>
+                    </div>
+                ) : null}
+                {u?.holdReason ? <div className="alert" role="alert">{u.holdReason}</div> : null}
+                <div className="row">
+                    <label className="field"><span>토큰 예산 (비우면 제한 없음)</span>
+                        <input inputMode="numeric" disabled={archived} value={budget.maxTokens ?? ''}
+                               onChange={(e) => setBudget({...budget, maxTokens: optNum(e.target.value)})}/></label>
+                    <label className="field"><span>비용 예산 USD (보고된 비용 기준)</span>
+                        <input inputMode="decimal" disabled={archived} value={budget.maxCostUsd ?? ''}
+                               onChange={(e) => setBudget({...budget, maxCostUsd: optNum(e.target.value)})}/></label>
+                </div>
+                <p className="muted small">새 AI 업무를 시작하기 전에 확인합니다. 이미 진행 중인 요청과 공급자 청구 지연 때문에 실제 청구액의 절대 상한은 아닙니다.
+                    비용을 보고하지 않는 연결(예: Codex)은 토큰 예산으로 관리하세요.</p>
+            </section>
             <ErrorBox error={action.error}/>
             <div className="row">
                 <button className="btn primary" disabled={archived || !dirty || action.busy} onClick={save}>{t.project.save}</button>

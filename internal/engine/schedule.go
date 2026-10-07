@@ -166,6 +166,12 @@ func (e *Engine) advance(ctx context.Context, runID string) error {
 				if err != nil {
 					return err
 				}
+				fresh.budgetHold = st.budgetHold
+				if fresh.budgetHold != "" && fresh.run.Status != RunWaiting && !fresh.run.Paused {
+					if err := c.Emit(fresh.run.ProjectID, runID, "", "budget.held", map[string]string{"reason": fresh.budgetHold}); err != nil {
+						return err
+					}
+				}
 				return saveRunStatus(ctx, c, fresh)
 			})
 			return err
@@ -191,6 +197,12 @@ func (e *Engine) startStep(ctx context.Context, st *runState, n *domain.Node) (b
 	if a.ActorKind == domain.ActorHuman {
 		_, err := e.createAttempt(ctx, st, n, StWaitingHuman, nil)
 		return true, err
+	}
+	if u, err := projectUsage(ctx, e.db.Read(), st.run.ProjectID); err != nil {
+		return false, err
+	} else if u.HoldReason != "" {
+		st.budgetHold = u.HoldReason // held, not failed: a person raises the limit
+		return false, nil
 	}
 	app, project := e.activeCounts(st.run.ProjectID)
 	if app >= e.cfg.MaxActive || project >= e.cfg.ProjectMaxActive {

@@ -111,7 +111,7 @@ export type ArtifactContent = ArtifactView & {
     stepId: string; content: string; binary: boolean; truncated: boolean; hashOk: boolean;
 };
 
-export type InboxKind = 'task' | 'review' | 'approval' | 'tool_approval' | 'question';
+export type InboxKind = 'task' | 'review' | 'approval' | 'tool_approval' | 'question' | 'budget';
 
 export type InboxItem = {
     kind: InboxKind; projectId: string; projectName: string; runId: string; runTitle: string;
@@ -133,4 +133,10 @@ export type Delta = { projectId: string; runId: string; stepAttemptId: string; t
 
 export type SystemStatus = {
     dataDir: string; schemaVersion: number; secretsPersistent: boolean; version: string; error: string;
+};
+
+export type Budget = { maxTokens?: number; maxCostUsd?: number };
+export type Usage = {
+    inputTokens: number; outputTokens: number; costUsd: number; unknownCostAttempts: number; attempts: number;
+    budget: Budget; holdReason?: string;
 };

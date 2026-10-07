@@ -36,7 +36,7 @@ export const ko = {
         markdown: '문서(Markdown)', json: 'JSON', file: '파일', code_change: '코드 변경', report: '보고(JSON)',
     } satisfies Record<OutputType, string>,
     inboxKind: {
-        task: '작업 제출', review: '리뷰', approval: '승인', tool_approval: '도구 사용 승인', question: 'AI 질문',
+        task: '작업 제출', review: '리뷰', approval: '승인', tool_approval: '도구 사용 승인', question: 'AI 질문', budget: '예산 한도',
     } satisfies Record<InboxKind, string>,
 };
 

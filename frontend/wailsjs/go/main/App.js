@@ -110,6 +110,10 @@ export function Ping(arg1) {
   return window['go']['main']['App']['Ping'](arg1);
 }
 
+export function ProjectUsage(arg1) {
+  return window['go']['main']['App']['ProjectUsage'](arg1);
+}
+
 export function ReadArtifact(arg1, arg2) {
   return window['go']['main']['App']['ReadArtifact'](arg1, arg2);
 }

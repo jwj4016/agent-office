@@ -4,7 +4,7 @@ import * as Go from '../wailsjs/go/main/App';
 import {EventsOn} from '../wailsjs/runtime/runtime';
 import type {
     ActionResult, ArtifactContent, Assignment, CheckReport, ConfirmResult, Connection, ConnectionKind, ConnectionSettings, Delta,
-    DetectedPaths, InboxItem, InstructionPreview,
+    DetectedPaths, Usage, InboxItem, InstructionPreview,
     Organization, Project, ProjectSummary, Role, RunDetail, StartResult, StoredEvent, SystemStatus, Template,
     Validation, Workflow, WorkflowSpec,
 } from './types';
@@ -13,7 +13,9 @@ import type {
 // results are re-typed here.
 const call = <T>(p: Promise<unknown>) => p as Promise<T>;
 
-export type ProjectInput = { id?: string; name: string; goal: string; instructions: string; mode: string };
+export type ProjectInput = {
+    id?: string; name: string; goal: string; instructions: string; mode: string; budget?: { maxTokens?: number; maxCostUsd?: number };
+};
 
 export const api = {
     systemStatus: () => call<SystemStatus>(Go.SystemStatus()),
@@ -24,6 +26,7 @@ export const api = {
     createProject: (p: ProjectInput) => call<Project>(Go.CreateProject(p as never)),
     updateProject: (p: ProjectInput) => call<Project>(Go.UpdateProject(p as never)),
     setArchived: (id: string, archived: boolean) => call<void>(Go.SetProjectArchived(id, archived)),
+    projectUsage: (id: string) => call<Usage>(Go.ProjectUsage(id)),
 
     organization: () => call<Organization>(Go.GetOrganization()),
     updateOrganization: (name: string, instructions: string) => call<void>(Go.UpdateOrganization(name, instructions)),

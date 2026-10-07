@@ -77,6 +77,9 @@ type runState struct {
 	version  domain.WorkflowVersion
 	graph    *domain.Graph
 	attempts map[string]attemptRow // latest attempt of each step at its current generation
+	// budgetHold is set (transiently) when ready AI work was held by the
+	// project budget during this scheduling pass.
+	budgetHold string
 }
 
 type querier interface {
@@ -207,6 +210,8 @@ func (s *runState) computeRunStatus() string {
 		return RunRunning
 	case waiting:
 		return RunWaiting
+	case ready && s.budgetHold != "":
+		return RunWaiting // a person must raise the budget
 	case ready:
 		return RunRunning
 	default:

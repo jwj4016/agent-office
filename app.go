@@ -326,11 +326,12 @@ func (a *App) Dashboard(includeArchived bool) ([]engine.ProjectSummary, error) {
 }
 
 type ProjectInput struct {
-	ID           string `json:"id"`
-	Name         string `json:"name"`
-	Goal         string `json:"goal"`
-	Instructions string `json:"instructions"`
-	Mode         string `json:"mode"`
+	ID           string        `json:"id"`
+	Name         string        `json:"name"`
+	Goal         string        `json:"goal"`
+	Instructions string        `json:"instructions"`
+	Mode         string        `json:"mode"`
+	Budget       engine.Budget `json:"budget"`
 }
 
 func (a *App) CreateProject(in ProjectInput) (domain.Project, error) {
@@ -349,9 +350,25 @@ func (a *App) UpdateProject(in ProjectInput) (domain.Project, error) {
 	if err != nil {
 		return cur, uiErr(err)
 	}
+	if (in.Budget.MaxTokens != nil && *in.Budget.MaxTokens <= 0) || (in.Budget.MaxCostUSD != nil && *in.Budget.MaxCostUSD <= 0) {
+		return cur, errors.New("예산은 0보다 커야 합니다 (제한하지 않으려면 비워 두세요)")
+	}
 	cur.Name, cur.Goal, cur.Instructions, cur.Mode = in.Name, in.Goal, in.Instructions, domain.ProjectMode(in.Mode)
+	cur.Budget, _ = json.Marshal(in.Budget)
 	p, err := a.db.UpdateProject(a.ctx, cur)
+	if err == nil {
+		a.eng.Wake() // a raised budget may release held work
+	}
 	return p, uiErr(err)
+}
+
+// ProjectUsage reports AI usage, budget and any hold for a project.
+func (a *App) ProjectUsage(projectID string) (engine.Usage, error) {
+	if err := a.ready(); err != nil {
+		return engine.Usage{}, err
+	}
+	u, err := a.eng.ProjectUsage(a.ctx, projectID)
+	return u, uiErr(err)
 }
 
 func (a *App) SetProjectArchived(projectID string, archived bool) error {
