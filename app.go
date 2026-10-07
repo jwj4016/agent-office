@@ -99,6 +99,9 @@ func (a *App) startup(ctx context.Context) {
 	ectx, cancel := context.WithCancel(context.Background())
 	a.stopEngine, a.engineDone = cancel, make(chan struct{})
 	a.design = &design.Service{DB: a.db, Engine: a.eng, Providers: a.providerFor, Connections: a.designConnections, Ctx: ectx}
+	if err := a.design.Recover(ctx); err != nil {
+		log.Printf("design recovery: %v", err)
+	}
 	go func() {
 		if err := a.eng.Run(ectx); err != nil {
 			log.Printf("engine stopped: %v", err)

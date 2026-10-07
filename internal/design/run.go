@@ -125,7 +125,8 @@ func Run(ctx context.Context, prov providers.Provider, model, prompt string) ([]
 	os.MkdirAll(filepath.Dir(out), 0o700)
 	schema, _ := json.Marshal(Schema())
 	// CLI agents only see the prompt, so it must name the exact file.
-	prompt += "\n결과 파일 경로: " + out + "\n이 경로에 JSON 객체 하나만 담은 파일을 저장한 뒤 작업을 마친다. 다른 파일은 만들지 않는다.\n"
+	prompt += "\n결과 파일 경로: " + out + "\n이 경로에 JSON 객체 하나만 담은 파일을 저장한 뒤 작업을 마친다. " +
+		"설계에 필요한 정보는 모두 위에 있으므로 다른 파일을 읽거나 명령을 실행하지 않는다. 다른 파일은 만들지 않는다.\n"
 	req := providers.StartRequest{
 		ProjectID: "design", RunID: "design", StepAttemptID: "design-" + time.Now().Format("150405.000"), StepID: "design",
 		Instructions: instructions, Prompt: prompt, Workspace: dir, WritableDirs: []string{filepath.Dir(out)}, Model: model,

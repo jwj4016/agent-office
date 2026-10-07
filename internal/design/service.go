@@ -58,6 +58,23 @@ func (s *Service) logf(format string, args ...any) {
 	}
 }
 
+// Recover marks designs left "drafting" by a previous app run as failed:
+// their designer process is gone and will never report back.
+func (s *Service) Recover(ctx context.Context) error {
+	list, err := s.DB.Designs(ctx, 1000)
+	if err != nil {
+		return err
+	}
+	for _, d := range list {
+		if d.Status == StatusDrafting {
+			if _, err := s.DB.UpdateDesign(ctx, d.ID, StatusFailed, nil, nil, nil, "앱이 종료되어 설계가 중단되었습니다. 다시 요청하세요", "", StatusDrafting); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 // Wait blocks until running designers finish (tests, shutdown).
 func (s *Service) Wait() { s.wg.Wait() }
 

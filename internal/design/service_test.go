@@ -236,3 +236,18 @@ func TestDesignIntoExistingService(t *testing.T) {
 		t.Fatalf("projects = %d", len(ps))
 	}
 }
+
+// A design left drafting by a crashed app is not stuck forever.
+func TestRecoverMarksDraftingFailed(t *testing.T) {
+	e := newEnv(t)
+	rec, err := e.db.CreateDesign(e.ctx, storage.DesignRecord{Goal: "x", Input: []byte(`{}`), Mode: "review", ConnectionID: e.conn.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := e.svc.Recover(e.ctx); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := e.db.Design(e.ctx, rec.ID); got.Status != design.StatusFailed || !strings.Contains(got.Error, "앱이 종료") {
+		t.Fatalf("after recover: %+v", got)
+	}
+}
