@@ -3,7 +3,7 @@
 
 export type Project = {
     id: string; organizationId: string; name: string; goal: string; instructions: string;
-    workspacePath: string; budget: unknown; mode: 'review' | 'auto'; status: 'active' | 'archived';
+    workspacePath: string; budget: unknown; mode: 'review' | 'auto'; status: 'active' | 'archived'; autoPolicy?: unknown;
     createdAt: string; updatedAt: string;
 };
 
@@ -139,4 +139,31 @@ export type Budget = { maxTokens?: number; maxCostUsd?: number };
 export type Usage = {
     inputTokens: number; outputTokens: number; costUsd: number; unknownCostAttempts: number; attempts: number;
     budget: Budget; holdReason?: string;
+};
+
+export type ProposedRole = { ref: string; reuseRoleId: string; name: string; mission: string; instructions: string; parentRef: string };
+export type ProposedAssignment = {
+    ref: string; roleRef: string; actorKind: 'ai' | 'human'; displayName: string; connectionId: string; model: string; instructions: string;
+};
+export type DesignDiff = {
+    reuseRoles: { ref: string; id: string; name: string }[] | null;
+    newRoles: ProposedRole[] | null;
+    roleChanges: { roleId: string; instructions: string; reason: string; roleName: string; current: string }[] | null;
+    assignments: (ProposedAssignment & { roleName: string; connectionName: string; connected: boolean })[] | null;
+    steps: { id: string; title: string; kind: NodeKind; assignee: string; human: boolean }[] | null;
+    missing: { kind: string; detail: string }[] | null;
+};
+export type DesignResult = {
+    proposal: { project: { name: string; goal: string; instructions: string }; notes: string; workflow: WorkflowSpec };
+    issues: Issue[]; diff: DesignDiff; canApply: boolean; canStart: boolean;
+};
+export type DesignStatus = 'drafting' | 'ready' | 'failed' | 'applied' | 'discarded';
+export type DesignView = {
+    id: string; projectId: string; goal: string; mode: 'review' | 'auto'; connectionId: string; status: DesignStatus;
+    error: string; createdAt: string; updatedAt: string; applied: { projectId?: string; workflowId?: string } | null;
+    request: { goal: string; projectId: string; projectName: string; humanTasks: string[] | null; mode: string; model: string };
+    result: DesignResult | null; autoIssues: Issue[];
+};
+export type ApplyResult = {
+    applied: { projectId: string; workflowId: string; newProject: boolean } | null; issues: Issue[]; runId?: string; version?: number;
 };

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"agent-office/internal/connect"
+	"agent-office/internal/design"
 	"agent-office/internal/domain"
 	"agent-office/internal/engine"
 	"agent-office/internal/providers"
@@ -47,6 +48,7 @@ type App struct {
 	dataDir string
 	db      *storage.DB
 	eng     *engine.Engine
+	design  *design.Service
 	secrets secrets.Store
 	initErr error
 
@@ -96,6 +98,7 @@ func (a *App) startup(ctx context.Context) {
 	a.db.Subscribe(func(evs []storage.EventRecord) { a.emit(a.ctx, EventStored, evs) })
 	ectx, cancel := context.WithCancel(context.Background())
 	a.stopEngine, a.engineDone = cancel, make(chan struct{})
+	a.design = &design.Service{DB: a.db, Engine: a.eng, Providers: a.providerFor, Connections: a.designConnections, Ctx: ectx}
 	go func() {
 		if err := a.eng.Run(ectx); err != nil {
 			log.Printf("engine stopped: %v", err)
@@ -116,6 +119,7 @@ func (a *App) shutdown(ctx context.Context) {
 	if a.stopEngine != nil {
 		a.stopEngine()
 		<-a.engineDone
+		a.design.Wait()
 	}
 	if a.db != nil {
 		a.db.Close()
@@ -232,6 +236,10 @@ func uiErr(err error) error {
 		return errors.New("상위 역할을 이렇게 지정하면 순환이 생깁니다")
 	case errors.Is(err, storage.ErrRoleInUse):
 		return errors.New("담당자가 있는 역할은 삭제할 수 없습니다")
+	case errors.Is(err, design.ErrNotReady):
+		return errors.New("이미 적용했거나 아직 준비되지 않은 설계안입니다")
+	case errors.Is(err, design.ErrInvalid):
+		return errors.New(strings.TrimPrefix(err.Error(), design.ErrInvalid.Error()+": "))
 	case errors.Is(err, engine.ErrStale):
 		return errors.New("이미 처리되었거나 더 이상 유효하지 않은 요청입니다. 화면을 새로 고치세요")
 	}
@@ -993,4 +1001,149 @@ func (a *App) AnswerQuestion(projectID, messageID, answer string) (ActionResult,
 		return ActionResult{}, err
 	}
 	return actionResult(a.eng.AnswerQuestion(a.ctx, projectID, messageID, answer))
+}
+
+// ---- AI design ----
+
+// designConnections lists connections the designer may propose, without
+// secrets; only connections that passed a real call are usable.
+func (a *App) designConnections(ctx context.Context) ([]design.ConnectionInfo, error) {
+	list, err := a.db.Connections(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := []design.ConnectionInfo{}
+	for _, c := range list {
+		v := a.connectionView(c)
+		coding := c.Provider == connect.KindCodex || c.Provider == connect.KindClaude || c.Provider == connect.KindTest
+		out = append(out, design.ConnectionInfo{ID: c.ID, Name: c.Name, Provider: c.Provider, Usable: v.Usable, Coding: coding})
+	}
+	return out, nil
+}
+
+// DesignInput is the goal request form.
+type DesignInput struct {
+	Goal         string        `json:"goal"`
+	ProjectID    string        `json:"projectId"`
+	ProjectName  string        `json:"projectName"`
+	HumanTasks   []string      `json:"humanTasks"`
+	Mode         string        `json:"mode"`
+	ConnectionID string        `json:"connectionId"`
+	Model        string        `json:"model"`
+	Budget       engine.Budget `json:"budget"`
+	// AllowedConnectionIDs is the auto scope for a new service.
+	AllowedConnectionIDs []string `json:"allowedConnectionIds"`
+}
+
+// DesignView is a design record with its checked result.
+type DesignView struct {
+	storage.DesignRecord
+	Request design.StoredInput `json:"request"`
+	Result  *design.Result     `json:"result"`
+	// AutoIssues explains why auto mode would not start (auto requests).
+	AutoIssues []domain.Issue `json:"autoIssues"`
+}
+
+func (a *App) designView(ctx context.Context, rec storage.DesignRecord) DesignView {
+	v := DesignView{DesignRecord: rec, AutoIssues: []domain.Issue{}}
+	json.Unmarshal(rec.Input, &v.Request)
+	if rec.Status == design.StatusReady {
+		if r, in, err := a.design.Recheck(ctx, rec.ID); err == nil {
+			v.Result = &r
+			if in.Mode == "auto" {
+				policy, hasBudget := in.AutoPolicy, in.Budget.MaxTokens != nil || in.Budget.MaxCostUSD != nil
+				if in.ProjectID != "" {
+					if p, err := a.db.Project(ctx, in.ProjectID); err == nil {
+						policy = design.AutoPolicy{}
+						json.Unmarshal(p.AutoPolicy, &policy)
+						var b engine.Budget
+						json.Unmarshal(p.Budget, &b)
+						hasBudget = b.MaxTokens != nil || b.MaxCostUSD != nil
+						if p.Mode != domain.ModeAuto {
+							v.AutoIssues = append(v.AutoIssues, domain.Issue{Code: "auto_mode_off", Message: "이 서비스는 자동 구성·실행 모드가 아닙니다", Severity: domain.SevRun})
+						}
+					}
+				}
+				v.AutoIssues = append(v.AutoIssues, design.AutoCheck(r, policy, hasBudget)...)
+			}
+		}
+	} else if len(rec.CheckResult) > 2 {
+		var r design.Result
+		if json.Unmarshal(rec.CheckResult, &r) == nil {
+			v.Result = &r
+		}
+	}
+	return v
+}
+
+// StartDesign asks the designer AI for a proposal. It uses the chosen
+// connection's quota; the UI confirms first.
+func (a *App) StartDesign(in DesignInput) (DesignView, error) {
+	if err := a.ready(); err != nil {
+		return DesignView{}, err
+	}
+	rec, err := a.design.Start(a.ctx, design.StoredInput{
+		Request: design.Request{Goal: in.Goal, ProjectID: in.ProjectID, ProjectName: in.ProjectName, HumanTasks: in.HumanTasks, Mode: in.Mode,
+			AutoPolicy: design.AutoPolicy{AllowedConnectionIDs: in.AllowedConnectionIDs}},
+		Model: in.Model, Budget: in.Budget,
+	}, in.ConnectionID)
+	if err != nil {
+		return DesignView{}, uiErr(err)
+	}
+	return a.designView(a.ctx, rec), nil
+}
+
+func (a *App) ListDesigns() ([]DesignView, error) {
+	if err := a.ready(); err != nil {
+		return nil, err
+	}
+	list, err := a.db.Designs(a.ctx, 50)
+	out := []DesignView{}
+	for _, d := range list {
+		out = append(out, a.designView(a.ctx, d))
+	}
+	return out, err
+}
+
+func (a *App) GetDesign(id string) (DesignView, error) {
+	if err := a.ready(); err != nil {
+		return DesignView{}, err
+	}
+	rec, err := a.db.Design(a.ctx, id)
+	if err != nil {
+		return DesignView{}, uiErr(err)
+	}
+	return a.designView(a.ctx, rec), nil
+}
+
+// ApplyDesign writes a ready proposal; with auto it also versions and
+// starts it when the pre-approved scope allows.
+func (a *App) ApplyDesign(id string, auto bool) (design.ApplyResult, error) {
+	if err := a.ready(); err != nil {
+		return design.ApplyResult{}, err
+	}
+	r, err := a.design.Apply(a.ctx, id, auto)
+	if r.Issues == nil {
+		r.Issues = []domain.Issue{}
+	}
+	return r, uiErr(err)
+}
+
+func (a *App) DiscardDesign(id string) error {
+	if err := a.ready(); err != nil {
+		return err
+	}
+	return uiErr(a.design.Discard(a.ctx, id))
+}
+
+// SetAutoPolicy sets which connections auto mode may use in a project.
+func (a *App) SetAutoPolicy(projectID string, allowedConnectionIDs []string) error {
+	if err := a.ready(); err != nil {
+		return err
+	}
+	if err := a.db.CheckScope(a.ctx, projectID); err != nil {
+		return uiErr(err)
+	}
+	raw, _ := json.Marshal(design.AutoPolicy{AllowedConnectionIDs: allowedConnectionIDs})
+	return uiErr(a.db.SetAutoPolicy(a.ctx, projectID, raw))
 }

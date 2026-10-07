@@ -5,7 +5,7 @@ import type {InboxKind, NodeKind, OutputType, RunStatus, StepStatus} from './typ
 export const ko = {
     app: {name: 'Agent Office'},
     nav: {
-        dashboard: '전체 서비스', inbox: '내 할 일', organization: '회사 조직', settings: '설정',
+        dashboard: '전체 서비스', inbox: '내 할 일', design: '목표 요청', organization: '회사 조직', settings: '설정',
         services: '서비스', newService: '새 서비스', archived: '보관된 서비스 보기',
     },
     project: {

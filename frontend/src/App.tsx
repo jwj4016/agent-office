@@ -4,6 +4,7 @@ import {t} from './i18n';
 import {LiveProvider, useLoad} from './live';
 import {DetailProvider} from './ui';
 import {Dashboard} from './views/Dashboard';
+import {Design} from './views/Design';
 import {Inbox} from './views/Inbox';
 import {Organization} from './views/Organization';
 import {ProjectView, type ProjectTab} from './views/ProjectView';
@@ -12,6 +13,7 @@ import {Settings} from './views/Settings';
 export type Route =
     | { view: 'dashboard' }
     | { view: 'inbox' }
+    | { view: 'design' }
     | { view: 'org' }
     | { view: 'settings' }
     | { view: 'project'; projectId: string; tab: ProjectTab; workflowId?: string; runId?: string };
@@ -87,6 +89,10 @@ function Workspace() {
         case 'inbox':
             main = <Inbox onOpenRun={(projectId, runId) => go({view: 'project', projectId, tab: 'runs', runId})}/>;
             break;
+        case 'design':
+            main = <Design onOpenWorkflow={(projectId, workflowId) => go({view: 'project', projectId, tab: 'workflows', workflowId})}
+                           onOpenRun={(projectId, runId) => go({view: 'project', projectId, tab: 'runs', runId})}/>;
+            break;
         case 'org':
             main = <Organization/>;
             break;
@@ -106,6 +112,7 @@ function Workspace() {
                     {navButton(t.nav.dashboard, {view: 'dashboard'}, route.view === 'dashboard')}
                     {navButton(t.nav.inbox, {view: 'inbox'}, route.view === 'inbox',
                         inboxCount > 0 ? <span className="badge warn" aria-label={`${inboxCount}건`}>{inboxCount}</span> : null)}
+                    {navButton(t.nav.design, {view: 'design'}, route.view === 'design')}
                     {navButton(t.nav.organization, {view: 'org'}, route.view === 'org')}
                     <div className="section">{t.nav.services}</div>
                     {projects.map((s) => (

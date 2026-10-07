@@ -4,7 +4,7 @@ import * as Go from '../wailsjs/go/main/App';
 import {EventsOn} from '../wailsjs/runtime/runtime';
 import type {
     ActionResult, ArtifactContent, Assignment, CheckReport, ConfirmResult, Connection, ConnectionKind, ConnectionSettings, Delta,
-    DetectedPaths, Usage, InboxItem, InstructionPreview,
+    DesignView, ApplyResult, DetectedPaths, Usage, InboxItem, InstructionPreview,
     Organization, Project, ProjectSummary, Role, RunDetail, StartResult, StoredEvent, SystemStatus, Template,
     Validation, Workflow, WorkflowSpec,
 } from './types';
@@ -68,6 +68,16 @@ export const api = {
     cancelRun: (projectId: string, runId: string) => call<void>(Go.CancelRun(projectId, runId)),
     retryStep: (projectId: string, runId: string, stepId: string) => call<void>(Go.RetryStep(projectId, runId, stepId)),
     readArtifact: (projectId: string, artifactId: string) => call<ArtifactContent>(Go.ReadArtifact(projectId, artifactId)),
+
+    startDesign: (d: {
+        goal: string; projectId: string; projectName: string; humanTasks: string[]; mode: string; connectionId: string; model: string;
+        budget: { maxTokens?: number; maxCostUsd?: number }; allowedConnectionIds: string[];
+    }) => call<DesignView>(Go.StartDesign(d as never)),
+    designs: () => call<DesignView[]>(Go.ListDesigns()),
+    design: (id: string) => call<DesignView>(Go.GetDesign(id)),
+    applyDesign: (id: string, auto: boolean) => call<ApplyResult>(Go.ApplyDesign(id, auto)),
+    discardDesign: (id: string) => call<void>(Go.DiscardDesign(id)),
+    setAutoPolicy: (projectId: string, ids: string[]) => call<void>(Go.SetAutoPolicy(projectId, ids)),
 
     inbox: () => call<InboxItem[]>(Go.Inbox()),
     submitHuman: (projectId: string, attemptId: string, generation: number, outputs: Record<string, string>) =>

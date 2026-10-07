@@ -6,6 +6,10 @@ export function AnswerQuestion(arg1, arg2, arg3) {
   return window['go']['main']['App']['AnswerQuestion'](arg1, arg2, arg3);
 }
 
+export function ApplyDesign(arg1, arg2) {
+  return window['go']['main']['App']['ApplyDesign'](arg1, arg2);
+}
+
 export function CancelRun(arg1, arg2) {
   return window['go']['main']['App']['CancelRun'](arg1, arg2);
 }
@@ -50,12 +54,20 @@ export function DetectPaths() {
   return window['go']['main']['App']['DetectPaths']();
 }
 
+export function DiscardDesign(arg1) {
+  return window['go']['main']['App']['DiscardDesign'](arg1);
+}
+
 export function EnsureTestConnection() {
   return window['go']['main']['App']['EnsureTestConnection']();
 }
 
 export function EventsAfter(arg1, arg2) {
   return window['go']['main']['App']['EventsAfter'](arg1, arg2);
+}
+
+export function GetDesign(arg1) {
+  return window['go']['main']['App']['GetDesign'](arg1);
 }
 
 export function GetOrganization() {
@@ -88,6 +100,10 @@ export function ListAssignments(arg1) {
 
 export function ListConnections() {
   return window['go']['main']['App']['ListConnections']();
+}
+
+export function ListDesigns() {
+  return window['go']['main']['App']['ListDesigns']();
 }
 
 export function ListRoles() {
@@ -142,6 +158,10 @@ export function SaveWorkflowDraft(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['SaveWorkflowDraft'](arg1, arg2, arg3, arg4);
 }
 
+export function SetAutoPolicy(arg1, arg2) {
+  return window['go']['main']['App']['SetAutoPolicy'](arg1, arg2);
+}
+
 export function SetConnectionKey(arg1, arg2) {
   return window['go']['main']['App']['SetConnectionKey'](arg1, arg2);
 }
@@ -152,6 +172,10 @@ export function SetProjectArchived(arg1, arg2) {
 
 export function SetSetting(arg1, arg2) {
   return window['go']['main']['App']['SetSetting'](arg1, arg2);
+}
+
+export function StartDesign(arg1) {
+  return window['go']['main']['App']['StartDesign'](arg1);
 }
 
 export function StartRun(arg1, arg2) {

@@ -36,6 +36,8 @@ type Service struct {
 	// Connections lists connections the designer may propose (no secrets).
 	Connections func(ctx context.Context) ([]ConnectionInfo, error)
 	Logf        func(string, ...any)
+	// Ctx bounds background designers (cancelled when the app quits).
+	Ctx context.Context
 
 	applyMu sync.Mutex
 	wg      sync.WaitGroup
@@ -97,10 +99,14 @@ func (s *Service) Start(ctx context.Context, in StoredInput, connectionID string
 	if err != nil {
 		return rec, err
 	}
+	base := s.Ctx
+	if base == nil {
+		base = context.Background()
+	}
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
-		s.draft(context.Background(), rec.ID, in, conn)
+		s.draft(base, rec.ID, in, conn)
 	}()
 	return rec, nil
 }
@@ -127,7 +133,7 @@ func (s *Service) context(ctx context.Context, in StoredInput) (Context, *domain
 
 func (s *Service) draft(ctx context.Context, id string, in StoredInput, conn domain.ProviderConnection) {
 	fail := func(err error) {
-		if _, uerr := s.DB.UpdateDesign(ctx, id, StatusFailed, nil, nil, nil, err.Error(), "", StatusDrafting); uerr != nil {
+		if _, uerr := s.DB.UpdateDesign(context.Background(), id, StatusFailed, nil, nil, nil, err.Error(), "", StatusDrafting); uerr != nil {
 			s.logf("design %s: %v", id, uerr)
 		}
 	}

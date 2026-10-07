@@ -115,6 +115,7 @@ function Overview({project, onSaved}: { project: Project; onSaved: () => void })
                 <p className="muted small">새 AI 업무를 시작하기 전에 확인합니다. 이미 진행 중인 요청과 공급자 청구 지연 때문에 실제 청구액의 절대 상한은 아닙니다.
                     비용을 보고하지 않는 연결(예: Codex)은 토큰 예산으로 관리하세요.</p>
             </section>
+            {form.mode === 'auto' ? <AutoScope project={project}/> : null}
             <ErrorBox error={action.error}/>
             <div className="row">
                 <button className="btn primary" disabled={archived || !dirty || action.busy} onClick={save}>{t.project.save}</button>
@@ -125,5 +126,31 @@ function Overview({project, onSaved}: { project: Project; onSaved: () => void })
                                      onConfirm={() => action.run(async () => { await api.setArchived(project.id, true); onSaved(); })}/>}
             </div>
         </div>
+    );
+}
+
+// AutoScope sets which connections auto mode may use for this service.
+function AutoScope({project}: { project: Project }) {
+    const conns = useLoad(() => api.connections(), []);
+    const current = (project.autoPolicy && typeof project.autoPolicy === 'object'
+        ? (project.autoPolicy as { allowedConnectionIds?: string[] }).allowedConnectionIds : undefined) ?? [];
+    const [allowed, setAllowed] = useState<string[]>(current);
+    const action = useAction();
+    const usable = (conns.data ?? []).filter((c) => c.usable);
+    return (
+        <section className="card stack" aria-label="자동 실행 허용 범위">
+            <h2>자동 실행 허용 범위</h2>
+            <p className="muted small">자동 구성·실행은 여기서 허용한 연결과 위의 예산 안에서만 시작합니다. 사람 업무와 승인은 항상 기다립니다.</p>
+            {usable.map((c) => (
+                <label key={c.id} className="check">
+                    <input type="checkbox" checked={allowed.includes(c.id)}
+                           onChange={(e) => setAllowed(e.target.checked ? [...allowed, c.id] : allowed.filter((x) => x !== c.id))}/>{c.name}
+                </label>
+            ))}
+            {usable.length === 0 ? <p className="muted small">사용 가능한 연결이 없습니다.</p> : null}
+            <ErrorBox error={action.error}/>
+            <div className="row"><button className="btn" disabled={action.busy}
+                                         onClick={() => action.run(() => api.setAutoPolicy(project.id, allowed))}>허용 범위 저장</button></div>
+        </section>
     );
 }

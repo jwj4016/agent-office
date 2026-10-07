@@ -77,6 +77,426 @@ export namespace connect {
 
 }
 
+export namespace design {
+	
+	export class ApplyResult {
+	    applied?: storage.DesignApplied;
+	    issues: domain.Issue[];
+	    runId?: string;
+	    version?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new ApplyResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.applied = this.convertValues(source["applied"], storage.DesignApplied);
+	        this.issues = this.convertValues(source["issues"], domain.Issue);
+	        this.runId = source["runId"];
+	        this.version = source["version"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class AssignmentView {
+	    ref: string;
+	    roleRef: string;
+	    actorKind: string;
+	    displayName: string;
+	    connectionId: string;
+	    model: string;
+	    instructions: string;
+	    roleName: string;
+	    connectionName: string;
+	    connected: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new AssignmentView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ref = source["ref"];
+	        this.roleRef = source["roleRef"];
+	        this.actorKind = source["actorKind"];
+	        this.displayName = source["displayName"];
+	        this.connectionId = source["connectionId"];
+	        this.model = source["model"];
+	        this.instructions = source["instructions"];
+	        this.roleName = source["roleName"];
+	        this.connectionName = source["connectionName"];
+	        this.connected = source["connected"];
+	    }
+	}
+	export class MissingItem {
+	    kind: string;
+	    detail: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new MissingItem(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.kind = source["kind"];
+	        this.detail = source["detail"];
+	    }
+	}
+	export class StepView {
+	    id: string;
+	    title: string;
+	    kind: string;
+	    assignee: string;
+	    human: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new StepView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.title = source["title"];
+	        this.kind = source["kind"];
+	        this.assignee = source["assignee"];
+	        this.human = source["human"];
+	    }
+	}
+	export class RoleChangeView {
+	    roleId: string;
+	    instructions: string;
+	    reason: string;
+	    roleName: string;
+	    current: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new RoleChangeView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.roleId = source["roleId"];
+	        this.instructions = source["instructions"];
+	        this.reason = source["reason"];
+	        this.roleName = source["roleName"];
+	        this.current = source["current"];
+	    }
+	}
+	export class ProposedRole {
+	    ref: string;
+	    reuseRoleId: string;
+	    name: string;
+	    mission: string;
+	    instructions: string;
+	    parentRef: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ProposedRole(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ref = source["ref"];
+	        this.reuseRoleId = source["reuseRoleId"];
+	        this.name = source["name"];
+	        this.mission = source["mission"];
+	        this.instructions = source["instructions"];
+	        this.parentRef = source["parentRef"];
+	    }
+	}
+	export class RoleRef {
+	    ref: string;
+	    id: string;
+	    name: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new RoleRef(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ref = source["ref"];
+	        this.id = source["id"];
+	        this.name = source["name"];
+	    }
+	}
+	export class Diff {
+	    reuseRoles: RoleRef[];
+	    newRoles: ProposedRole[];
+	    roleChanges: RoleChangeView[];
+	    assignments: AssignmentView[];
+	    steps: StepView[];
+	    missing: MissingItem[];
+	
+	    static createFrom(source: any = {}) {
+	        return new Diff(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.reuseRoles = this.convertValues(source["reuseRoles"], RoleRef);
+	        this.newRoles = this.convertValues(source["newRoles"], ProposedRole);
+	        this.roleChanges = this.convertValues(source["roleChanges"], RoleChangeView);
+	        this.assignments = this.convertValues(source["assignments"], AssignmentView);
+	        this.steps = this.convertValues(source["steps"], StepView);
+	        this.missing = this.convertValues(source["missing"], MissingItem);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class HumanStep {
+	    request: string;
+	    stepId: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new HumanStep(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.request = source["request"];
+	        this.stepId = source["stepId"];
+	    }
+	}
+	
+	export class RoleChange {
+	    roleId: string;
+	    instructions: string;
+	    reason: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new RoleChange(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.roleId = source["roleId"];
+	        this.instructions = source["instructions"];
+	        this.reason = source["reason"];
+	    }
+	}
+	export class ProposedAssignment {
+	    ref: string;
+	    roleRef: string;
+	    actorKind: string;
+	    displayName: string;
+	    connectionId: string;
+	    model: string;
+	    instructions: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ProposedAssignment(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ref = source["ref"];
+	        this.roleRef = source["roleRef"];
+	        this.actorKind = source["actorKind"];
+	        this.displayName = source["displayName"];
+	        this.connectionId = source["connectionId"];
+	        this.model = source["model"];
+	        this.instructions = source["instructions"];
+	    }
+	}
+	export class ProposedProject {
+	    name: string;
+	    goal: string;
+	    instructions: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ProposedProject(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.goal = source["goal"];
+	        this.instructions = source["instructions"];
+	    }
+	}
+	export class Proposal {
+	    project: ProposedProject;
+	    roles: ProposedRole[];
+	    assignments: ProposedAssignment[];
+	    workflow: domain.WorkflowSpec;
+	    humanSteps: HumanStep[];
+	    missing: MissingItem[];
+	    roleChanges: RoleChange[];
+	    notes: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Proposal(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.project = this.convertValues(source["project"], ProposedProject);
+	        this.roles = this.convertValues(source["roles"], ProposedRole);
+	        this.assignments = this.convertValues(source["assignments"], ProposedAssignment);
+	        this.workflow = this.convertValues(source["workflow"], domain.WorkflowSpec);
+	        this.humanSteps = this.convertValues(source["humanSteps"], HumanStep);
+	        this.missing = this.convertValues(source["missing"], MissingItem);
+	        this.roleChanges = this.convertValues(source["roleChanges"], RoleChange);
+	        this.notes = source["notes"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	
+	
+	export class Result {
+	    proposal?: Proposal;
+	    issues: domain.Issue[];
+	    diff: Diff;
+	    canApply: boolean;
+	    canStart: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new Result(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.proposal = this.convertValues(source["proposal"], Proposal);
+	        this.issues = this.convertValues(source["issues"], domain.Issue);
+	        this.diff = this.convertValues(source["diff"], Diff);
+	        this.canApply = source["canApply"];
+	        this.canStart = source["canStart"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	
+	
+	
+	export class AutoPolicy {
+	    allowedConnectionIds: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new AutoPolicy(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.allowedConnectionIds = source["allowedConnectionIds"];
+	    }
+	}
+	export class StoredInput {
+	    goal: string;
+	    projectId: string;
+	    projectName: string;
+	    humanTasks: string[];
+	    mode: string;
+	    // Go type: AutoPolicy
+	    autoPolicy: any;
+	    model: string;
+	    budget: engine.Budget;
+	
+	    static createFrom(source: any = {}) {
+	        return new StoredInput(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.goal = source["goal"];
+	        this.projectId = source["projectId"];
+	        this.projectName = source["projectName"];
+	        this.humanTasks = source["humanTasks"];
+	        this.mode = source["mode"];
+	        this.autoPolicy = this.convertValues(source["autoPolicy"], null);
+	        this.model = source["model"];
+	        this.budget = this.convertValues(source["budget"], engine.Budget);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+
+}
+
 export namespace domain {
 	
 	export class AssignmentOverrides {
@@ -497,6 +917,7 @@ export namespace domain {
 	    budget: number[];
 	    mode: string;
 	    status: string;
+	    autoPolicy: number[];
 	    createdAt: string;
 	    updatedAt: string;
 	
@@ -515,6 +936,7 @@ export namespace domain {
 	        this.budget = source["budget"];
 	        this.mode = source["mode"];
 	        this.status = source["status"];
+	        this.autoPolicy = source["autoPolicy"];
 	        this.createdAt = source["createdAt"];
 	        this.updatedAt = source["updatedAt"];
 	    }
@@ -1211,6 +1633,112 @@ export namespace main {
 		    return a;
 		}
 	}
+	export class DesignInput {
+	    goal: string;
+	    projectId: string;
+	    projectName: string;
+	    humanTasks: string[];
+	    mode: string;
+	    connectionId: string;
+	    model: string;
+	    budget: engine.Budget;
+	    allowedConnectionIds: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new DesignInput(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.goal = source["goal"];
+	        this.projectId = source["projectId"];
+	        this.projectName = source["projectName"];
+	        this.humanTasks = source["humanTasks"];
+	        this.mode = source["mode"];
+	        this.connectionId = source["connectionId"];
+	        this.model = source["model"];
+	        this.budget = this.convertValues(source["budget"], engine.Budget);
+	        this.allowedConnectionIds = source["allowedConnectionIds"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class DesignView {
+	    id: string;
+	    projectId: string;
+	    goal: string;
+	    input: number[];
+	    mode: string;
+	    connectionId: string;
+	    status: string;
+	    proposal: number[];
+	    checkResult: number[];
+	    error: string;
+	    applied: number[];
+	    createdAt: string;
+	    updatedAt: string;
+	    request: design.StoredInput;
+	    result?: design.Result;
+	    autoIssues: domain.Issue[];
+	
+	    static createFrom(source: any = {}) {
+	        return new DesignView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.projectId = source["projectId"];
+	        this.goal = source["goal"];
+	        this.input = source["input"];
+	        this.mode = source["mode"];
+	        this.connectionId = source["connectionId"];
+	        this.status = source["status"];
+	        this.proposal = source["proposal"];
+	        this.checkResult = source["checkResult"];
+	        this.error = source["error"];
+	        this.applied = source["applied"];
+	        this.createdAt = source["createdAt"];
+	        this.updatedAt = source["updatedAt"];
+	        this.request = this.convertValues(source["request"], design.StoredInput);
+	        this.result = this.convertValues(source["result"], design.Result);
+	        this.autoIssues = this.convertValues(source["autoIssues"], domain.Issue);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class DetectedPaths {
 	    codex: string;
 	    node: string;
@@ -1376,6 +1904,26 @@ export namespace main {
 
 export namespace storage {
 	
+	export class DesignApplied {
+	    projectId: string;
+	    roleIds: Record<string, string>;
+	    assignmentIds: Record<string, string>;
+	    workflowId: string;
+	    newProject: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new DesignApplied(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.projectId = source["projectId"];
+	        this.roleIds = source["roleIds"];
+	        this.assignmentIds = source["assignmentIds"];
+	        this.workflowId = source["workflowId"];
+	        this.newProject = source["newProject"];
+	    }
+	}
 	export class EventRecord {
 	    sequence: number;
 	    id: string;
