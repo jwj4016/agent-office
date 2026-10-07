@@ -31,7 +31,7 @@
 | T16 | 앱 강제 종료·재시작 | 🟡 | `TestRecoverAfterEngineStopped` (엔진 종료 후 새 엔진이 중단된 시도를 interrupted 처리, 자동 재실행 없음, 사람 대기 유지). 실제 앱 강제 종료 시험은 M2 |
 | T17 | 프로세스 취소 | 🟡 | macOS: 취소 시 손자 프로세스 종료 (`TestCodexCancelKillsStuckProcessTree`), bridge 무응답 시 강제 종료 (`TestClaudeCancel/cancel-ignored`). Windows 미시험 |
 | T18 | 질문이 서로 순환 또는 무응답 | ⬜ | |
-| T19 | 예산·수정 한도 도달 | ⬜ | |
+| T19 | 예산·수정 한도 도달 | 🟡 | 수정 한도: `TestRevisionLimit`. 예산: `TestBudgetHoldsNewAIWork`(새 AI 업무 보류·사람 대기·내 할 일 표시·상향 시 재개), `TestUsageUnknownCost`(미보고 비용 별도 집계). 실제 공급자 미시험 |
 | T20 | 키 저장소 없음·내보내기 | ⬜ | 키 저장소 없을 때 메모리 fallback: `secrets_test.go` TestOpenFallsBackToMemory. 내보내기는 M5 |
 | T21 | 한글·공백 경로, 설치 패키지 | ⬜ | DB 경로 한글·공백: `storage_test.go` TestMigrationsApplyOnceAndPersistAcrossReopen, wails dev 수동 확인 (2026-10-03, macOS). 설치 패키지·AI 시작은 미시험 |
 | T22 | 도트 모션 줄이기·키보드 | ⬜ | |
