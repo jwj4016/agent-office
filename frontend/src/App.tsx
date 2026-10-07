@@ -82,7 +82,7 @@ function Workspace() {
     let main: ReactNode;
     switch (route.view) {
         case 'dashboard':
-            main = <Dashboard summaries={projects} onOpen={(id) => go({view: 'project', projectId: id, tab: 'overview'})} onCreated={dash.reload}/>;
+            main = <Dashboard summaries={projects} loaded={dash.data !== undefined} onOpen={(id) => go({view: 'project', projectId: id, tab: 'overview'})} onCreated={dash.reload}/>;
             break;
         case 'inbox':
             main = <Inbox onOpenRun={(projectId, runId) => go({view: 'project', projectId, tab: 'runs', runId})}/>;

@@ -79,7 +79,7 @@ function RunView({project, runId, onBack}: { project: Project; runId: string; on
                                 <pre className="content small" aria-live="polite">{live.deltas[s.attemptId].slice(-600)}</pre>
                             ) : null}
                         </td>
-                        <td className="small">{s.round > 0 ? `수정 ${s.round}회` : ''}{s.attempt > 1 ? ` · 시도 ${s.attempt}` : ''}</td>
+                        <td className="small">{[s.round > 0 ? `수정 ${s.round}회` : '', s.attempt > 1 ? `시도 ${s.attempt}` : ''].filter(Boolean).join(' · ')}</td>
                         <td>
                             <div className="row">
                                 {s.artifacts.map((a) => (

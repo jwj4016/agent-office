@@ -170,3 +170,20 @@ func TestParseScriptRejectsBadLines(t *testing.T) {
 		}
 	}
 }
+
+func TestAutoSlowIsCancellable(t *testing.T) {
+	dir := t.TempDir()
+	r := req(AutoSlowScenario)
+	r.OutputSpec = []OutputSpec{{Key: "spec", Type: "markdown", Required: true, Path: dir + "/spec.md"}}
+	s, err := (&TestProvider{}).Start(context.Background(), r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	next(t, s)
+	next(t, s)
+	start := time.Now()
+	s.Cancel(context.Background())
+	if c := completed(t, drain(t, s)); c.Status != StatusCancelled || time.Since(start) > time.Second {
+		t.Fatalf("completed = %+v after %v", c, time.Since(start))
+	}
+}

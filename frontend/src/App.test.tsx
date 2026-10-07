@@ -40,3 +40,14 @@ describe('App start-up errors', () => {
         expect(screen.queryByRole('navigation')).not.toBeInTheDocument();
     });
 });
+
+describe('Dashboard first load', () => {
+    it('does not open the new-service form when services exist', async () => {
+        state.summaries = [{project: {id: 'prj-1', organizationId: 'org-default', name: '게임', goal: '', instructions: '', workspacePath: '',
+            budget: {}, mode: 'review', status: 'active', createdAt: '', updatedAt: ''}, activeRuns: 0, waitingRuns: 0, failedRuns: 1,
+            pausedRuns: 0, inbox: 0, lastRun: null}];
+        render(<App/>);
+        expect(await screen.findByText('막힘 1')).toBeInTheDocument(); // the dashboard card rendered
+        expect(screen.queryByRole('form', {name: '새 서비스'})).not.toBeInTheDocument();
+    });
+});

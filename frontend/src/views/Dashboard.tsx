@@ -1,13 +1,18 @@
-import {useState} from 'react';
+import {useEffect, useState} from 'react';
 import {api} from '../api';
 import {t} from '../i18n';
 import type {ProjectSummary} from '../types';
 import {ErrorBox, RunBadge, shortTime, useAction} from '../ui';
 
-export function Dashboard({summaries, onOpen, onCreated}: {
-    summaries: ProjectSummary[]; onOpen: (id: string) => void; onCreated: () => void;
+export function Dashboard({summaries, loaded, onOpen, onCreated}: {
+    summaries: ProjectSummary[]; loaded: boolean; onOpen: (id: string) => void; onCreated: () => void;
 }) {
-    const [creating, setCreating] = useState(summaries.length === 0);
+    const [creating, setCreating] = useState(false);
+    // Open the form for a first service only once the list is known to be
+    // empty (not while it is still loading).
+    useEffect(() => {
+        if (loaded && summaries.length === 0) setCreating(true);
+    }, [loaded, summaries.length]);
     const [showArchived, setShowArchived] = useState(false);
     const [archived, setArchived] = useState<ProjectSummary[]>([]);
     const archiveAction = useAction();
@@ -27,7 +32,7 @@ export function Dashboard({summaries, onOpen, onCreated}: {
                 <button className="btn primary" onClick={() => setCreating(true)}>{t.nav.newService}</button>
             </div>
             {creating ? <NewProject onDone={(id) => { setCreating(false); onCreated(); if (id) onOpen(id); }}/> : null}
-            {summaries.length === 0 && !creating ? <p className="muted">서비스를 만들어 시작하세요.</p> : null}
+            {loaded && summaries.length === 0 && !creating ? <p className="muted">서비스를 만들어 시작하세요.</p> : null}
             <div className="grid-cards">
                 {summaries.map((s) => (
                     <button key={s.project.id} className="card clickable" onClick={() => onOpen(s.project.id)}>

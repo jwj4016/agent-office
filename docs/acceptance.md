@@ -28,8 +28,8 @@
 | T13 | 실행 중 초안·공통 역할 편집 | 🟡 | 버전 스냅샷 고정: `TestVersionSnapshotIsFrozen` (초안·역할 지침·담당자 변경 후 v1 불변, v2에 반영). 실행 중 시나리오는 엔진 항목에서 |
 | T14 | 두 개발 AI의 병렬 변경 | ⬜ | |
 | T15 | 모델은 완료 주장, 테스트 실패 | 🟡 | `TestClaimedDoneWithoutOutputFails`, `TestFailingVerificationCommandFails`, 사람 리뷰도 동일 기준: `TestReviewPassMeetsCompletionCriteria` |
-| T16 | 앱 강제 종료·재시작 | 🟡 | `TestRecoverAfterEngineStopped` (엔진 종료 후 새 엔진이 중단된 시도를 interrupted 처리, 자동 재실행 없음, 사람 대기 유지). 실제 앱 강제 종료 시험은 M2 |
-| T17 | 프로세스 취소 | 🟡 | macOS: 취소 시 손자 프로세스 종료 (`TestCodexCancelKillsStuckProcessTree`), bridge 무응답 시 강제 종료 (`TestClaudeCancel/cancel-ignored`). Windows 미시험 |
+| T16 | 앱 강제 종료·재시작 | 🟡 | `TestRecoverAfterEngineStopped`. 실제 앱(2026-10-07, macOS, wails dev, 테스트 provider auto-slow): 실행 중 `kill -9` → 재시작 시 interrupted, 자동 재실행 없음, 다시 시도로 재개. 실제 공급자 프로세스 미시험 |
+| T17 | 프로세스 취소 | 🟡 | 하위 프로세스: `TestCodexCancelKillsStuckProcessTree`, `TestClaudeCancel`. 실제 앱: 실행 중 업무 취소 2초 내 반영, 되돌림 없음 안내(테스트 provider). 실제 Codex·Claude 프로세스 취소는 게이트에서 |
 | T18 | 질문이 서로 순환 또는 무응답 | ⬜ | |
 | T19 | 예산·수정 한도 도달 | 🟡 | 수정 한도: `TestRevisionLimit`. 예산: `TestBudgetHoldsNewAIWork`(새 AI 업무 보류·사람 대기·내 할 일 표시·상향 시 재개), `TestUsageUnknownCost`(미보고 비용 별도 집계). 실제 공급자 미시험 |
 | T20 | 키 저장소 없음·내보내기 | ⬜ | 키 저장소 없을 때 메모리 fallback: `secrets_test.go` TestOpenFallsBackToMemory. 내보내기는 M5 |

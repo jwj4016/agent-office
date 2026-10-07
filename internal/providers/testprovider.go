@@ -42,6 +42,10 @@ type WriteStep struct {
 // requested output and succeeds. Whole-workflow tests use it.
 const AutoScenario = "auto"
 
+// AutoSlowScenario is AutoScenario after a 20 second pause, to try
+// pause, cancel and restart behaviour in the app.
+const AutoSlowScenario = "auto-slow"
+
 // autoContent returns plausible content for an output type.
 func autoContent(req StartRequest, o OutputSpec) string {
 	switch o.Type {
@@ -130,8 +134,11 @@ func (p *TestProvider) Start(ctx context.Context, req StartRequest) (Session, er
 		return nil, err
 	}
 	steps, ok := p.Scripts[req.Model]
-	if req.Model == AutoScenario {
+	if req.Model == AutoScenario || req.Model == AutoSlowScenario {
 		steps, ok = nil, true
+		if req.Model == AutoSlowScenario {
+			steps = append(steps, Step{Emit: KindMessage, Payload: json.RawMessage(`{"text":"20초 동안 작업하는 척합니다"}`)}, Step{Sleep: "20s"})
+		}
 		for _, o := range req.OutputSpec {
 			steps = append(steps, Step{Write: &WriteStep{Key: o.Key, Content: autoContent(req, o)}})
 		}
