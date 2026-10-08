@@ -417,13 +417,15 @@ func (e *Engine) DecideToolApproval(ctx context.Context, projectID, approvalID s
 	if accept {
 		pd = providers.DecisionAccept
 	}
-	if err := live.session.Respond(ctx, providers.Response{RequestID: requestKey, Decision: pd}); err != nil {
+	if err := live.respond(ctx, providers.Response{RequestID: requestKey, Decision: pd}); err != nil {
 		return out, fmt.Errorf("공급자에 전달 실패: %w", err)
 	}
 	return out, nil
 }
 
-// AnswerQuestion answers an AI's question and resumes the attempt.
+// AnswerQuestion answers an AI's question and resumes the attempt. Only
+// questions addressed to the person, or passed on to the person after an
+// AI could not answer, are the person's to answer.
 func (e *Engine) AnswerQuestion(ctx context.Context, projectID, messageID, answer string) (Outcome, error) {
 	if strings.TrimSpace(answer) == "" {
 		return Outcome{}, fmt.Errorf("%w: 답변이 비어 있습니다", ErrInvalid)
@@ -431,8 +433,22 @@ func (e *Engine) AnswerQuestion(ctx context.Context, projectID, messageID, answe
 	if err := e.db.CheckScope(ctx, projectID, storage.Ref{Kind: storage.RefMessage, ID: messageID}); err != nil {
 		return Outcome{}, err
 	}
-	var attemptID, runID string
-	e.db.Read().QueryRowContext(ctx, `SELECT COALESCE(step_attempt_id, ''), run_id FROM messages WHERE id = ? AND kind = 'question'`, messageID).Scan(&attemptID, &runID)
+	var recipient string
+	var escalated int
+	e.db.Read().QueryRowContext(ctx, `SELECT recipient, (SELECT COUNT(*) FROM messages e WHERE e.reply_to = m.id AND e.kind = 'escalation')
+		FROM messages m WHERE id = ? AND kind = 'question'`, messageID).Scan(&recipient, &escalated)
+	if recipient != domain.LocalOwner && escalated == 0 {
+		return Outcome{}, fmt.Errorf("%w: 다른 AI 담당자에게 보낸 질문입니다", ErrInvalid)
+	}
+	return e.deliverAnswer(ctx, messageID, domain.LocalOwner, answer)
+}
+
+// deliverAnswer records an answer to a pending question exactly once and
+// passes it to the asking session, which then continues.
+func (e *Engine) deliverAnswer(ctx context.Context, messageID, sender, answer string) (Outcome, error) {
+	var attemptID, runID, projectID string
+	e.db.Read().QueryRowContext(ctx, `SELECT COALESCE(step_attempt_id, ''), run_id, project_id FROM messages WHERE id = ? AND kind = 'question'`, messageID).
+		Scan(&attemptID, &runID, &projectID)
 	live := e.lookupActive(attemptID)
 	if live == nil {
 		return Outcome{}, ErrStale
@@ -445,7 +461,7 @@ func (e *Engine) AnswerQuestion(ctx context.Context, projectID, messageID, answe
 	}
 	_, err := e.db.Change(ctx, func(c *storage.Change) error {
 		var answered int
-		c.Tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM messages WHERE reply_to = ?`, messageID).Scan(&answered)
+		c.Tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM messages WHERE reply_to = ? AND kind = 'answer'`, messageID).Scan(&answered)
 		if answered > 0 {
 			return ErrStale
 		}
@@ -457,19 +473,20 @@ func (e *Engine) AnswerQuestion(ctx context.Context, projectID, messageID, answe
 		if err != nil {
 			return err
 		}
-		if !st.isCurrent(row) || row.Status != StWaitingInput {
+		// An AI-to-AI question keeps the asker running; one passed to the
+		// person made it wait for input.
+		if !st.isCurrent(row) || (row.Status != StWaitingInput && row.Status != StRunning) {
 			return ErrStale
 		}
-		ans := storage.NewID("msg")
-		if _, err := c.Tx.ExecContext(ctx, `INSERT INTO messages (id, project_id, run_id, step_attempt_id, sender, recipient, kind, body, reply_to, created_at)
-			VALUES (?, ?, ?, ?, ?, ?, 'answer', ?, ?, ?)`, ans, projectID, runID, attemptID, domain.LocalOwner, row.AssignmentID, answer, messageID, storage.Now()); err != nil {
+		if _, err := addMessage(ctx, c, projectID, newMessage{
+			RunID: runID, AttemptID: attemptID, Sender: sender, Recipient: row.AssignmentID, Kind: MsgAnswer, Body: answer, ReplyTo: messageID,
+		}); err != nil {
 			return err
 		}
-		if err := c.Emit(projectID, runID, attemptID, "message.answer", map[string]string{"messageId": ans, "replyTo": messageID}); err != nil {
-			return err
-		}
-		if _, err := setAttemptStatus(ctx, c, st, row, StRunning, "", StWaitingInput); err != nil {
-			return err
+		if row.Status == StWaitingInput && !e.waitsForOtherQuestions(ctx, c.Tx, attemptID, messageID) {
+			if _, err := setAttemptStatus(ctx, c, st, row, StRunning, "", StWaitingInput); err != nil {
+				return err
+			}
 		}
 		return saveRunStatus(ctx, c, st)
 	})
@@ -479,5 +496,15 @@ func (e *Engine) AnswerQuestion(ctx context.Context, projectID, messageID, answe
 	live.mu.Lock()
 	delete(live.questions, messageID)
 	live.mu.Unlock()
-	return Outcome{Status: StRunning}, live.session.Respond(ctx, providers.Response{RequestID: requestID, Answer: answer})
+	return Outcome{Status: StRunning}, live.respond(ctx, providers.Response{RequestID: requestID, Answer: answer})
+}
+
+// waitsForOtherQuestions reports whether the attempt still has another
+// question passed to the person that is unanswered.
+func (e *Engine) waitsForOtherQuestions(ctx context.Context, q querier, attemptID, except string) bool {
+	var n int
+	q.QueryRowContext(ctx, `SELECT COUNT(*) FROM messages m WHERE m.step_attempt_id = ? AND m.kind = 'question' AND m.id <> ?
+		AND NOT EXISTS (SELECT 1 FROM messages r WHERE r.reply_to = m.id AND r.kind = 'answer')
+		AND (m.recipient = 'local-owner' OR EXISTS (SELECT 1 FROM messages x WHERE x.reply_to = m.id AND x.kind = 'escalation'))`, attemptID, except).Scan(&n)
+	return n > 0
 }

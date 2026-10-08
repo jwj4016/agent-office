@@ -120,7 +120,7 @@ func toAny(xs []string) []any {
 func (e *Engine) cancelLive(ids []string) {
 	for _, id := range ids {
 		if a := e.lookupActive(id); a != nil {
-			a.session.Cancel(context.Background())
+			a.cancel()
 		}
 	}
 }

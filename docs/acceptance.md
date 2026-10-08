@@ -33,7 +33,7 @@
 | T15 | 모델은 완료 주장, 테스트 실패 | 🟡 | `TestClaimedDoneWithoutOutputFails`, `TestFailingVerificationCommandFails`, 사람 리뷰도 동일 기준: `TestReviewPassMeetsCompletionCriteria` |
 | T16 | 앱 강제 종료·재시작 | 🟡 | `TestRecoverAfterEngineStopped`, 실제 앱 `kill -9` 후 재시작(테스트 provider). 실제 공급자 실행 중 강제 종료는 미시험 |
 | T17 | 프로세스 취소 | 🟡 | 가짜: `TestCodexCancelKillsStuckProcessTree`, `TestClaudeCancelLeavesNoChildren`. 실제(2026-10-07, macOS): `TestCodexRealCancel`, `TestClaudeRealCancel` — 취소 후 프로세스 그룹에 남은 프로세스 없음. Windows 미시험 |
-| T18 | 질문이 서로 순환 또는 무응답 | ⬜ | |
+| T18 | 질문이 서로 순환 또는 무응답 | 🟡 | 무응답: `TestAIQuestionEscalatesWhenUnanswered`(제한 시간 후 사용자에게 넘김, 사람 답변 후 계속). 순환: `TestAIQuestionLoopIsCapped`(같은 두 담당자 사이 한도 초과 질문은 사용자에게), 보조 세션은 질문 불가(고정 답변). 회의: 라운드 한도 `TestMeetingRunsRoundsThenAIDecides`, 합의 시 조기 종료 `TestMeetingStopsWhenAllAgree`. 실제 공급자 미시험 |
 | T19 | 예산·수정 한도 도달 | 🟡 | 수정 한도: `TestRevisionLimit`. 예산: `TestBudgetHoldsNewAIWork`(새 AI 업무 보류·사람 대기·내 할 일 표시·상향 시 재개), `TestUsageUnknownCost`(미보고 비용 별도 집계). 실제 공급자 미시험 |
 | T20 | 키 저장소 없음·내보내기 | ⬜ | 키 저장소 없을 때 메모리 fallback: `secrets_test.go` TestOpenFallsBackToMemory. 내보내기는 M5 |
 | T21 | 한글·공백 경로, 설치 패키지 | 🟡 | DB 경로: `TestMigrationsApplyOnceAndPersistAcrossReopen`. 실제 AI 작업 폴더 '게이트 작업 폴더'에서 Codex 작성·Claude 검증·검증 명령 정상(M2 게이트). 설치 패키지 미시험 |

@@ -81,8 +81,8 @@
 - [x] 🚪 게이트: "게임 출시, 리뷰는 내가" → local-owner 배정 (T02)
 
 ### M4 협업
-- [x] Message 7종 + AI 입력 컨텍스트 구성 (escalation 발생은 다음 항목 T18에서)
-- [ ] 협의 작업(회의), 순환·무응답 제한 (T18)
+- [x] Message 7종 + AI 입력 컨텍스트 구성
+- [x] 협의 작업(회의), 순환·무응답 제한 (T18) — 회의 편집 화면은 흐름 편집기 항목에서
 - [ ] Git worktree 분리·통합·테스트/빌드 (T14)
 - [ ] 흐름 편집기: 조건·분기·수정 대상 편집 완성
 - [ ] 🚪 게이트: 병렬 개발 통합 + 수정 회차 + 분기 합류 통과
@@ -246,3 +246,11 @@
 - 미검증·알려진 제한: 이미 진행 중인 시도에는 메모가 전달되지 않음(다음 시도부터). Windows에서 `TestClaudeCancel/cancel-ignored`가 전체 병렬 실행 중 1회 시간 초과(단독 3회 통과) — 부하 시 taskkill 지연으로 보임, M6 Job Object와 함께 확인
 - 마지막 관련 코드/테스트: `internal/engine/messages.go`, `messages_test.go`, `frontend/src/views/Runs.tsx`
 - 다음에 실행할 구체적인 작업: AI 간 질문 전달·회의(협의 작업)·순환/무응답 제한(T18)
+
+- 현재 단계: M4 / AI 간 질문·회의·T18
+- 구현 완료: ① AI 간 질문 — AI 업무 프롬프트에 '다른 담당자에게 묻기'(같은 버전의 다른 AI 담당자 목록, 질문 기능 지원 공급자만). 질문이 `@담당자ID`로 시작하면 그 AI가 읽기 전용 보조 세션으로 답하고(도구 요청 자동 거절, 보조 세션의 질문엔 고정 답변이라 연쇄 질문 없음), 묻는 업무는 사람 대기 없이 계속 진행. 답변 대기열 1개. 제한: 시도당 3회, 같은 두 담당자 사이 실행당 3회, 응답 5분, 연결 없음·예산 보류 — 넘으면 escalation 메시지와 함께 사용자 '내 할 일'로 넘김(넘긴 이유 표시), 사람 답변 후 계속. AI에게 보낸(넘겨지지 않은) 질문에는 사람이 답할 수 없음 ② 회의 — 작업 업무의 `meeting: {participants, maxRounds}`(기본 3, 최대 10). 참여자(AI만)가 라운드마다 읽기 전용 세션에서 `{"opinion","agree"}` 의견을 내고(proposal 메시지, 라운드·동의 표시), 모두 동의하면 조기 종료. 이후 업무 담당자가 결정: AI면 모든 의견이 컨텍스트에 들어간 채 결과 작성·일반 완료 검증, 사람이면 '내 할 일'에 의견과 함께 작업 표시. 회의 참여자도 버전 스냅샷에 포함 ③ 공통 — 실행 중 세션 교체·취소 가능한 구조(`activeAttempt`), 보조 세션 사용량은 phase별로 합산, `deliverAnswer`로 사람·AI 답변 경로 통일, Claude bridge `readOnlyCwd`(작업 폴더 쓰기 차단, 허용 폴더만). 내 할 일에 '관련 대화·결정'과 넘긴 이유 표시
+- 이번 검증과 결과: `go test ./...` 캐시 없이 4회 통과(Windows). 새 시험 `TestAIQuestionAnsweredByAnotherAI`, `TestAIQuestionEscalatesWhenUnanswered`, `TestAIQuestionLoopIsCapped`, `TestMeetingRunsRoundsThenAIDecides`, `TestMeetingStopsWhenAllAgree`, `TestMeetingDecidedByPerson`, `TestMeetingCancelled`, `TestMeetingValidation`. bridge 시험 11건 중 10건 통과 — 실패 1건은 기존 심볼릭 링크 시험으로 이 PC에 심볼릭 링크 생성 권한이 없어 EPERM(CI Windows에서는 통과하던 시험). 프론트엔드 30건·typecheck 통과
+- 수정: Windows `taskkill /T`가 부하 시 몇 초 걸려 취소가 늦어지던 문제 — 2초 안에 끝나지 않으면 주 프로세스를 직접 종료(트리 정리는 계속). 이후 `TestClaudeCancel` 시간 초과 재발 없음
+- 미검증·알려진 제한: 실제 Codex·Claude가 `@담당자ID` 형식을 지키는지는 실제 공급자 시험 전. 회의 참여자는 AI만(사람은 결정 담당자로). 합의 실패 시 별도 사용자 선택 없이 결정 담당자가 결정(라운드 제한이 반복 방지)
+- 마지막 관련 코드/테스트: `internal/engine/{consult,meeting}.go`, `collab_test.go`, `internal/domain/{workflow,validate}.go`, `runners/claude/src/bridge.ts`
+- 다음에 실행할 구체적인 작업: Git worktree 분리·통합·테스트/빌드 (T14)

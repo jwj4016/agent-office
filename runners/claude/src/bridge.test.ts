@@ -200,3 +200,14 @@ test('writes inside the work and output folders need no approval; others still a
     assert.deepEqual(decisions, ['allow']);
     assert.ok(!h.events.some((e) => e.kind === 'approval_request'));
 });
+
+test('a read-only working folder leaves only the granted folders writable', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'ro-'));
+    const work = join(root, 'work'), out = join(root, 'out');
+    mkdirSync(work); mkdirSync(out);
+    assert.equal(writeAllowed(work, [out], 'Edit', {file_path: 'slug.py'}, true), false);
+    assert.equal(writeAllowed(work, [out], 'Write', {file_path: join(out, 'opinion.json')}, true), true);
+    const guard = writeGuard(work, [out], true);
+    const r: any = await guard({hook_event_name: 'PreToolUse', tool_name: 'Write', tool_input: {file_path: 'src/x.ts'}} as any, 'id', {signal: new AbortController().signal});
+    assert.equal(r.hookSpecificOutput?.permissionDecision, 'deny');
+});

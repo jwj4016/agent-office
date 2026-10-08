@@ -49,6 +49,18 @@ type Config struct {
 	ProjectMaxActive int
 	// DefaultMaxRevisions applies when a node sets no limit (default 3).
 	DefaultMaxRevisions int
+	// ConsultTimeout bounds how long an AI may take to answer another
+	// AI's question before the question goes to the person (default 5m).
+	ConsultTimeout time.Duration
+	// MaxConsults bounds the questions one attempt may send to other AIs
+	// (default 3); more go to the person (T18).
+	MaxConsults int
+	// MaxPairQuestions bounds questions between the same two assignees in
+	// one run, in either direction (default 3); more go to the person.
+	MaxPairQuestions int
+	// MeetingTurnTimeout bounds one participant's turn in a meeting
+	// (default 10m).
+	MeetingTurnTimeout time.Duration
 	// Ephemeral receives high-volume provider events (message deltas)
 	// that are shown live but not stored. Optional.
 	Ephemeral func(projectID string, ev providers.Event)
@@ -68,16 +80,82 @@ type Engine struct {
 	ctx    context.Context
 	wake   chan struct{}
 	wg     sync.WaitGroup
+	// consultSlot queues AI answers to other AIs' questions: one at a
+	// time, besides the step slots (spec §8 "대기열에서 처리").
+	consultSlot chan struct{}
 }
 
+// activeAttempt is an attempt with live provider work. A meeting runs
+// several sessions one after another; session is the current one.
 type activeAttempt struct {
 	id, projectID, runID, stepID string
 	generation                   int
-	session                      providers.Session
 	// questions maps a question message id to the provider request id.
 	questions map[string]string
 	toolReqs  map[string]string // approval id -> provider request id
-	mu        sync.Mutex
+	// ctx ends when the attempt is cancelled; side sessions (meeting
+	// turns, answers to its questions) stop with it.
+	ctx  context.Context
+	stop context.CancelFunc
+
+	mu      sync.Mutex
+	session providers.Session
+	stopped bool
+}
+
+func (e *Engine) newActive(id string, st *runState, stepID string, generation int) *activeAttempt {
+	ctx, stop := context.WithCancel(e.ctx)
+	return &activeAttempt{id: id, projectID: st.run.ProjectID, runID: st.run.ID, stepID: stepID, generation: generation,
+		questions: map[string]string{}, toolReqs: map[string]string{}, ctx: ctx, stop: stop}
+}
+
+// current returns the session that should receive responses, or nil.
+func (a *activeAttempt) current() providers.Session {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.session
+}
+
+// setSession makes s the current session. If the attempt was cancelled
+// meanwhile, s is cancelled too and false is returned.
+func (a *activeAttempt) setSession(s providers.Session) bool {
+	a.mu.Lock()
+	stopped := a.stopped
+	if !stopped {
+		a.session = s
+	}
+	a.mu.Unlock()
+	if stopped {
+		s.Cancel(context.Background())
+	}
+	return !stopped
+}
+
+// cancel stops the attempt's current session and any side sessions.
+func (a *activeAttempt) cancel() {
+	a.mu.Lock()
+	a.stopped = true
+	s := a.session
+	a.mu.Unlock()
+	a.stop()
+	if s != nil {
+		s.Cancel(context.Background())
+	}
+}
+
+func (a *activeAttempt) isStopped() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.stopped
+}
+
+// respond forwards a person's or another AI's response to the session.
+func (a *activeAttempt) respond(ctx context.Context, r providers.Response) error {
+	s := a.current()
+	if s == nil {
+		return providers.ErrSessionClosed
+	}
+	return s.Respond(ctx, r)
 }
 
 func New(cfg Config) *Engine {
@@ -90,10 +168,23 @@ func New(cfg Config) *Engine {
 	if cfg.DefaultMaxRevisions <= 0 {
 		cfg.DefaultMaxRevisions = 3
 	}
+	if cfg.ConsultTimeout <= 0 {
+		cfg.ConsultTimeout = 5 * time.Minute
+	}
+	if cfg.MaxConsults <= 0 {
+		cfg.MaxConsults = 3
+	}
+	if cfg.MaxPairQuestions <= 0 {
+		cfg.MaxPairQuestions = 3
+	}
+	if cfg.MeetingTurnTimeout <= 0 {
+		cfg.MeetingTurnTimeout = 10 * time.Minute
+	}
 	if cfg.Logf == nil {
 		cfg.Logf = log.Printf
 	}
-	return &Engine{cfg: cfg, db: cfg.DB, active: map[string]*activeAttempt{}, wake: make(chan struct{}, 1), ctx: context.Background()}
+	return &Engine{cfg: cfg, db: cfg.DB, active: map[string]*activeAttempt{}, wake: make(chan struct{}, 1), ctx: context.Background(),
+		consultSlot: make(chan struct{}, 1)}
 }
 
 // Wake asks the scheduler to run a pass soon.
@@ -136,7 +227,7 @@ func (e *Engine) Run(ctx context.Context) error {
 func (e *Engine) shutdown() {
 	e.mu.Lock()
 	for _, a := range e.active {
-		a.session.Cancel(context.Background())
+		a.cancel()
 	}
 	e.mu.Unlock()
 	done := make(chan struct{})

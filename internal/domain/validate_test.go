@@ -166,3 +166,44 @@ func TestValidateAssignments(t *testing.T) {
 		}
 	}
 }
+
+func TestMeetingValidation(t *testing.T) {
+	meeting := func(m *Meeting) func(w *WorkflowSpec) {
+		return func(w *WorkflowSpec) { w.Node("design").Meeting = m }
+	}
+	ok := meeting(&Meeting{Participants: []string{"a-backend", "a-frontend"}, MaxRounds: 2})
+	if issues := mutate(t, "service-dev.json", ok); len(issues) > 0 {
+		t.Fatal(issues)
+	}
+	cases := []struct {
+		name, want string
+		fn         func(w *WorkflowSpec)
+	}{
+		{"no participants", "design:meeting_no_participants", meeting(&Meeting{})},
+		{"decider listed", "design:meeting_decider_listed", meeting(&Meeting{Participants: []string{"a-architect"}})},
+		{"duplicate", "design:meeting_duplicate_participant", meeting(&Meeting{Participants: []string{"a-qa", "a-qa"}})},
+		{"too many rounds", "design:meeting_bad_rounds", meeting(&Meeting{Participants: []string{"a-qa"}, MaxRounds: MaxMeetingRounds + 1})},
+		{"on a review", "review:meeting_on_wrong_kind", func(w *WorkflowSpec) { w.Node("review").Meeting = &Meeting{Participants: []string{"a-qa"}} }},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := codes(mutate(t, "service-dev.json", c.fn)); !strings.Contains(","+got+",", ","+c.want+",") {
+				t.Fatalf("want %s, got [%s]", c.want, got)
+			}
+		})
+	}
+
+	// Participants must be connected AIs of the project.
+	w := loadSpec(t, "service-dev.json")
+	w.Node("design").Meeting = &Meeting{Participants: []string{"a-backend", "a-owner", "a-ghost"}}
+	infos := map[string]AssignmentInfo{
+		"a-planner": {"ai", true}, "a-architect": {"ai", true}, "a-backend": {"ai", false},
+		"a-frontend": {"ai", true}, "a-qa": {"ai", true}, "a-owner": {"human", true},
+	}
+	got := codes(ValidateAssignments(w, infos))
+	for _, want := range []string{"design:participant_not_connected", "design:participant_not_ai", "design:unknown_participant"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %s in %s", want, got)
+		}
+	}
+}

@@ -54,6 +54,33 @@ type Node struct {
 	ReworkTargets []string    `json:"reworkTargets,omitempty"`
 	Limits        *NodeLimits `json:"limits,omitempty"`
 	Routing       *Routing    `json:"routing,omitempty"`
+	// Meeting makes a task a consultation: participants give opinions
+	// for up to MaxRounds rounds, then the task's assignee decides and
+	// produces the outputs (spec §8).
+	Meeting *Meeting `json:"meeting,omitempty"`
+}
+
+// DefaultMeetingRounds is the default number of opinion rounds.
+const DefaultMeetingRounds = 3
+
+// MaxMeetingRounds bounds a meeting so it can never talk forever.
+const MaxMeetingRounds = 10
+
+type Meeting struct {
+	// Participants are assignment ids; the decider (the task's own
+	// assignee) is not listed.
+	Participants []string `json:"participants"`
+	// MaxRounds defaults to DefaultMeetingRounds. A round ends early for
+	// good when every participant agrees.
+	MaxRounds int `json:"maxRounds,omitempty"`
+}
+
+// Rounds returns the effective number of rounds.
+func (m *Meeting) Rounds() int {
+	if m.MaxRounds <= 0 {
+		return DefaultMeetingRounds
+	}
+	return m.MaxRounds
 }
 
 type Input struct {

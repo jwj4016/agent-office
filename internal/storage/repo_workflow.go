@@ -228,11 +228,18 @@ func (db *DB) ConfirmVersion(ctx context.Context, projectID, workflowID string, 
 		}
 		infos, _, _ := assignmentInfos(ctx, tx, projectID)
 		snap := map[string]domain.AssignmentSnapshot{}
+		var ids []string
 		for _, n := range spec.Nodes {
-			if n.AssignmentID == "" || snap[n.AssignmentID].ID != "" {
+			ids = append(ids, n.AssignmentID)
+			if n.Meeting != nil {
+				ids = append(ids, n.Meeting.Participants...)
+			}
+		}
+		for _, id := range ids {
+			if id == "" || snap[id].ID != "" {
 				continue
 			}
-			a := byID[n.AssignmentID]
+			a := byID[id]
 			layers, err := instructionLayers(ctx, tx, a)
 			if err != nil {
 				return err

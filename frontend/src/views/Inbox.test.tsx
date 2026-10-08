@@ -79,3 +79,16 @@ describe('Inbox holds', () => {
         expect(within(card).getByRole('button', {name: '반려'})).toBeEnabled();
     });
 });
+
+describe('Inbox context', () => {
+    it('shows why a question came to the person and the meeting opinions of a task', async () => {
+        state.inbox = [
+            inboxItem({kind: 'question', approvalId: undefined, messageId: 'msg-1', detail: '@asg-1 인증은?', escalation: '설계 AI에게 보낸 질문을 사용자에게 넘깁니다: 응답 시간 제한을 넘었습니다'}),
+            inboxItem({kind: 'task', approvalId: undefined, stepId: 'design', stepTitle: '구조 회의', attemptId: 'att-2',
+                context: [{label: '회의 의견 · 백엔드 AI · 1라운드 · 동의', ref: '메시지 m1', text: 'REST로 갑시다'}]}),
+        ];
+        render(<LiveProvider><Inbox onOpenRun={() => {}}/></LiveProvider>);
+        expect(await screen.findByText(/응답 시간 제한을 넘었습니다/)).toBeInTheDocument();
+        expect(screen.getByText('REST로 갑시다')).toBeVisible();
+    });
+});

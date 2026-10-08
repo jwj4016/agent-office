@@ -25,6 +25,9 @@ type harness struct {
 	mu       sync.Mutex
 	override map[string]string // step id -> scenario, applied at start time
 	starts   []providers.StartRequest
+	// consultScenario, if set, is used by sessions answering another
+	// AI's question.
+	consultScenario string
 
 	// stopEngine stops the harness engine (as if the app had quit).
 	stopEngine func()
@@ -54,6 +57,9 @@ func (p scenarioProvider) Start(ctx context.Context, req providers.StartRequest)
 	p.h.mu.Lock()
 	if s, ok := p.h.override[req.StepID]; ok {
 		req.Model = s
+	}
+	if p.h.consultScenario != "" && strings.HasPrefix(req.Prompt, "# 다른 담당자의 질문에 답하기") {
+		req.Model = p.h.consultScenario
 	}
 	p.h.starts = append(p.h.starts, req)
 	p.h.mu.Unlock()

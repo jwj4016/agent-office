@@ -71,7 +71,7 @@ func addMessage(ctx context.Context, c *storage.Change, projectID string, m newM
 		return "", err
 	}
 	return id, c.Emit(projectID, m.RunID, m.AttemptID, "message."+m.Kind, map[string]any{
-		"messageId": id, "kind": m.Kind, "sender": m.Sender, "recipient": m.Recipient, "body": clip(m.Body, 500),
+		"messageId": id, "kind": m.Kind, "sender": m.Sender, "recipient": m.Recipient, "body": clip(m.Body, 500), "replyTo": m.ReplyTo,
 	})
 }
 
@@ -155,34 +155,36 @@ const (
 	contextMaxQA      = 10
 )
 
-// contextNote is one entry of a prompt's "related conversation" section.
-type contextNote struct {
-	Label string // e.g. "전달 메모 · 기획"
-	Ref   string // where the original is (message id, artifact version)
-	Text  string
+// ContextNote is one entry of a prompt's "related conversation" section
+// (and of a person's task view).
+type ContextNote struct {
+	Label string `json:"label"` // e.g. "전달 메모 · 기획"
+	Ref   string `json:"ref"`   // where the original is (message id, artifact version)
+	Text  string `json:"text"`
 }
 
-// stepContext gathers what an attempt of step n should know besides its
-// inputs: handoff notes for the pinned input versions, questions this
-// step already asked in this run and their answers, and notes a person
-// left for the step. Rework feedback is an instruction layer instead.
-func stepContext(ctx context.Context, q querier, st *runState, n *domain.Node, manifest []ManifestEntry) ([]contextNote, error) {
-	var out []contextNote
+// stepContext gathers what attempt attemptID of step n should know
+// besides its inputs: handoff notes for the pinned input versions,
+// questions this step already asked in this run and their answers, notes
+// a person left for the step and, for a meeting, this attempt's opinions.
+// Rework feedback is an instruction layer instead.
+func stepContext(ctx context.Context, q querier, st *runState, n *domain.Node, manifest []ManifestEntry, attemptID string) ([]ContextNote, error) {
+	var out []ContextNote
 	pinned := map[string]ManifestEntry{}
 	for _, m := range manifest {
 		if m.ArtifactID != "" {
 			pinned[m.ArtifactID] = m
 		}
 	}
-	rows, err := q.QueryContext(ctx, `SELECT id, kind, sender, body, artifact_refs FROM messages
-		WHERE run_id = ? AND recipient = ? AND kind IN ('handoff', 'proposal', 'decision') ORDER BY created_at`, st.run.ID, stepRecipient(n.ID))
+	rows, err := q.QueryContext(ctx, `SELECT id, kind, sender, body, artifact_refs, COALESCE(step_attempt_id, '') FROM messages
+		WHERE run_id = ? AND recipient = ? AND kind IN ('handoff', 'proposal', 'decision') ORDER BY created_at, rowid`, st.run.ID, stepRecipient(n.ID))
 	if err != nil {
 		return nil, err
 	}
-	var notes []contextNote
+	var notes, meeting []ContextNote
 	for rows.Next() {
-		var id, kind, sender, body, refsJSON string
-		if err := rows.Scan(&id, &kind, &sender, &body, &refsJSON); err != nil {
+		var id, kind, sender, body, refsJSON, from string
+		if err := rows.Scan(&id, &kind, &sender, &body, &refsJSON, &from); err != nil {
 			rows.Close()
 			return nil, err
 		}
@@ -196,16 +198,24 @@ func stepContext(ctx context.Context, q querier, st *runState, n *domain.Node, m
 					if fn := st.graph.Node(from); fn != nil {
 						from = fn.Title
 					}
-					out = append(out, contextNote{Label: "전달 메모 · " + from, Ref: fmt.Sprintf("입력 %q(%s.%s v%d), 메시지 %s", m.Name, m.FromStep, m.OutputKey, r.Version, id), Text: body})
+					out = append(out, ContextNote{Label: "전달 메모 · " + from, Ref: fmt.Sprintf("입력 %q(%s.%s v%d), 메시지 %s", m.Name, m.FromStep, m.OutputKey, r.Version, id), Text: body})
 					break
 				}
+			}
+		case kind == MsgProposal && refs.Round > 0:
+			if from == attemptID {
+				stance := "이견 있음"
+				if refs.Agree != nil && *refs.Agree {
+					stance = "동의"
+				}
+				meeting = append(meeting, ContextNote{Label: fmt.Sprintf("회의 의견 · %s · %d라운드 · %s", actorName(st, sender), refs.Round, stance), Ref: "메시지 " + id, Text: body})
 			}
 		case refs.Note && sender == domain.LocalOwner:
 			label := "사용자 제안"
 			if kind == MsgDecision {
 				label = "사용자 결정"
 			}
-			notes = append(notes, contextNote{Label: label, Ref: "메시지 " + id, Text: body})
+			notes = append(notes, ContextNote{Label: label, Ref: "메시지 " + id, Text: body})
 		}
 	}
 	rows.Close()
@@ -217,12 +227,13 @@ func stepContext(ctx context.Context, q querier, st *runState, n *domain.Node, m
 		return nil, err
 	}
 	out = append(out, qa...)
-	return append(out, notes...), nil
+	out = append(out, notes...)
+	return append(out, meeting...), nil
 }
 
 // previousAnswers lists questions earlier attempts of the step asked in
 // this run, with their answers, so a retry or rework does not ask again.
-func previousAnswers(ctx context.Context, q querier, runID, stepID string) ([]contextNote, error) {
+func previousAnswers(ctx context.Context, q querier, runID, stepID string) ([]ContextNote, error) {
 	rows, err := q.QueryContext(ctx, `SELECT m.id, m.body, a.body, a.sender FROM messages m
 		JOIN messages a ON a.reply_to = m.id AND a.kind = 'answer'
 		JOIN step_attempts s ON s.id = m.step_attempt_id
@@ -231,7 +242,7 @@ func previousAnswers(ctx context.Context, q querier, runID, stepID string) ([]co
 		return nil, err
 	}
 	defer rows.Close()
-	var out []contextNote
+	var out []ContextNote
 	for rows.Next() {
 		var id, question, answer, by string
 		if err := rows.Scan(&id, &question, &answer, &by); err != nil {
@@ -241,14 +252,14 @@ func previousAnswers(ctx context.Context, q querier, runID, stepID string) ([]co
 		if by != domain.LocalOwner {
 			who = by
 		}
-		out = append([]contextNote{{Label: "이전에 받은 답변 · " + who, Ref: "질문 " + id, Text: "질문: " + question + "\n답변: " + answer}}, out...)
+		out = append([]ContextNote{{Label: "이전에 받은 답변 · " + who, Ref: "질문 " + id, Text: "질문: " + question + "\n답변: " + answer}}, out...)
 	}
 	return out, rows.Err()
 }
 
 // writeContext renders notes within the size limits, saying how many
 // were left out and where to find them.
-func writeContext(b *strings.Builder, notes []contextNote) {
+func writeContext(b *strings.Builder, notes []ContextNote) {
 	if len(notes) == 0 {
 		return
 	}

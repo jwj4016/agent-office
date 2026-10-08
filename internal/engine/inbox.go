@@ -51,7 +51,13 @@ type InboxItem struct {
 	Inputs        json.RawMessage `json:"inputs"`
 	Outputs       []domain.Output `json:"outputs"`
 	ReworkTargets []StepRef       `json:"reworkTargets"`
-	Since         string          `json:"since"`
+	// Context is what the step's AI would see besides its inputs:
+	// handoff notes, earlier answers, notes and meeting opinions.
+	Context []ContextNote `json:"context"`
+	// Escalation explains why a question meant for an AI came to the
+	// person instead.
+	Escalation string `json:"escalation,omitempty"`
+	Since      string `json:"since"`
 }
 
 // Inbox lists every open human item across active projects.
@@ -100,6 +106,18 @@ func (e *Engine) Inbox(ctx context.Context) ([]InboxItem, error) {
 			for _, t := range n.ReworkTargets {
 				base.ReworkTargets = append(base.ReworkTargets, StepRef{ID: t, Title: st.graph.Node(t).Title})
 			}
+			base.Context = []ContextNote{}
+			if a.Status == StWaitingHuman || n.Kind == domain.KindApproval {
+				var manifest []ManifestEntry
+				json.Unmarshal(a.InputManifest, &manifest)
+				notes, err := stepContext(ctx, q, st, n, manifest, a.ID)
+				if err != nil {
+					return nil, err
+				}
+				if notes != nil {
+					base.Context = notes
+				}
+			}
 			q.QueryRowContext(ctx, `SELECT COALESCE(started_at, created_at) FROM step_attempts WHERE id = ?`, a.ID).Scan(&base.Since)
 			switch {
 			case a.Status == StWaitingHuman && n.Kind == domain.KindReview:
@@ -129,15 +147,20 @@ func (e *Engine) Inbox(ctx context.Context) ([]InboxItem, error) {
 				}
 				rows.Close()
 			case a.Status == StWaitingInput:
-				rows, err := q.QueryContext(ctx, `SELECT m.id, m.body, m.created_at FROM messages m WHERE m.step_attempt_id = ? AND m.kind = 'question'
-					AND NOT EXISTS (SELECT 1 FROM messages r WHERE r.reply_to = m.id)`, a.ID)
+				// Questions for the person: addressed to them, or passed on
+				// after another AI could not answer.
+				rows, err := q.QueryContext(ctx, `SELECT m.id, m.body, m.created_at,
+					COALESCE((SELECT x.body FROM messages x WHERE x.reply_to = m.id AND x.kind = 'escalation' LIMIT 1), '')
+					FROM messages m WHERE m.step_attempt_id = ? AND m.kind = 'question'
+					AND NOT EXISTS (SELECT 1 FROM messages r WHERE r.reply_to = m.id AND r.kind = 'answer')
+					AND (m.recipient = 'local-owner' OR EXISTS (SELECT 1 FROM messages x WHERE x.reply_to = m.id AND x.kind = 'escalation'))`, a.ID)
 				if err != nil {
 					return nil, err
 				}
 				for rows.Next() {
 					it := base
 					it.Kind = InboxQuestion
-					rows.Scan(&it.MessageID, &it.Detail, &it.Since)
+					rows.Scan(&it.MessageID, &it.Detail, &it.Since, &it.Escalation)
 					items = append(items, it)
 				}
 				rows.Close()
@@ -275,7 +298,7 @@ func budgetItem(ctx context.Context, q querier, st *runState, projectName string
 		if st.status(id) != StPending || n.Kind == domain.KindCondition || n.Kind == domain.KindJoin || n.Kind == domain.KindApproval {
 			continue
 		}
-		if a := st.version.Assignments[n.AssignmentID]; a.ActorKind != domain.ActorAI {
+		if a := st.version.Assignments[n.AssignmentID]; a.ActorKind != domain.ActorAI && n.Meeting == nil {
 			continue
 		}
 		if done, _ := st.depsDone(n); done {
@@ -293,6 +316,6 @@ func budgetItem(ctx context.Context, q querier, st *runState, projectName string
 	return InboxItem{
 		Kind: InboxBudget, ProjectID: st.run.ProjectID, ProjectName: projectName, RunID: st.run.ID,
 		RunTitle: st.version.Spec.Title, VersionNumber: st.version.Number, StepTitle: held, Detail: u.HoldReason,
-		Inputs: json.RawMessage("[]"), Outputs: []domain.Output{}, ReworkTargets: []StepRef{},
+		Inputs: json.RawMessage("[]"), Outputs: []domain.Output{}, ReworkTargets: []StepRef{}, Context: []ContextNote{},
 	}, true, nil
 }

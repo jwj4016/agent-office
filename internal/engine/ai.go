@@ -35,103 +35,137 @@ func (e *Engine) workspaceDir(st *runState) (string, error) {
 	return dir, os.MkdirAll(dir, 0o700)
 }
 
+// providerFor returns a ready provider for an AI assignment, or why not.
+func (e *Engine) providerFor(ctx context.Context, snap domain.AssignmentSnapshot) (providers.Provider, error) {
+	conn, ok := e.connectionReady(ctx, snap.ConnectionID)
+	if !ok {
+		return nil, fmt.Errorf("AI 연결이 없거나 확인되지 않았습니다")
+	}
+	return e.cfg.Providers(conn)
+}
+
+// aiRequest builds the start request for attempt a of step n done by
+// snap: layered instructions with rework feedback, the prompt with inputs
+// and related conversation, and the output paths. It creates the
+// attempt's output folder.
+func (e *Engine) aiRequest(ctx context.Context, q querier, st *runState, n *domain.Node, snap domain.AssignmentSnapshot, a attemptRow, work string, askable []domain.AssignmentSnapshot) (providers.StartRequest, error) {
+	dir := e.attemptDir(st.run.ProjectID, st.run.ID, a.ID)
+	if err := os.MkdirAll(filepath.Join(dir, "out"), 0o700); err != nil {
+		return providers.StartRequest{}, err
+	}
+	var manifest []ManifestEntry
+	json.Unmarshal(a.InputManifest, &manifest)
+	feedback, err := feedbackFor(ctx, q, st, n.ID)
+	if err != nil {
+		return providers.StartRequest{}, err
+	}
+	notes, err := stepContext(ctx, q, st, n, manifest, a.ID)
+	if err != nil {
+		return providers.StartRequest{}, err
+	}
+	req := providers.StartRequest{
+		ProjectID: st.run.ProjectID, RunID: st.run.ID, StepAttemptID: a.ID, StepID: n.ID, Generation: a.Generation,
+		Instructions: domain.ComposeInstructions(instructionLayers(snap, n, feedback)),
+		Prompt:       buildPrompt(e.cfg.DataDir, st, n, manifest, notes, askable, e.cfg.MaxConsults, dir),
+		Workspace:    work,
+		WritableDirs: []string{filepath.Join(dir, "out")},
+		Model:        snap.Model,
+		Policy:       providers.Policy{Sandbox: "workspace-write", AskApproval: true},
+	}
+	for _, m := range manifest {
+		if m.ArtifactID != "" {
+			req.InputManifest = append(req.InputManifest, providers.InputRef{Name: m.Name, ArtifactID: m.ArtifactID, Path: filepath.Join(e.cfg.DataDir, m.Path), Hash: m.Hash})
+		}
+	}
+	for _, o := range n.Outputs {
+		req.OutputSpec = append(req.OutputSpec, providers.OutputSpec{Key: o.Key, Type: string(o.Type), Required: o.IsRequired(), Schema: o.Schema, Path: outputPath(dir, o)})
+	}
+	if n.Limits != nil && n.Limits.Timeout != "" {
+		req.Limits.Timeout, _ = time.ParseDuration(n.Limits.Timeout)
+	}
+	return req, nil
+}
+
+// failStart records a provider that could not be started as an ordinary
+// step failure, never an engine crash.
+func (e *Engine) failStart(ctx context.Context, runID, stepID string, startErr error) error {
+	reason := "공급자 시작 실패: " + startErr.Error()
+	_, err := e.db.Change(ctx, func(c *storage.Change) error {
+		st, err := loadState(ctx, c.Tx, runID)
+		if err != nil {
+			return err
+		}
+		if _, err := setAttemptStatus(ctx, c, st, st.attempts[stepID], StFailed, reason, StRunning); err != nil {
+			return err
+		}
+		return saveRunStatus(ctx, c, st)
+	})
+	return err
+}
+
+// failNew records a step that cannot start (no usable connection) as a
+// failed attempt with the reason.
+func (e *Engine) failNew(ctx context.Context, seen *runState, n *domain.Node, reason error) error {
+	_, err := e.createAttempt(ctx, seen, n, StFailed, func(c *storage.Change, st *runState, a attemptRow) error {
+		_, err := c.Tx.ExecContext(ctx, `UPDATE step_attempts SET error = ? WHERE id = ?`, reason.Error(), a.ID)
+		return err
+	})
+	return err
+}
+
 // startAI creates a running attempt and starts its provider session.
 // Caller holds e.mu.
 func (e *Engine) startAI(ctx context.Context, seen *runState, n *domain.Node, snap domain.AssignmentSnapshot) error {
-	conn, ok := e.connectionReady(ctx, snap.ConnectionID)
-	var prov providers.Provider
-	var perr error
-	if ok {
-		prov, perr = e.cfg.Providers(conn)
-	} else {
-		perr = fmt.Errorf("AI 연결이 없거나 확인되지 않았습니다")
-	}
+	prov, perr := e.providerFor(ctx, snap)
 	if perr != nil {
-		_, err := e.createAttempt(ctx, seen, n, StFailed, func(c *storage.Change, st *runState, a attemptRow) error {
-			_, err := c.Tx.ExecContext(ctx, `UPDATE step_attempts SET error = ? WHERE id = ?`, perr.Error(), a.ID)
-			return err
-		})
-		return err
+		return e.failNew(ctx, seen, n, perr)
 	}
 	work, err := e.workspaceDir(seen)
 	if err != nil {
 		return err
 	}
-
+	var askable []domain.AssignmentSnapshot
+	if prov.Capabilities().Question {
+		askable = peers(seen, n.AssignmentID)
+	}
 	var req providers.StartRequest
 	id, err := e.createAttempt(ctx, seen, n, StRunning, func(c *storage.Change, st *runState, a attemptRow) error {
-		dir := e.attemptDir(st.run.ProjectID, st.run.ID, a.ID)
-		if err := os.MkdirAll(filepath.Join(dir, "out"), 0o700); err != nil {
-			return err
-		}
-		var manifest []ManifestEntry
-		json.Unmarshal(a.InputManifest, &manifest)
-		feedback, err := feedbackFor(ctx, c.Tx, st, n.ID)
-		if err != nil {
-			return err
-		}
-		notes, err := stepContext(ctx, c.Tx, st, n, manifest)
-		if err != nil {
-			return err
-		}
-		req = providers.StartRequest{
-			ProjectID: st.run.ProjectID, RunID: st.run.ID, StepAttemptID: a.ID, StepID: n.ID, Generation: a.Generation,
-			Instructions: domain.ComposeInstructions(instructionLayers(snap, n, feedback)),
-			Prompt:       buildPrompt(e.cfg.DataDir, st, n, manifest, notes, dir),
-			Workspace:    work,
-			WritableDirs: []string{filepath.Join(dir, "out")},
-			Model:        snap.Model,
-			Policy:       providers.Policy{Sandbox: "workspace-write", AskApproval: true},
-		}
-		for _, m := range manifest {
-			if m.ArtifactID != "" {
-				req.InputManifest = append(req.InputManifest, providers.InputRef{Name: m.Name, ArtifactID: m.ArtifactID, Path: filepath.Join(e.cfg.DataDir, m.Path), Hash: m.Hash})
-			}
-		}
-		for _, o := range n.Outputs {
-			req.OutputSpec = append(req.OutputSpec, providers.OutputSpec{Key: o.Key, Type: string(o.Type), Required: o.IsRequired(), Schema: o.Schema, Path: outputPath(dir, o)})
-		}
-		if n.Limits != nil && n.Limits.Timeout != "" {
-			req.Limits.Timeout, _ = time.ParseDuration(n.Limits.Timeout)
-		}
-		return nil
+		var err error
+		req, err = e.aiRequest(ctx, c.Tx, st, n, snap, a, work, askable)
+		return err
 	})
 	if err != nil || id == "" {
 		return err
 	}
 	session, startErr := prov.Start(e.ctx, req)
 	if startErr != nil {
-		// A start failure (bad executable path, missing login…) is an
-		// ordinary step failure, never an engine crash.
-		reason := "공급자 시작 실패: " + startErr.Error()
-		_, err := e.db.Change(ctx, func(c *storage.Change) error {
-			st, err := loadState(ctx, c.Tx, seen.run.ID)
-			if err != nil {
-				return err
-			}
-			if _, err := setAttemptStatus(ctx, c, st, st.attempts[n.ID], StFailed, reason, StRunning); err != nil {
-				return err
-			}
-			return saveRunStatus(ctx, c, st)
-		})
-		return err
+		return e.failStart(ctx, seen.run.ID, n.ID, startErr)
 	}
-	a := &activeAttempt{id: id, projectID: seen.run.ProjectID, runID: seen.run.ID, stepID: n.ID, generation: req.Generation,
-		session: session, questions: map[string]string{}, toolReqs: map[string]string{}}
+	a := e.newActive(id, seen, n.ID, req.Generation)
+	a.setSession(session)
 	e.active[id] = a
 	e.wg.Add(1)
-	go e.pump(a, n)
+	go func() {
+		defer e.wg.Done()
+		e.pump(a, n, session)
+	}()
 	return nil
 }
 
-// pump relays one session's events until it completes.
-func (e *Engine) pump(a *activeAttempt, n *domain.Node) {
-	defer e.wg.Done()
-	for ev := range a.session.Events() {
+// pump relays one session's events until it completes, then retires the
+// attempt from the active set.
+func (e *Engine) pump(a *activeAttempt, n *domain.Node, session providers.Session) {
+	for ev := range session.Events() {
 		if err := e.safeEvent(a, n, ev); err != nil {
 			e.cfg.Logf("engine: attempt %s event %s: %v", a.id, ev.Kind, err)
 		}
 	}
+	e.retire(a)
+}
+
+// retire removes a finished attempt from the active set.
+func (e *Engine) retire(a *activeAttempt) {
+	a.stop()
 	e.mu.Lock()
 	delete(e.active, a.id)
 	e.mu.Unlock()
@@ -162,6 +196,7 @@ func (e *Engine) onEvent(a *activeAttempt, n *domain.Node, ev providers.Event) e
 		json.Unmarshal(ev.Payload, &p)
 		return e.complete(ctx, a, n, p)
 	}
+	var after func() // runs once the change is committed
 	_, err := e.db.Change(ctx, func(c *storage.Change) error {
 		st, err := loadState(ctx, c.Tx, a.runID)
 		if err != nil {
@@ -205,24 +240,43 @@ func (e *Engine) onEvent(a *activeAttempt, n *domain.Node, ev providers.Event) e
 		case providers.KindQuestion:
 			var p providers.RequestPayload
 			json.Unmarshal(ev.Payload, &p)
-			msg := storage.NewID("msg")
-			if _, err := c.Tx.ExecContext(ctx, `INSERT INTO messages (id, project_id, run_id, step_attempt_id, sender, recipient, kind, body, created_at)
-				VALUES (?, ?, ?, ?, ?, ?, 'question', ?, ?)`, msg, a.projectID, a.runID, a.id, n.AssignmentID, domain.LocalOwner, p.Detail, storage.Now()); err != nil {
+			target, question := questionTarget(st, n.AssignmentID, p.Detail)
+			recipient, blocked := domain.LocalOwner, ""
+			if target != "" {
+				recipient = target
+				blocked = e.consultBlocked(ctx, c.Tx, st, a.id, n.AssignmentID, target)
+			}
+			msg, err := addMessage(ctx, c, a.projectID, newMessage{
+				RunID: a.runID, AttemptID: a.id, Sender: n.AssignmentID, Recipient: recipient, Kind: MsgQuestion, Body: p.Detail,
+			})
+			if err != nil {
 				return err
 			}
 			a.mu.Lock()
 			a.questions[msg] = p.RequestID
 			a.mu.Unlock()
-			if _, err := setAttemptStatus(ctx, c, st, row, StWaitingInput, "", StRunning, StWaitingApproval); err != nil {
-				return err
-			}
-			if err := c.Emit(a.projectID, a.runID, a.id, "message.question", map[string]any{"messageId": msg, "body": p.Detail}); err != nil {
-				return err
+			switch {
+			case target != "" && blocked == "":
+				// Another AI answers; the attempt keeps running and
+				// nothing waits for the person.
+				after = func() { e.startConsult(a, n, msg, target, question) }
+				return nil
+			case blocked != "":
+				if err := escalate(ctx, c, st, row, msg, actorName(st, target), blocked); err != nil {
+					return err
+				}
+			default:
+				if _, err := setAttemptStatus(ctx, c, st, row, StWaitingInput, "", StRunning, StWaitingApproval); err != nil {
+					return err
+				}
 			}
 			return saveRunStatus(ctx, c, st)
 		}
 		return c.Emit(a.projectID, a.runID, a.id, "provider."+ev.Kind, json.RawMessage(ev.Payload))
 	})
+	if err == nil && after != nil {
+		after()
+	}
 	return err
 }
 

@@ -40,7 +40,9 @@ func projectUsage(ctx context.Context, q querier, projectID string) (Usage, erro
 		return u, err
 	}
 	json.Unmarshal([]byte(budget), &u.Budget)
-	// Providers report running totals; keep each attempt's latest report.
+	// Providers report running totals per session; keep each session's
+	// latest report. An attempt's side sessions (meeting turns, answers
+	// to other AIs) carry a phase to tell them apart.
 	rows, err := q.QueryContext(ctx, `SELECT step_attempt_id, payload FROM execution_events
 		WHERE project_id = ? AND kind = 'provider.usage' AND step_attempt_id IS NOT NULL ORDER BY sequence`, projectID)
 	if err != nil {
@@ -51,9 +53,12 @@ func projectUsage(ctx context.Context, q querier, projectID string) (Usage, erro
 	for rows.Next() {
 		var id, payload string
 		rows.Scan(&id, &payload)
-		var p providers.UsagePayload
+		var p struct {
+			providers.UsagePayload
+			Phase string `json:"phase"`
+		}
 		json.Unmarshal([]byte(payload), &p)
-		latest[id] = p
+		latest[id+"|"+p.Phase] = p.UsagePayload
 	}
 	for _, p := range latest {
 		u.Attempts++

@@ -66,7 +66,19 @@ function InboxCard({item, onDone, onOpenRun}: { item: InboxItem; onDone: () => v
                 {' '}<button className="btn small" onClick={onOpenRun}>실행 보기</button>
             </div>
             {item.instructions ? <p style={{whiteSpace: 'pre-wrap'}}>{item.instructions}</p> : null}
-            {item.detail ? <div className="card" style={{background: 'var(--surface-2)'}}>{item.detail}</div> : null}
+            {item.detail ? <div className="card" style={{background: 'var(--surface-2)', whiteSpace: 'pre-wrap'}}>{item.detail}</div> : null}
+            {item.escalation ? <p className="small" role="note"><span className="badge bad">{t.messageKind.escalation}</span> {item.escalation}</p> : null}
+            {item.context?.length ? (
+                <details open={item.context.some((c) => c.label.startsWith('회의 의견'))}>
+                    <summary className="small">관련 대화·결정 {item.context.length}건</summary>
+                    <ul className="stack small" style={{listStyle: 'none', padding: 0}}>
+                        {item.context.map((c, i) => (
+                            <li key={i}><strong>{c.label}</strong> <span className="muted">({c.ref})</span>
+                                <div style={{whiteSpace: 'pre-wrap'}}>{c.text}</div></li>
+                        ))}
+                    </ul>
+                </details>
+            ) : null}
             {inputs.length ? (
                 <div className="row small">
                     <span className="muted">확인할 자료:</span>

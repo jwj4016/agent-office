@@ -61,6 +61,9 @@ type bridgeStart struct {
 	AllowedTools []string `json:"allowedTools,omitempty"`
 	AskApproval  bool     `json:"askApproval"`
 	WritableDirs []string `json:"writableDirs,omitempty"`
+	// ReadOnlyCwd keeps file-writing tools out of the working folder;
+	// only WritableDirs stay writable (Policy.Sandbox "read-only").
+	ReadOnlyCwd bool `json:"readOnlyCwd,omitempty"`
 }
 
 type bridgeLine struct {
@@ -96,6 +99,7 @@ func (c *ClaudeBridge) Start(ctx context.Context, req StartRequest) (Session, er
 	if err := p.send(bridgeStart{
 		Type: "start", Prompt: req.Prompt, Instructions: req.Instructions, Cwd: req.Workspace,
 		Model: req.Model, AllowedTools: c.AllowedTools, AskApproval: req.Policy.AskApproval, WritableDirs: req.WritableDirs,
+		ReadOnlyCwd: req.Policy.Sandbox == "read-only",
 	}); err != nil {
 		p.stop(time.Second)
 		return nil, fmt.Errorf("claude: send start: %w", err)

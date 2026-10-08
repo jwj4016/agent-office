@@ -65,7 +65,10 @@ export type WorkflowNode = {
     inputs?: WorkflowInput[]; instructions?: string; outputs?: WorkflowOutput[];
     completion?: { commands?: { executable: string; args?: string[]; timeout?: string }[] };
     reworkTargets?: string[]; limits?: Record<string, unknown>; routing?: Routing;
+    meeting?: Meeting;
 };
+
+export type Meeting = { participants: string[]; maxRounds?: number };
 
 export type WorkflowSpec = { schemaVersion: number; title: string; nodes: WorkflowNode[] };
 
@@ -119,7 +122,10 @@ export type InboxItem = {
     generation: number; attempt: number; round: number; approvalId?: string; messageId?: string;
     detail?: string; inputs: ManifestEntry[] | null; outputs: WorkflowOutput[];
     reworkTargets: { id: string; title: string }[]; since: string;
+    context?: ContextNote[] | null; escalation?: string;
 };
+
+export type ContextNote = { label: string; ref: string; text: string };
 
 export type MessageKind = 'question' | 'answer' | 'review_request' | 'proposal' | 'decision' | 'handoff' | 'escalation';
 export type ArtifactRef = { id: string; stepId?: string; outputKey: string; version: number; hash: string };

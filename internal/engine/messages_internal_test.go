@@ -9,9 +9,9 @@ import (
 // The related-conversation section stays bounded however many notes a
 // step has, and says what was left out.
 func TestWriteContextIsBounded(t *testing.T) {
-	var notes []contextNote
+	var notes []ContextNote
 	for i := 0; i < 40; i++ {
-		notes = append(notes, contextNote{Label: "전달 메모", Ref: "메시지 m", Text: strings.Repeat("가", 3000)})
+		notes = append(notes, ContextNote{Label: "전달 메모", Ref: "메시지 m", Text: strings.Repeat("가", 3000)})
 	}
 	var b strings.Builder
 	writeContext(&b, notes)

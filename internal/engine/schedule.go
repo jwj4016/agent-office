@@ -194,7 +194,7 @@ func (e *Engine) startStep(ctx context.Context, st *runState, n *domain.Node) (b
 		return true, err
 	}
 	a := st.version.Assignments[n.AssignmentID]
-	if a.ActorKind == domain.ActorHuman {
+	if a.ActorKind == domain.ActorHuman && n.Meeting == nil {
 		_, err := e.createAttempt(ctx, st, n, StWaitingHuman, nil)
 		return true, err
 	}
@@ -207,6 +207,10 @@ func (e *Engine) startStep(ctx context.Context, st *runState, n *domain.Node) (b
 	app, project := e.activeCounts(st.run.ProjectID)
 	if app >= e.cfg.MaxActive || project >= e.cfg.ProjectMaxActive {
 		return false, nil
+	}
+	if n.Meeting != nil {
+		// Participants speak first even when a person decides.
+		return true, e.startMeeting(ctx, st, n)
 	}
 	return true, e.startAI(ctx, st, n, a)
 }

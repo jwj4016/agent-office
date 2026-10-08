@@ -70,28 +70,15 @@ func formatHint(t domain.OutputType) string {
 
 // buildPrompt describes the task, pinned inputs and exactly where each
 // output must be written.
-func buildPrompt(dataDir string, st *runState, n *domain.Node, manifest []ManifestEntry, notes []contextNote, attemptDir string) string {
+func buildPrompt(dataDir string, st *runState, n *domain.Node, manifest []ManifestEntry, notes []ContextNote, askable []domain.AssignmentSnapshot, maxConsults int, attemptDir string) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "# 업무: %s\n\n", n.Title)
 	if g := st.version.Policy.Goal; g != "" {
 		fmt.Fprintf(&b, "서비스 목표: %s\n\n", g)
 	}
-	if len(manifest) > 0 {
-		b.WriteString("## 입력 자료\n\n")
-		for _, m := range manifest {
-			if m.ArtifactID == "" {
-				fmt.Fprintf(&b, "- %s: 없음 (선택 입력, 이번 실행에서는 만들어지지 않음)\n", m.Name)
-				continue
-			}
-			path := filepath.Join(dataDir, filepath.FromSlash(m.Path))
-			fmt.Fprintf(&b, "- %s (%s.%s, sha256 %s): %s\n", m.Name, m.FromStep, m.OutputKey, short(m.Hash), path)
-			if data, err := os.ReadFile(path); err == nil && len(data) <= inlineLimit && utf8.Valid(data) {
-				fmt.Fprintf(&b, "\n```\n%s\n```\n\n", strings.TrimRight(string(data), "\n"))
-			}
-		}
-		b.WriteString("\n")
-	}
+	writeInputs(&b, dataDir, manifest)
 	writeContext(&b, notes)
+	writePeers(&b, askable, maxConsults)
 	b.WriteString("## 결과 제출 방법\n\n")
 	for _, o := range n.Outputs {
 		req := "선택"
@@ -108,6 +95,27 @@ func buildPrompt(dataDir string, st *runState, n *domain.Node, manifest []Manife
 	}
 	b.WriteString("- \"완료했다\"고 답하는 것만으로는 완료로 인정되지 않습니다. 파일을 저장한 뒤 작업을 마치세요.\n")
 	return b.String()
+}
+
+// writeInputs lists the pinned inputs with their paths, pasting small
+// text inputs inline.
+func writeInputs(b *strings.Builder, dataDir string, manifest []ManifestEntry) {
+	if len(manifest) == 0 {
+		return
+	}
+	b.WriteString("## 입력 자료\n\n")
+	for _, m := range manifest {
+		if m.ArtifactID == "" {
+			fmt.Fprintf(b, "- %s: 없음 (선택 입력, 이번 실행에서는 만들어지지 않음)\n", m.Name)
+			continue
+		}
+		path := filepath.Join(dataDir, filepath.FromSlash(m.Path))
+		fmt.Fprintf(b, "- %s (%s.%s, sha256 %s): %s\n", m.Name, m.FromStep, m.OutputKey, short(m.Hash), path)
+		if data, err := os.ReadFile(path); err == nil && len(data) <= inlineLimit && utf8.Valid(data) {
+			fmt.Fprintf(b, "\n```\n%s\n```\n\n", strings.TrimRight(string(data), "\n"))
+		}
+	}
+	b.WriteString("\n")
 }
 
 func short(h string) string {

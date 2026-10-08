@@ -35,6 +35,8 @@ export type StartCommand = {
     maxBudgetUsd?: number;
     /** Extra folders the agent may write (the attempt's output folder). */
     writableDirs?: string[];
+    /** When true the working folder itself is not writable; only writableDirs are. */
+    readOnlyCwd?: boolean;
 };
 
 type Question = { question: string; header?: string; options?: { label: string; description?: string }[]; multiSelect?: boolean };
@@ -75,18 +77,23 @@ function writeTarget(cwd: string, toolName: string, toolInput: unknown): string 
 
 // writeAllowed reports whether a file-writing tool stays inside the work
 // and output folders: such writes need no per-file approval.
-export function writeAllowed(cwd: string, writable: string[], toolName: string, toolInput: unknown): boolean {
+export function writeAllowed(cwd: string, writable: string[], toolName: string, toolInput: unknown, readOnlyCwd = false): boolean {
     const real = writeTarget(cwd, toolName, toolInput);
     if (real === undefined) return false;
-    const roots = [cwd, ...writable].map((r) => realpathNearest(resolve(r)));
+    const roots = writeRoots(cwd, writable, readOnlyCwd);
     return roots.some((r) => inside(r, real));
+}
+
+// writeRoots are the folders file-writing tools may touch.
+function writeRoots(cwd: string, writable: string[], readOnlyCwd: boolean): string[] {
+    return (readOnlyCwd ? writable : [cwd, ...writable]).map((r) => realpathNearest(resolve(r)));
 }
 
 // writeGuard is a PreToolUse hook: file-writing tools may only touch the
 // working folder and the granted output folders, whatever the permission
 // settings say. (Shell commands are not parsed; they go through approval.)
-export function writeGuard(cwd: string, writable: string[]): HookCallback {
-    const roots = [cwd, ...writable].map((r) => realpathNearest(resolve(r)));
+export function writeGuard(cwd: string, writable: string[], readOnlyCwd = false): HookCallback {
+    const roots = writeRoots(cwd, writable, readOnlyCwd);
     return async (input) => {
         if (input.hook_event_name !== 'PreToolUse' || !fileWriteTools.has(input.tool_name)) return {};
         const ti = (input.tool_input ?? {}) as Record<string, unknown>;
@@ -155,7 +162,7 @@ export function runBridge({input, output, query, log = () => {}}: BridgeIO): Pro
             if (allowed.has(toolName)) return {behavior: 'allow', updatedInput: toolInput};
             // Writing inside the work or output folder is the task itself;
             // the PreToolUse guard still blocks every other location.
-            if (writeAllowed(cmd.cwd ?? process.cwd(), cmd.writableDirs ?? [], toolName, toolInput)) {
+            if (writeAllowed(cmd.cwd ?? process.cwd(), cmd.writableDirs ?? [], toolName, toolInput, cmd.readOnlyCwd)) {
                 return {behavior: 'allow', updatedInput: toolInput};
             }
             if (!cmd.askApproval) {
@@ -174,7 +181,7 @@ export function runBridge({input, output, query, log = () => {}}: BridgeIO): Pro
             abortController: abort,
             cwd: cmd.cwd,
             additionalDirectories: cmd.writableDirs,
-            hooks: {PreToolUse: [{hooks: [writeGuard(cmd.cwd ?? process.cwd(), cmd.writableDirs ?? [])]}]},
+            hooks: {PreToolUse: [{hooks: [writeGuard(cmd.cwd ?? process.cwd(), cmd.writableDirs ?? [], cmd.readOnlyCwd)]}]},
             model: cmd.model,
             canUseTool,
             allowedTools: cmd.allowedTools,

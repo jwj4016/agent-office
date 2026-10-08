@@ -184,6 +184,29 @@ func (v *validator) checkNode(n *Node) {
 	if n.Kind != KindCondition && n.Routing != nil {
 		v.add(n.ID, "routing", "unexpected_routing", "분기 규칙은 조건 업무에만 지정합니다")
 	}
+	if m := n.Meeting; m != nil {
+		if n.Kind != KindTask {
+			v.add(n.ID, "meeting", "meeting_on_wrong_kind", "회의 설정은 작업 업무에만 지정합니다")
+		}
+		if len(m.Participants) == 0 {
+			v.add(n.ID, "meeting", "meeting_no_participants", "회의 참여자를 한 명 이상 지정해야 합니다")
+		}
+		seen := map[string]bool{}
+		for _, p := range m.Participants {
+			switch {
+			case p == "":
+				v.add(n.ID, "meeting", "meeting_bad_participant", "회의 참여자가 비어 있습니다")
+			case p == n.AssignmentID:
+				v.add(n.ID, "meeting", "meeting_decider_listed", "결정 담당자(이 업무의 담당자)는 참여자 목록에 넣지 않습니다")
+			case seen[p]:
+				v.add(n.ID, "meeting", "meeting_duplicate_participant", "회의 참여자 %q가 중복됩니다", p)
+			}
+			seen[p] = true
+		}
+		if m.MaxRounds < 0 || m.MaxRounds > MaxMeetingRounds {
+			v.add(n.ID, "meeting", "meeting_bad_rounds", "회의 라운드는 1~%d회입니다", MaxMeetingRounds)
+		}
+	}
 	if len(n.ReworkTargets) > 0 && n.Kind != KindReview && n.Kind != KindApproval {
 		v.add(n.ID, "reworkTargets", "rework_on_wrong_kind", "수정 요청 대상은 리뷰·승인 업무에만 지정합니다")
 	}
@@ -489,6 +512,20 @@ func ValidateAssignments(w *WorkflowSpec, assignments map[string]AssignmentInfo)
 		}
 		if a.ActorKind == "ai" && !a.Connected {
 			add(n, SevRun, "ai_not_connected", "AI 담당자의 연결이 설정·확인되지 않아 실행할 수 없습니다")
+		}
+		if n.Meeting == nil {
+			continue
+		}
+		for _, p := range n.Meeting.Participants {
+			pa, ok := assignments[p]
+			switch {
+			case !ok:
+				add(n, SevError, "unknown_participant", "회의 참여자 %q는 이 프로젝트에 없습니다", p)
+			case pa.ActorKind != "ai":
+				add(n, SevError, "participant_not_ai", "회의 참여자는 AI 담당자만 지원합니다. 사람은 결정 담당자로 지정하세요")
+			case !pa.Connected:
+				add(n, SevRun, "participant_not_connected", "회의 참여자 %q의 AI 연결이 확인되지 않아 실행할 수 없습니다", p)
+			}
 		}
 	}
 	return issues
