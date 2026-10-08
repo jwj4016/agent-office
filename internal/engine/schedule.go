@@ -294,6 +294,11 @@ func (e *Engine) createAttempt(ctx context.Context, seen *runState, n *domain.No
 		}); err != nil {
 			return err
 		}
+		if n.Kind == domain.KindReview && (status == StWaitingHuman || status == StRunning) {
+			if err := postReviewRequest(ctx, c, st, n, a, manifest); err != nil {
+				return err
+			}
+		}
 		if extra != nil {
 			if err := extra(c, st, a); err != nil {
 				return err

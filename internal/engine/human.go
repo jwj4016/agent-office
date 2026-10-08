@@ -108,11 +108,12 @@ func (e *Engine) SubmitHumanResult(ctx context.Context, projectID, attemptID str
 	if results, err = e.freeze(projectID, st.run.ID, a.ID, results); err != nil {
 		return Outcome{}, err
 	}
-	return e.commitHuman(ctx, projectID, st.run.ID, a, results, nil)
+	return e.commitHuman(ctx, projectID, st.run.ID, a, results, "사람(나)이 제출한 결과입니다.", nil)
 }
 
-// commitHuman stores a verified human result exactly once.
-func (e *Engine) commitHuman(ctx context.Context, projectID, runID string, a attemptRow, results []verifiedOutput, after func(c *storage.Change, st *runState) error) (Outcome, error) {
+// commitHuman stores a verified human result exactly once. note is
+// handed to the steps that use the results.
+func (e *Engine) commitHuman(ctx context.Context, projectID, runID string, a attemptRow, results []verifiedOutput, note string, after func(c *storage.Change, st *runState) error) (Outcome, error) {
 	out := Outcome{Status: StSucceeded}
 	_, err := e.db.Change(ctx, func(c *storage.Change) error {
 		st, err := loadState(ctx, c.Tx, runID)
@@ -130,11 +131,15 @@ func (e *Engine) commitHuman(ctx context.Context, projectID, runID string, a att
 		if !st.isCurrent(row) || row.Status != StWaitingHuman {
 			return ErrStale
 		}
-		if err := storeArtifacts(ctx, c, st, row, results); err != nil {
+		refs, err := storeArtifacts(ctx, c, st, row, results)
+		if err != nil {
 			return err
 		}
 		if after != nil {
 			return after(c, st)
+		}
+		if err := postHandoffs(ctx, c, st, row, refs, note); err != nil {
+			return err
 		}
 		ok, err := setAttemptStatus(ctx, c, st, row, StSucceeded, "", StWaitingHuman)
 		if err != nil || !ok {
@@ -223,7 +228,11 @@ func (e *Engine) SubmitReview(ctx context.Context, projectID, attemptID string, 
 		if results, err = e.freeze(projectID, st.run.ID, a.ID, results); err != nil {
 			return Outcome{}, err
 		}
-		out, err := e.commitHuman(ctx, projectID, st.run.ID, a, results, nil)
+		note := "사람(나)의 리뷰: 통과"
+		if strings.TrimSpace(comment) != "" {
+			note += "\n" + comment
+		}
+		out, err := e.commitHuman(ctx, projectID, st.run.ID, a, results, note, nil)
 		out.Decision = decision
 		return out, err
 	}
@@ -241,7 +250,7 @@ func (e *Engine) SubmitReview(ctx context.Context, projectID, attemptID string, 
 		return Outcome{}, err
 	}
 	var live []string
-	out, err := e.commitHuman(ctx, projectID, st.run.ID, a, results, func(c *storage.Change, st *runState) error {
+	out, err := e.commitHuman(ctx, projectID, st.run.ID, a, results, "", func(c *storage.Change, st *runState) error {
 		if err := c.Emit(projectID, st.run.ID, a.ID, "review.changes_requested", map[string]any{"stepId": n.ID, "targets": targets, "comment": comment}); err != nil {
 			return err
 		}

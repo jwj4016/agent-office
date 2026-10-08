@@ -126,6 +126,10 @@ export function Ping(arg1) {
   return window['go']['main']['App']['Ping'](arg1);
 }
 
+export function PostNote(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['main']['App']['PostNote'](arg1, arg2, arg3, arg4, arg5);
+}
+
 export function ProjectUsage(arg1) {
   return window['go']['main']['App']['ProjectUsage'](arg1);
 }
@@ -144,6 +148,10 @@ export function ResumeRun(arg1, arg2) {
 
 export function RetryStep(arg1, arg2, arg3) {
   return window['go']['main']['App']['RetryStep'](arg1, arg2, arg3);
+}
+
+export function RunMessages(arg1, arg2) {
+  return window['go']['main']['App']['RunMessages'](arg1, arg2);
 }
 
 export function SaveAssignment(arg1) {

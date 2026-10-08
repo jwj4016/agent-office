@@ -70,10 +70,14 @@ func (e *Engine) startAI(ctx context.Context, seen *runState, n *domain.Node, sn
 		if err != nil {
 			return err
 		}
+		notes, err := stepContext(ctx, c.Tx, st, n, manifest)
+		if err != nil {
+			return err
+		}
 		req = providers.StartRequest{
 			ProjectID: st.run.ProjectID, RunID: st.run.ID, StepAttemptID: a.ID, StepID: n.ID, Generation: a.Generation,
 			Instructions: domain.ComposeInstructions(instructionLayers(snap, n, feedback)),
-			Prompt:       buildPrompt(e.cfg.DataDir, st, n, manifest, dir),
+			Prompt:       buildPrompt(e.cfg.DataDir, st, n, manifest, notes, dir),
 			Workspace:    work,
 			WritableDirs: []string{filepath.Join(dir, "out")},
 			Model:        snap.Model,
@@ -276,7 +280,7 @@ func (e *Engine) complete(ctx context.Context, a *activeAttempt, n *domain.Node,
 	if verr == nil {
 		results, verr = e.freeze(a.projectID, a.runID, a.id, results)
 	}
-	return e.finishVerification(ctx, a.runID, a.id, n, results, verr)
+	return e.finishVerification(ctx, a.runID, a.id, n, results, p.Text, verr)
 }
 
 func (e *Engine) versionFor(ctx context.Context, runID string) domain.WorkflowVersion {
@@ -323,8 +327,9 @@ func fallbackText(dir string, n *domain.Node, text string) {
 
 // finishVerification stores artifacts and marks the attempt succeeded,
 // or fails it with the verification problems. Nothing is stored if the
-// attempt stopped being current while verifying.
-func (e *Engine) finishVerification(ctx context.Context, runID, attemptID string, n *domain.Node, results []verifiedOutput, verr error) error {
+// attempt stopped being current while verifying. note is the provider's
+// final message, handed to the steps that use these results.
+func (e *Engine) finishVerification(ctx context.Context, runID, attemptID string, n *domain.Node, results []verifiedOutput, note string, verr error) error {
 	_, err := e.db.Change(ctx, func(c *storage.Change) error {
 		st, err := loadState(ctx, c.Tx, runID)
 		if err != nil {
@@ -348,7 +353,11 @@ func (e *Engine) finishVerification(ctx context.Context, runID, attemptID string
 			}
 			return saveRunStatus(ctx, c, st)
 		}
-		if err := storeArtifacts(ctx, c, st, row, results); err != nil {
+		refs, err := storeArtifacts(ctx, c, st, row, results)
+		if err != nil {
+			return err
+		}
+		if err := postHandoffs(ctx, c, st, row, refs, note); err != nil {
 			return err
 		}
 		if _, err := setAttemptStatus(ctx, c, st, row, StSucceeded, "", StVerifying, StWaitingHuman); err != nil {
@@ -360,7 +369,8 @@ func (e *Engine) finishVerification(ctx context.Context, runID, attemptID string
 	return err
 }
 
-func storeArtifacts(ctx context.Context, c *storage.Change, st *runState, a attemptRow, results []verifiedOutput) error {
+func storeArtifacts(ctx context.Context, c *storage.Change, st *runState, a attemptRow, results []verifiedOutput) ([]ArtifactRef, error) {
+	var refs []ArtifactRef
 	for _, r := range results {
 		var version int
 		c.Tx.QueryRowContext(ctx, `SELECT COALESCE(MAX(a.version), 0) + 1 FROM artifacts a JOIN step_attempts s ON s.id = a.step_attempt_id
@@ -368,13 +378,14 @@ func storeArtifacts(ctx context.Context, c *storage.Change, st *runState, a atte
 		id := storage.NewID("art")
 		if _, err := c.Tx.ExecContext(ctx, `INSERT INTO artifacts (id, project_id, run_id, step_attempt_id, output_key, version, type, path, hash, size, created_at)
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, id, st.run.ProjectID, st.run.ID, a.ID, r.Key, version, r.Type, r.RelPath, r.Hash, r.Size, storage.Now()); err != nil {
-			return err
+			return nil, err
 		}
 		if err := c.Emit(st.run.ProjectID, st.run.ID, a.ID, "artifact.created", map[string]any{
 			"artifactId": id, "stepId": a.StepID, "outputKey": r.Key, "version": version, "type": r.Type, "hash": r.Hash,
 		}); err != nil {
-			return err
+			return nil, err
 		}
+		refs = append(refs, ArtifactRef{ID: id, StepID: a.StepID, OutputKey: r.Key, Version: version, Hash: r.Hash})
 	}
-	return nil
+	return refs, nil
 }

@@ -1137,6 +1137,26 @@ export namespace engine {
 	        this.hashOk = source["hashOk"];
 	    }
 	}
+	export class ArtifactRef {
+	    id: string;
+	    stepId?: string;
+	    outputKey: string;
+	    version: number;
+	    hash: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ArtifactRef(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.stepId = source["stepId"];
+	        this.outputKey = source["outputKey"];
+	        this.version = source["version"];
+	        this.hash = source["hash"];
+	    }
+	}
 	export class ArtifactView {
 	    id: string;
 	    outputKey: string;
@@ -1237,6 +1257,98 @@ export namespace engine {
 	        this.outputs = this.convertValues(source["outputs"], domain.Output);
 	        this.reworkTargets = this.convertValues(source["reworkTargets"], StepRef);
 	        this.since = source["since"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class MessageRefs {
+	    artifacts?: ArtifactRef[];
+	    generation?: number;
+	    from?: string;
+	    note?: boolean;
+	    round?: number;
+	    agree?: boolean;
+	    reason?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new MessageRefs(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.artifacts = this.convertValues(source["artifacts"], ArtifactRef);
+	        this.generation = source["generation"];
+	        this.from = source["from"];
+	        this.note = source["note"];
+	        this.round = source["round"];
+	        this.agree = source["agree"];
+	        this.reason = source["reason"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class MessageView {
+	    id: string;
+	    kind: string;
+	    sender: string;
+	    senderName: string;
+	    recipient: string;
+	    recipientName: string;
+	    stepId: string;
+	    body: string;
+	    replyTo?: string;
+	    refs: MessageRefs;
+	    createdAt: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new MessageView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.kind = source["kind"];
+	        this.sender = source["sender"];
+	        this.senderName = source["senderName"];
+	        this.recipient = source["recipient"];
+	        this.recipientName = source["recipientName"];
+	        this.stepId = source["stepId"];
+	        this.body = source["body"];
+	        this.replyTo = source["replyTo"];
+	        this.refs = this.convertValues(source["refs"], MessageRefs);
+	        this.createdAt = source["createdAt"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

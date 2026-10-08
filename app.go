@@ -945,6 +945,24 @@ func (a *App) ReadArtifact(projectID, artifactID string) (engine.ArtifactContent
 	return c, uiErr(err)
 }
 
+// RunMessages lists a run's conversation record.
+func (a *App) RunMessages(projectID, runID string) ([]engine.MessageView, error) {
+	if err := a.ready(); err != nil {
+		return nil, err
+	}
+	m, err := a.eng.RunMessages(a.ctx, projectID, runID)
+	return m, uiErr(err)
+}
+
+// PostNote leaves a proposal or decision for a step's next attempt.
+func (a *App) PostNote(projectID, runID, stepID, kind, body string) (string, error) {
+	if err := a.ready(); err != nil {
+		return "", err
+	}
+	id, err := a.eng.PostNote(a.ctx, projectID, runID, stepID, kind, body)
+	return id, uiErr(err)
+}
+
 // ---- my tasks ----
 
 func (a *App) Inbox() ([]engine.InboxItem, error) {

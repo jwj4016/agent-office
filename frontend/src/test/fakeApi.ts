@@ -40,6 +40,8 @@ export const fakeApi = {
     setConnectionKey: ok({}), clearConnectionKey: ok({}), saveConnection: ok({}), detectPaths: ok({codex: '', node: '', bridge: '', claude: ''}),
     checkConnection: ok({steps: [], ready: false}),
     testConnectionCall: ok({steps: [{id: 'call', label: '실제 호출', status: 'ok', detail: 'pong'}], ready: true}), templates: ok([]), workflows: ok([]), runs: ok([]),
+    run: vi.fn(), runMessages: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []), postNote: ok('msg-new'),
+    pauseRun: ok(undefined), resumeRun: ok(undefined), cancelRun: ok(undefined), retryStep: ok(undefined), readArtifact: vi.fn(),
     onEvents: vi.fn(() => () => {}),
     onDeltas: vi.fn(() => () => {}),
 };

@@ -2,7 +2,6 @@ package engine
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -97,10 +96,10 @@ func (e *Engine) reworkTx(ctx context.Context, c *storage.Change, st *runState, 
 		return nil, err
 	}
 	for _, t := range targets {
-		refs, _ := json.Marshal(map[string]any{"generation": st.run.Gens[t].G, "from": from.ID})
-		if _, err := c.Tx.ExecContext(ctx, `INSERT INTO messages (id, project_id, run_id, step_attempt_id, sender, recipient, kind, body, artifact_refs, created_at)
-			VALUES (?, ?, ?, ?, ?, ?, 'decision', ?, ?, ?)`,
-			storage.NewID("msg"), st.run.ProjectID, st.run.ID, fromAttempt, domain.LocalOwner, "step:"+t, reason, string(refs), storage.Now()); err != nil {
+		if _, err := addMessage(ctx, c, st.run.ProjectID, newMessage{
+			RunID: st.run.ID, AttemptID: fromAttempt, Sender: domain.LocalOwner, Recipient: stepRecipient(t), Kind: MsgDecision,
+			Body: reason, Refs: MessageRefs{Generation: st.run.Gens[t].G, From: from.ID},
+		}); err != nil {
 			return nil, err
 		}
 	}

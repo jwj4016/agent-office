@@ -81,7 +81,7 @@
 - [x] 🚪 게이트: "게임 출시, 리뷰는 내가" → local-owner 배정 (T02)
 
 ### M4 협업
-- [ ] Message 7종 + AI 입력 컨텍스트 구성
+- [x] Message 7종 + AI 입력 컨텍스트 구성 (escalation 발생은 다음 항목 T18에서)
 - [ ] 협의 작업(회의), 순환·무응답 제한 (T18)
 - [ ] Git worktree 분리·통합·테스트/빌드 (T14)
 - [ ] 흐름 편집기: 조건·분기·수정 대상 편집 완성
@@ -238,3 +238,11 @@
 - 게이트 결과(2026-10-08, 실제 Codex 설계 4회 호출 — 1~3회는 위 결함으로 실패): 4회째 설계안 '검토 대기', 기존 역할 4개 모두 재사용, '코드 리뷰' → 사람(local-owner), AI 담당자는 사용 가능한 연결(내 Claude·내 Codex)만 사용. '적용하고 편집하기' → 새 서비스 '톡톡' 생성, 흐름 편집기에서 버전 1 확정. DB 확인: 역할 이름별 1개(중복 없음), 설계 요청 상태 applied. 배포 위치·절차가 없어 '부족한 항목'으로 실행 가능(canStart)은 false — 의도대로 실행 전 보류
 - push: `gh` 로그인(`workflow` 권한)으로 `feat/m3-ai-design` push. 첫 CI(run 37646913610)에서 Windows만 `TestArtifactsAreFrozenCopies` 실패 — 테스트가 경로 끝을 `"/out"` 문자열로 비교한 결함(엔진은 정상) → `filepath.Base`로 수정 후 run 37649324901에서 3 OS 모두 테스트·빌드 통과, 빌드 산출물 3개 업로드
 - 다음에 실행할 구체적인 작업: M3 게이트 보고 후 사용자 확인 → M4 협업
+
+### 2026-10-08 (M4)
+- 현재 단계: M4 / 메시지·컨텍스트 (브랜치 `feat/m4-collab`, 이번부터 Windows 11 PC에서 개발)
+- 구현 완료: `internal/engine/messages.go` — 메시지 공통 저장(`addMessage`, 메시지마다 `message.<kind>` 이벤트), 업무 성공 시 그 결과를 입력으로 쓰는 업무마다 handoff(정확한 결과 버전 + AI 마지막 응답/사람 리뷰 의견), 리뷰 업무 시작 시 review_request(고정된 입력 버전), 반려 decision도 같은 경로로 저장. AI 입력 컨텍스트 `## 관련 대화·결정`: 고정된 입력 버전의 전달 메모, 같은 실행에서 이 업무가 이미 받은 질문·답변, 사용자가 남긴 제안·결정 — 항목당 1500자·전체 8000자 제한, 생략 시 안내, 원본 참조(메시지·결과 버전) 표기. 바인딩 `RunMessages`·`PostNote`(proposal/decision, 프로젝트·업무 확인, 끝난 실행 거절). 실행 기록 화면에 '대화·결정' 목록과 메모 입력
+- 이번 검증과 결과: `go test ./...` 통과(Windows, race 없음 — 이 PC에 cgo용 gcc 없음). 새 시험 `TestHandoffNotesReachDownstreamPrompts`, `TestReworkedStepRemembersAnswers`, `TestPostNoteReachesNextAttempt`(다른 서비스 실행에 메모 거절 포함), `TestWriteContextIsBounded`. 프론트엔드 29건(`Runs.test.tsx` 추가)·typecheck 통과
+- 미검증·알려진 제한: 이미 진행 중인 시도에는 메모가 전달되지 않음(다음 시도부터). Windows에서 `TestClaudeCancel/cancel-ignored`가 전체 병렬 실행 중 1회 시간 초과(단독 3회 통과) — 부하 시 taskkill 지연으로 보임, M6 Job Object와 함께 확인
+- 마지막 관련 코드/테스트: `internal/engine/messages.go`, `messages_test.go`, `frontend/src/views/Runs.tsx`
+- 다음에 실행할 구체적인 작업: AI 간 질문 전달·회의(협의 작업)·순환/무응답 제한(T18)

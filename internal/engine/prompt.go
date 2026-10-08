@@ -70,7 +70,7 @@ func formatHint(t domain.OutputType) string {
 
 // buildPrompt describes the task, pinned inputs and exactly where each
 // output must be written.
-func buildPrompt(dataDir string, st *runState, n *domain.Node, manifest []ManifestEntry, attemptDir string) string {
+func buildPrompt(dataDir string, st *runState, n *domain.Node, manifest []ManifestEntry, notes []contextNote, attemptDir string) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "# 업무: %s\n\n", n.Title)
 	if g := st.version.Policy.Goal; g != "" {
@@ -91,6 +91,7 @@ func buildPrompt(dataDir string, st *runState, n *domain.Node, manifest []Manife
 		}
 		b.WriteString("\n")
 	}
+	writeContext(&b, notes)
 	b.WriteString("## 결과 제출 방법\n\n")
 	for _, o := range n.Outputs {
 		req := "선택"

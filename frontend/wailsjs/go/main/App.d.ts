@@ -70,6 +70,8 @@ export function PauseRun(arg1:string,arg2:string):Promise<void>;
 
 export function Ping(arg1:string):Promise<main.PingResult>;
 
+export function PostNote(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string):Promise<string>;
+
 export function ProjectUsage(arg1:string):Promise<engine.Usage>;
 
 export function ReadArtifact(arg1:string,arg2:string):Promise<engine.ArtifactContent>;
@@ -79,6 +81,8 @@ export function ReparseDesign(arg1:string):Promise<main.DesignView>;
 export function ResumeRun(arg1:string,arg2:string):Promise<void>;
 
 export function RetryStep(arg1:string,arg2:string,arg3:string):Promise<void>;
+
+export function RunMessages(arg1:string,arg2:string):Promise<Array<engine.MessageView>>;
 
 export function SaveAssignment(arg1:domain.Assignment):Promise<domain.Assignment>;
 

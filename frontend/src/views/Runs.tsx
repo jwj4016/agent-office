@@ -1,8 +1,9 @@
 import {api} from '../api';
 import {t} from '../i18n';
 import {useLive, useLoad} from '../live';
-import type {Project, RunDetail} from '../types';
-import {ConfirmButton, ErrorBox, RunBadge, StepBadge, useAction, useDetail} from '../ui';
+import {useState} from 'react';
+import type {MessageKind, Project, RunDetail} from '../types';
+import {ConfirmButton, ErrorBox, RunBadge, shortTime, StepBadge, useAction, useDetail} from '../ui';
 import {ArtifactViewer} from './ArtifactViewer';
 
 export function Runs({project, runId, onOpen}: { project: Project; runId?: string; onOpen: (runId?: string) => void }) {
@@ -96,6 +97,72 @@ function RunView({project, runId, onBack}: { project: Project; runId: string; on
                 </tbody>
             </table>
             <p className="muted small">사람이 맡은 업무와 승인은 ‘내 할 일’에서 처리합니다.</p>
+            <Conversation project={project} run={run} finished={finished}/>
         </div>
+    );
+}
+
+const messageTone: Partial<Record<MessageKind, string>> = {question: 'warn', escalation: 'bad', decision: 'ok', review_request: 'info'};
+
+// Conversation is the run's record of questions, answers, handoffs,
+// review requests, proposals, decisions and escalations, plus a form to
+// leave a note for a step's next attempt.
+export function Conversation({project, run, finished}: { project: Project; run: RunDetail; finished: boolean }) {
+    const list = useLoad(() => api.runMessages(project.id, run.id), [project.id, run.id], project.id);
+    const notable = run.steps.filter((s) => s.kind !== 'condition' && s.kind !== 'join');
+    const [step, setStep] = useState('');
+    const [kind, setKind] = useState<'proposal' | 'decision'>('decision');
+    const [body, setBody] = useState('');
+    const action = useAction();
+    const post = () => action.run(async () => {
+        await api.postNote(project.id, run.id, step, kind, body);
+        setBody('');
+        list.reload();
+    });
+    const msgs = list.data ?? [];
+    return (
+        <section className="stack" aria-label="대화·결정 기록">
+            <h3>대화·결정</h3>
+            <ErrorBox error={list.error}/>
+            {msgs.length === 0 ? <p className="muted small">아직 기록된 대화가 없습니다.</p> : (
+                <ul className="stack" style={{listStyle: 'none', padding: 0, margin: 0}}>
+                    {msgs.map((m) => (
+                        <li key={m.id} className="card small">
+                            <div className="row">
+                                <span className={`badge ${messageTone[m.kind] ?? ''}`}>{t.messageKind[m.kind] ?? m.kind}</span>
+                                <span>{m.senderName} → {m.recipientName}</span>
+                                {m.refs.round ? <span className="muted">회의 {m.refs.round}라운드{m.refs.agree ? ' · 동의' : ''}</span> : null}
+                                <span className="muted">{shortTime(m.createdAt)}</span>
+                            </div>
+                            <div style={{whiteSpace: 'pre-wrap'}}>{m.body}</div>
+                            {m.refs.artifacts?.length ? (
+                                <div className="muted">근거: {m.refs.artifacts.map((r) => `${r.stepId ?? ''}.${r.outputKey} v${r.version}`).join(', ')}</div>
+                            ) : null}
+                        </li>
+                    ))}
+                </ul>
+            )}
+            {!finished ? (
+                <div className="stack">
+                    <div className="row">
+                        <select aria-label="메모 받을 업무" value={step} onChange={(e) => setStep(e.target.value)}>
+                            <option value="">업무 선택…</option>
+                            {notable.map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}
+                        </select>
+                        <select aria-label="메모 종류" value={kind} onChange={(e) => setKind(e.target.value as 'proposal' | 'decision')}>
+                            <option value="decision">{t.messageKind.decision}</option>
+                            <option value="proposal">{t.messageKind.proposal}</option>
+                        </select>
+                    </div>
+                    <textarea aria-label="메모 내용" value={body} onChange={(e) => setBody(e.target.value)}
+                              placeholder="이 업무의 다음 시도에 전달할 결정이나 제안"/>
+                    <div className="row">
+                        <button className="btn" disabled={!step || !body.trim() || action.busy} onClick={post}>메모 남기기</button>
+                        <span className="muted small">이미 작업 중인 시도에는 전달되지 않고, 다음 시도(시작·재시도·수정)부터 반영됩니다.</span>
+                    </div>
+                    <ErrorBox error={action.error}/>
+                </div>
+            ) : null}
+        </section>
     );
 }

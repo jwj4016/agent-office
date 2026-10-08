@@ -121,6 +121,14 @@ export type InboxItem = {
     reworkTargets: { id: string; title: string }[]; since: string;
 };
 
+export type MessageKind = 'question' | 'answer' | 'review_request' | 'proposal' | 'decision' | 'handoff' | 'escalation';
+export type ArtifactRef = { id: string; stepId?: string; outputKey: string; version: number; hash: string };
+export type MessageView = {
+    id: string; kind: MessageKind; sender: string; senderName: string; recipient: string; recipientName: string;
+    stepId: string; body: string; replyTo?: string; createdAt: string;
+    refs: { artifacts?: ArtifactRef[]; generation?: number; from?: string; note?: boolean; round?: number; agree?: boolean; reason?: string };
+};
+
 export type Outcome = { status: StepStatus | string; already: boolean; decision?: string };
 export type ActionResult = { outcome: Outcome; problem: string };
 

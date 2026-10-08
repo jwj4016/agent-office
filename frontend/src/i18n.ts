@@ -1,6 +1,6 @@
 // UI strings. Korean first; another language is a second object with the
 // same shape.
-import type {InboxKind, NodeKind, OutputType, RunStatus, StepStatus} from './types';
+import type {InboxKind, MessageKind, NodeKind, OutputType, RunStatus, StepStatus} from './types';
 
 export const ko = {
     app: {name: 'Agent Office'},
@@ -35,6 +35,10 @@ export const ko = {
     outputType: {
         markdown: '문서(Markdown)', json: 'JSON', file: '파일', code_change: '코드 변경', report: '보고(JSON)',
     } satisfies Record<OutputType, string>,
+    messageKind: {
+        question: '질문', answer: '답변', review_request: '검토 요청', proposal: '제안', decision: '결정',
+        handoff: '전달', escalation: '사용자에게 넘김',
+    } satisfies Record<MessageKind, string>,
     inboxKind: {
         task: '작업 제출', review: '리뷰', approval: '승인', tool_approval: '도구 사용 승인', question: 'AI 질문', budget: '예산 한도',
     } satisfies Record<InboxKind, string>,

@@ -4,7 +4,7 @@ import * as Go from '../wailsjs/go/main/App';
 import {EventsOn} from '../wailsjs/runtime/runtime';
 import type {
     ActionResult, ArtifactContent, Assignment, CheckReport, ConfirmResult, Connection, ConnectionKind, ConnectionSettings, Delta,
-    DesignView, ApplyResult, DetectedPaths, Usage, InboxItem, InstructionPreview,
+    DesignView, ApplyResult, DetectedPaths, Usage, InboxItem, InstructionPreview, MessageView,
     Organization, Project, ProjectSummary, Role, RunDetail, StartResult, StoredEvent, SystemStatus, Template,
     Validation, Workflow, WorkflowSpec,
 } from './types';
@@ -68,6 +68,9 @@ export const api = {
     cancelRun: (projectId: string, runId: string) => call<void>(Go.CancelRun(projectId, runId)),
     retryStep: (projectId: string, runId: string, stepId: string) => call<void>(Go.RetryStep(projectId, runId, stepId)),
     readArtifact: (projectId: string, artifactId: string) => call<ArtifactContent>(Go.ReadArtifact(projectId, artifactId)),
+    runMessages: (projectId: string, runId: string) => call<MessageView[]>(Go.RunMessages(projectId, runId)),
+    postNote: (projectId: string, runId: string, stepId: string, kind: 'proposal' | 'decision', body: string) =>
+        call<string>(Go.PostNote(projectId, runId, stepId, kind, body)),
 
     startDesign: (d: {
         goal: string; projectId: string; projectName: string; humanTasks: string[]; mode: string; connectionId: string; model: string;
