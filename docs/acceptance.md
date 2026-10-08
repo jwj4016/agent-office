@@ -20,11 +20,11 @@
 | T02 | “게임 출시, 리뷰는 내가” 요청 | 🟡 | 테스트 provider: `TestDesignReviewModeNewService`(사람 업무→local-owner 배정을 코드로 검증). 실제 AI(2026-10-08, macOS, Codex): 설계안이 기존 역할 4개(기획·개발·QA·리뷰어)를 모두 재사용(중복 역할 없음), '코드 리뷰' 단계가 사람(local-owner)에게 배정, 검토 후 적용 → 흐름 편집기에서 버전 1 확정(M3 게이트). 배포 자료 부족은 '부족한 항목'으로 표시되어 실행은 보류. Windows·Linux 미시험 |
 | T03 | auto 모드, 허용 범위 충족 | 🟡 | `TestDesignAutoModeStartsAndWaitsForPeople`(범위 충족 시 적용·실행 후 사람 업무에서 대기), `TestDesignAutoModeRefusedOutsideScope`(허용 밖 연결·예산 없음·부족 항목이면 거부). 화면: `Design.test.tsx`(범위 밖이면 자동 시작 비활성). 실제 AI로는 미시험 |
 | T04 | 연결 없는 AI 배정 | 🟡 | 검증: `TestValidateAssignments`, `TestConfirmRejectsInvalidAndAllowsUnconnected`. 바인딩: `TestBindingsStartBlockedWithoutConnection` (버전 확정 가능, 실행은 설명과 함께 차단). 화면: 담당자 목록에 '확인 필요' 표시 |
-| T05 | 사람이 리뷰 수정 요청 | 🟡 | `TestReviewChangesReworkOnlyAffectedSteps` (백엔드·통합·리뷰·QA·전달만 재실행, 프론트엔드 유지, 이전 결과 stale 보존, 의견 전달) |
+| T05 | 사람이 리뷰 수정 요청 | 🟡 | `TestReviewChangesReworkOnlyAffectedSteps` (백엔드·통합·리뷰·QA·전달만 재실행, 프론트엔드 유지, 이전 결과 stale 보존, 의견 전달). Git 작업 공간: `TestCodeReworkContinuesFromPreviousCommit`, M4 게이트(이전 커밋에서 이어서 수정, 통합 재실행·실제 빌드) |
 | T06 | 기획 반려 | 🟡 | `TestPlanRejectionKeepsIndependentResults` (기획 의존 범위만 재실행, 독립 분석 유지, 이전 승인 stale) |
 | T07 | 게임·부동산 서비스 실행 | 🟡 | `TestInboxAndDashboardAcrossServices`, `TestBindingsTwoServicesEndToEnd`, 실제 앱 화면 시험: 두 서비스 동시 실행, 내 할 일·대시보드 서비스별 표시, 교차 접근 거절, 이벤트 섞임 0건. 실제 AI 세션 분리는 M2 |
 | T08 | 서비스 전환·한 서비스 일시 정지 | 🟡 | 엔진: `TestPauseOneRunOthersContinue`. 화면: 서비스 전환은 화면 선택만 바꾸며 실행 유지(실제 앱에서 두 서비스 실행 중 전환 확인), 마지막 서비스 재시작 후 복원 |
-| T09 | 조건 분기 한 경로 미선택 | 🟡 | `TestConditionSkipsUntakenBranch`, `TestConditionTakesBranch`, `TestConditionPathErrorFails` |
+| T09 | 조건 분기 한 경로 미선택 | 🟡 | `TestConditionSkipsUntakenBranch`, `TestConditionTakesBranch`, `TestConditionPathErrorFails`. M4 게이트 `TestM4GateBranchParallelRevision`(건너뛴 법률 검토 뒤 합류 진행). 편집기: 분기 규칙·합류 편집(`NodeForm.test.tsx`), 편집기 분기 모양 검증 `TestEditorBranchScaffoldIsValid` |
 | T10 | 실패한 필수 선행 업무 | 🟡 | `TestFailureBlocksOnlyDependents` (후속 차단, 독립 작업 계속, 재시도), `TestRunFailsWhenBlocked` |
 | T11 | 이전 승인·이벤트가 늦게 도착 | 🟡 | `TestLateResultFromSupersededAttemptIsIgnored` (늦은 결과는 provider.late로만 기록, 새 시도는 이전 프로세스 종료 후 시작), 이전 승인 stale (`TestPlanRejectionKeepsIndependentResults`) |
 | T12 | 도구 승인 거절 | 🟡 | 공급자·엔진 시험(`TestToolApprovalDecline` 등). 실제 Claude의 Bash 승인 요청을 내 할 일에서 처리(허용 경로 확인). 실제 공급자 거절 경로는 가짜 시험만 |

@@ -85,7 +85,7 @@
 - [x] 협의 작업(회의), 순환·무응답 제한 (T18) — 회의 편집 화면은 흐름 편집기 항목에서
 - [x] Git worktree 분리·통합·테스트/빌드 (T14)
 - [x] 흐름 편집기: 조건·분기·수정 대상 편집 완성
-- [ ] 🚪 게이트: 병렬 개발 통합 + 수정 회차 + 분기 합류 통과
+- [x] 🚪 게이트: 병렬 개발 통합 + 수정 회차 + 분기 합류 통과 — 통과 (테스트 provider + 실제 Git·`go build` 기준, 2026-10-08). 실제 AI로는 미시험
 
 ### M5 사무실·템플릿
 - [ ] Canvas 도트 사무실 + 실제 상태 매핑, 100ms 배치 반영
@@ -269,3 +269,17 @@
 - 미검증·알려진 제한: 실제 앱 화면(React Flow 그래프 라벨·점선)은 게이트에서 확인. 결과 JSON schema 편집 화면은 없음(흐름 JSON에서만)
 - 마지막 관련 코드/테스트: `frontend/src/views/WorkflowEditor.tsx`, `frontend/src/workflowModel.ts`, `NodeForm.test.tsx`
 - 다음에 실행할 구체적인 작업: M4 게이트 — 병렬 개발 통합 + 수정 회차 + 분기 합류
+
+- 현재 단계: M4 게이트
+- 구현 완료: 게이트 흐름 `tests/fixtures/workflows/m4-gate.json`(기획 → 승인 → 법률 검토 필요 여부 분기 → 합류 → API 계약 회의 → 백엔드·프론트엔드 병렬 → 통합(`go build`·`go vet`) → 내 코드 리뷰 → QA → 전달)과 `TestM4GateBranchParallelRevision`
+- 이번 검증과 결과 (Windows 11, 실제 Git, 테스트 provider):
+  - 분기 합류: 기획 결과 `legal.needed=false` → 법률 검토 건너뜀(skipped), 합류는 기다리지 않고 진행
+  - 회의: 백엔드·프론트엔드 AI가 1라운드에 동의 → 설계 AI가 계약서 작성
+  - 병렬 개발: 백엔드·프론트엔드가 서로 다른 worktree·브랜치에서 작업, 백엔드의 `@설계` 질문은 설계 AI가 답함(사람 개입 없음). 통합 worktree에서 두 변경을 병합하고 실제 `go build ./...`·`go vet ./...` 통과, 변경 목록에 go.mod·api/score.go·web/page.go
+  - 수정 회차: 리뷰에서 백엔드만 수정 요청 → 백엔드 1회차는 이전 커밋에서 이어서 작업, 수정 의견이 지침에 포함, 프론트엔드는 다시 실행하지 않음, 통합 1회차가 새 백엔드 커밋 포함 → 재리뷰 통과 → 실행 완료
+  - 기록: 검토 요청 2건(원래·재리뷰), 반려 결정 1건, 전달 메모, 서비스 저장소 HEAD 불변, 실행 종료 후 worktree 정리
+  - `wails build`(Windows amd64) 성공 — `agent-office.exe` 37MB, 58초. 한글·공백 데이터 폴더로 실행 시 DB 생성·스키마 4 적용 확인
+  - `go test -count=1 ./...` 전체 통과, 프론트엔드 40건·typecheck·build 통과
+- 미검증·알려진 제한: 실제 Codex·Claude로 이 흐름을 돌리지 않음(사용자 승인 필요, 이 Windows PC의 실제 공급자 연결도 미확인). 실제 앱 화면은 실행만 확인(이 환경에 브라우저 조작 도구가 없어 화면 조작 시험은 하지 못함). 이번 브랜치는 아직 push 전이라 3 OS CI 미실행
+- 마지막 관련 코드/테스트: `internal/engine/gate_test.go`, `tests/fixtures/workflows/m4-gate.json`
+- 다음에 실행할 구체적인 작업: M4 게이트 보고 후 사용자 확인(실제 AI 게이트 실행 여부, push·CI) → M5 사무실·템플릿

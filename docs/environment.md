@@ -17,6 +17,19 @@
 
 Wails CLI는 `$(go env GOPATH)/bin`에 설치된다. PATH에 추가해야 한다.
 
+## Windows 개발 PC (2026-10-08, M4부터)
+
+| 도구 | 버전 | 비고 |
+|---|---|---|
+| OS | Windows 11 Pro 10.0.26200 (x64) | — |
+| Go | 1.27.1 windows/amd64 | cgo용 gcc 없음 → 이 PC에서는 `-race` 없이 시험 (CI는 race 사용) |
+| Node.js / npm | 24.14.0 / 11.9.0 | `wails build`가 실행하는 `npm install`이 lock 파일의 `libc` 항목을 지움 → 커밋하지 않고 되돌림 |
+| Git | 2.45.1.windows.1 | 명령 1회 약 0.3초(프로세스 시작 비용) — Git 작업 공간 시험이 느림 |
+| Wails CLI | v2.16.0 | 모듈 밖에서 `go install github.com/wailsapp/wails/v2/cmd/wails@v2.16.0` (저장소 안에서는 go.mod의 replace 주석 때문에 실패) |
+| Codex·Claude CLI | npm 전역 설치 (`%APPDATA%\npm\codex.ps1`·`claude.ps1`) | 이 PC에서 실제 호출은 아직 미시험 |
+
+알려진 차이: 이 PC에는 심볼릭 링크 생성 권한이 없어 `runners/claude`의 심볼릭 링크 시험 1건이 EPERM으로 실패한다(CI Windows에서는 통과).
+
 ## 실행·빌드
 
     wails doctor
@@ -26,7 +39,7 @@ Wails CLI는 `$(go env GOPATH)/bin`에 설치된다. PATH에 추가해야 한다
 
 ## 미확인 환경
 
-- Windows 11 x64, Ubuntu LTS x64, macOS x64: 시험 장비 없음
+- Ubuntu LTS x64, macOS x64: 시험 장비 없음 (CI 빌드·시험만)
 
 ## 프론트엔드 명령 (frontend/)
 
