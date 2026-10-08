@@ -71,6 +71,12 @@ Wails CLI는 `$(go env GOPATH)/bin`에 설치된다. PATH에 추가해야 한다
     AGENT_OFFICE_CODEX_IT=$(which codex) go test ./internal/providers/ -run TestCodexReal -v
     AGENT_OFFICE_CLAUDE_IT=1 go test ./internal/providers/ -run TestClaudeReal -v
 
+## 실제 M4 게이트 (사용량 사용, 기본 비활성, 약 25분)
+
+    AGENT_OFFICE_REAL_GATE=<제어 폴더> AGENT_OFFICE_CODEX_IT=<codex 실행 파일> go test ./internal/engine/ -run TestRealM4Gate -v -timeout 120m
+
+사람이 결정할 항목은 `<제어 폴더>/pending/<id>.json`에 나오고, `<제어 폴더>/decisions/<id>.txt`에 결정을 쓰면 반영된다(형식은 시험 코드 주석). Windows에서 Codex 실행 파일은 `%APPDATA%\npm\codex.cmd`.
+
 ## 실제 공급자 취소 시험 (사용량 사용, 기본 비활성)
 
     AGENT_OFFICE_CODEX_IT=$(which codex) go test ./internal/providers/ -run TestCodexRealCancel -v

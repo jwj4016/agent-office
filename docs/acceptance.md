@@ -10,6 +10,7 @@
 | 2026-10-07 | Codex·Claude 연결 시험 | codex-cli 0.160.0 / Agent SDK 0.3.288, 실제 호출 시험 화면 | 둘 다 4단계 통과 |
 | 2026-10-07 | M2 게이트 흐름 | 실제 Claude·Codex, `wails dev`, 한글·공백 작업 폴더 | 기획→승인→개발→리뷰→검증 완료 |
 | 2026-10-07 | 실제 취소 | `TestCodexRealCancel`, `TestClaudeRealCancel` | Codex 통과 / Claude 남은 프로세스 결함 수정 후 통과 |
+| 2026-10-08 | M4 게이트 흐름 | Windows 11, 실제 Claude(Agent SDK, claude.ai 로그인)·Codex(codex-cli 0.161.0), `TestRealM4Gate` | 분기 skipped→합류, 회의, 병렬 worktree→통합 실제 빌드·테스트, 리뷰 수정 1회차, QA·전달까지 완료(1476s). 도구 허가 14건 사람 처리 |
 | 2026-10-03 | Claude Agent SDK bridge | SDK 0.3.288, Node 26.10.0, `TestClaudeReal` | 성공: started→message→usage($0.0485)→completed(succeeded), 5.4s. 취소 미시험 |
 
 상태: ⬜ 미착수 · 🟡 구현(자동 테스트만) · ✅ 검증 완료 · ⚠️ 미검증(환경 없음)
@@ -29,7 +30,7 @@
 | T11 | 이전 승인·이벤트가 늦게 도착 | 🟡 | `TestLateResultFromSupersededAttemptIsIgnored` (늦은 결과는 provider.late로만 기록, 새 시도는 이전 프로세스 종료 후 시작), 이전 승인 stale (`TestPlanRejectionKeepsIndependentResults`) |
 | T12 | 도구 승인 거절 | 🟡 | 공급자·엔진 시험(`TestToolApprovalDecline` 등). 실제 Claude의 Bash 승인 요청을 내 할 일에서 처리(허용 경로 확인). 실제 공급자 거절 경로는 가짜 시험만 |
 | T13 | 실행 중 초안·공통 역할 편집 | 🟡 | 버전 스냅샷 고정: `TestVersionSnapshotIsFrozen` (초안·역할 지침·담당자 변경 후 v1 불변, v2에 반영). 실행 중 시나리오는 엔진 항목에서 |
-| T14 | 두 개발 AI의 병렬 변경 | 🟡 | `TestParallelCodeStepsIntegrateAndBuild`(별도 worktree·브랜치, 통합 worktree에서 병합 후 실제 `go build ./...` 검증, 원본 작업 트리 불변), 충돌: `TestIntegrationConflictMustBeResolved`, 재작업: `TestCodeReworkContinuesFromPreviousCommit`, 사용자 저장소 보존: `TestUserRepositoryIsLeftAlone`. Windows에서 실행, 실제 AI 미시험 |
+| T14 | 두 개발 AI의 병렬 변경 | 🟡 | `TestParallelCodeStepsIntegrateAndBuild`(별도 worktree·브랜치, 통합 worktree에서 병합 후 실제 `go build ./...` 검증, 원본 작업 트리 불변), 충돌: `TestIntegrationConflictMustBeResolved`, 재작업: `TestCodeReworkContinuesFromPreviousCommit`, 사용자 저장소 보존: `TestUserRepositoryIsLeftAlone`. 실제 AI(2026-10-08, Windows): Codex 백엔드·Claude 프론트엔드가 별도 worktree에서 동시 작업, Claude 통합이 병합 후 `go build`·`go vet`·`go test ./...` 통과(`TestRealM4Gate`) |
 | T15 | 모델은 완료 주장, 테스트 실패 | 🟡 | `TestClaimedDoneWithoutOutputFails`, `TestFailingVerificationCommandFails`, 사람 리뷰도 동일 기준: `TestReviewPassMeetsCompletionCriteria` |
 | T16 | 앱 강제 종료·재시작 | 🟡 | `TestRecoverAfterEngineStopped`, 실제 앱 `kill -9` 후 재시작(테스트 provider). 실제 공급자 실행 중 강제 종료는 미시험 |
 | T17 | 프로세스 취소 | 🟡 | 가짜: `TestCodexCancelKillsStuckProcessTree`, `TestClaudeCancelLeavesNoChildren`. 실제(2026-10-07, macOS): `TestCodexRealCancel`, `TestClaudeRealCancel` — 취소 후 프로세스 그룹에 남은 프로세스 없음. Windows 미시험 |
