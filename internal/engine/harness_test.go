@@ -26,8 +26,8 @@ type harness struct {
 	override map[string]string // step id -> scenario, applied at start time
 	starts   []providers.StartRequest
 	// consultScenario, if set, is used by sessions answering another
-	// AI's question.
-	consultScenario string
+	// AI's question; meetingScenario by meeting participants' turns.
+	consultScenario, meetingScenario string
 
 	// stopEngine stops the harness engine (as if the app had quit).
 	stopEngine func()
@@ -62,6 +62,9 @@ func (p scenarioProvider) Start(ctx context.Context, req providers.StartRequest)
 	}
 	if p.h.consultScenario != "" && strings.HasPrefix(req.Prompt, "# 다른 담당자의 질문에 답하기") {
 		req.Model = p.h.consultScenario
+	}
+	if p.h.meetingScenario != "" && strings.HasPrefix(req.Prompt, "# 회의:") {
+		req.Model = p.h.meetingScenario
 	}
 	p.h.starts = append(p.h.starts, req)
 	p.h.mu.Unlock()

@@ -729,6 +729,20 @@ export namespace domain {
 	        this.severity = source["severity"];
 	    }
 	}
+	export class Meeting {
+	    participants: string[];
+	    maxRounds?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new Meeting(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.participants = source["participants"];
+	        this.maxRounds = source["maxRounds"];
+	    }
+	}
 	export class RouteSource {
 	    fromStep: string;
 	    outputKey: string;
@@ -830,6 +844,7 @@ export namespace domain {
 	    reworkTargets?: string[];
 	    limits?: NodeLimits;
 	    routing?: Routing;
+	    meeting?: Meeting;
 	
 	    static createFrom(source: any = {}) {
 	        return new Node(source);
@@ -849,6 +864,7 @@ export namespace domain {
 	        this.reworkTargets = source["reworkTargets"];
 	        this.limits = this.convertValues(source["limits"], NodeLimits);
 	        this.routing = this.convertValues(source["routing"], Routing);
+	        this.meeting = this.convertValues(source["meeting"], Meeting);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -1195,6 +1211,48 @@ export namespace engine {
 	        this.maxCostUsd = source["maxCostUsd"];
 	    }
 	}
+	export class ContextNote {
+	    label: string;
+	    ref: string;
+	    text: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ContextNote(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.label = source["label"];
+	        this.ref = source["ref"];
+	        this.text = source["text"];
+	    }
+	}
+	export class WorkspaceInfo {
+	    kind: string;
+	    path: string;
+	    branch?: string;
+	    start?: string;
+	    commit?: string;
+	    status: string;
+	    conflicts: string[];
+	    note?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new WorkspaceInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.kind = source["kind"];
+	        this.path = source["path"];
+	        this.branch = source["branch"];
+	        this.start = source["start"];
+	        this.commit = source["commit"];
+	        this.status = source["status"];
+	        this.conflicts = source["conflicts"];
+	        this.note = source["note"];
+	    }
+	}
 	export class StepRef {
 	    id: string;
 	    title: string;
@@ -1229,6 +1287,9 @@ export namespace engine {
 	    inputs: number[];
 	    outputs: domain.Output[];
 	    reworkTargets: StepRef[];
+	    context: ContextNote[];
+	    escalation?: string;
+	    workspace?: WorkspaceInfo;
 	    since: string;
 	
 	    static createFrom(source: any = {}) {
@@ -1256,6 +1317,9 @@ export namespace engine {
 	        this.inputs = source["inputs"];
 	        this.outputs = this.convertValues(source["outputs"], domain.Output);
 	        this.reworkTargets = this.convertValues(source["reworkTargets"], StepRef);
+	        this.context = this.convertValues(source["context"], ContextNote);
+	        this.escalation = source["escalation"];
+	        this.workspace = this.convertValues(source["workspace"], WorkspaceInfo);
 	        this.since = source["since"];
 	    }
 	
@@ -1445,6 +1509,24 @@ export namespace engine {
 		    return a;
 		}
 	}
+	export class RepoInfo {
+	    kind: string;
+	    path: string;
+	    base?: string;
+	    note?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new RepoInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.kind = source["kind"];
+	        this.path = source["path"];
+	        this.base = source["base"];
+	        this.note = source["note"];
+	    }
+	}
 	
 	export class StepView {
 	    id: string;
@@ -1460,6 +1542,7 @@ export namespace engine {
 	    approvalId?: string;
 	    inputs?: number[];
 	    artifacts: ArtifactView[];
+	    workspace?: WorkspaceInfo;
 	
 	    static createFrom(source: any = {}) {
 	        return new StepView(source);
@@ -1480,6 +1563,7 @@ export namespace engine {
 	        this.approvalId = source["approvalId"];
 	        this.inputs = source["inputs"];
 	        this.artifacts = this.convertValues(source["artifacts"], ArtifactView);
+	        this.workspace = this.convertValues(source["workspace"], WorkspaceInfo);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -1509,6 +1593,7 @@ export namespace engine {
 	    status: string;
 	    paused: boolean;
 	    steps: StepView[];
+	    repo?: RepoInfo;
 	
 	    static createFrom(source: any = {}) {
 	        return new RunDetail(source);
@@ -1524,6 +1609,7 @@ export namespace engine {
 	        this.status = source["status"];
 	        this.paused = source["paused"];
 	        this.steps = this.convertValues(source["steps"], StepView);
+	        this.repo = this.convertValues(source["repo"], RepoInfo);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

@@ -29,7 +29,7 @@ func codes(issues []Issue) string {
 }
 
 func TestFixturesAreValid(t *testing.T) {
-	for _, f := range []string{"service-dev.json", "legal-branch.json"} {
+	for _, f := range []string{"service-dev.json", "legal-branch.json", "m4-gate.json"} {
 		if issues := ValidateStructure(loadSpec(t, f)); len(issues) > 0 {
 			t.Errorf("%s: %v", f, issues)
 		}
