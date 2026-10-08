@@ -21,6 +21,7 @@ import (
 	"agent-office/internal/secrets"
 	"agent-office/internal/storage"
 	"agent-office/internal/templates"
+	"agent-office/internal/workspace"
 
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -93,6 +94,7 @@ func (a *App) startup(ctx context.Context) {
 	a.testProvider = &providers.TestProvider{Scripts: map[string][]providers.Step{}}
 	a.eng = engine.New(engine.Config{
 		DB: a.db, DataDir: dir, Providers: a.providerFor,
+		Git:       workspace.FindGit(),
 		Ephemeral: a.addDelta,
 	})
 	a.db.Subscribe(func(evs []storage.EventRecord) { a.emit(a.ctx, EventStored, evs) })

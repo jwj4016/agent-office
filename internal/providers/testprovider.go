@@ -19,18 +19,27 @@ import (
 //	{"request": "approval_request", "payload": {"requestId": "r1", "action": "shell"}}
 //	{"sleep": "50ms"}
 //	{"write": {"key": "spec", "content": "# 기획서"}}
+//	{"file": {"path": "api/server.go", "content": "package api"}}
 //	{"complete": {"status": "succeeded", "text": "done"}}
 //
 // A request step emits the event and blocks until Respond names its
 // requestId, then emits request_resolved. A write step writes content to
-// the path the engine gave for that output key.
+// the path the engine gave for that output key. A file step changes a
+// file in the workspace, like a coding agent would.
 type Step struct {
 	Emit     string            `json:"emit,omitempty"`
 	Request  string            `json:"request,omitempty"`
 	Payload  json.RawMessage   `json:"payload,omitempty"`
 	Sleep    string            `json:"sleep,omitempty"`
 	Write    *WriteStep        `json:"write,omitempty"`
+	File     *FileStep         `json:"file,omitempty"`
 	Complete *CompletedPayload `json:"complete,omitempty"`
+}
+
+// FileStep writes a file relative to the workspace.
+type FileStep struct {
+	Path    string `json:"path"`
+	Content string `json:"content"`
 }
 
 type WriteStep struct {
@@ -190,6 +199,11 @@ func (s *testSession) run(steps []Step) {
 				s.complete(CompletedPayload{Status: StatusFailed, Error: err.Error()})
 				return
 			}
+		case st.File != nil:
+			if err := s.file(*st.File); err != nil {
+				s.complete(CompletedPayload{Status: StatusFailed, Error: err.Error()})
+				return
+			}
 		case st.Sleep != "":
 			d, _ := time.ParseDuration(st.Sleep)
 			select {
@@ -238,6 +252,20 @@ func (s *testSession) write(w WriteStep) error {
 		}
 	}
 	return fmt.Errorf("output %q was not requested", w.Key)
+}
+
+func (s *testSession) file(f FileStep) error {
+	if s.req.Workspace == "" || filepath.IsAbs(f.Path) || !filepath.IsLocal(filepath.FromSlash(f.Path)) {
+		return fmt.Errorf("file %q is outside the workspace", f.Path)
+	}
+	if s.req.Policy.Sandbox == "read-only" {
+		return fmt.Errorf("file %q: the workspace is read-only", f.Path)
+	}
+	path := filepath.Join(s.req.Workspace, filepath.FromSlash(f.Path))
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return err
+	}
+	return os.WriteFile(path, []byte(f.Content), 0o600)
 }
 
 func (s *testSession) Respond(_ context.Context, r Response) error {

@@ -99,15 +99,28 @@ export type ArtifactView = {
     validity: 'valid' | 'stale' | 'invalid';
 };
 
+export type WorkspaceInfo = {
+    kind: 'code' | 'view' | 'shared'; path: string; branch?: string; start?: string; commit?: string;
+    status: string; conflicts: string[]; note?: string;
+};
+export type RepoInfo = { kind: 'base' | 'shared'; path: string; base?: string; note?: string };
+
 export type StepView = {
     id: string; title: string; kind: NodeKind; status: StepStatus; assignmentId: string; attemptId: string;
     generation: number; attempt: number; round: number; error?: string; approvalId?: string;
-    inputs?: ManifestEntry[] | null; artifacts: ArtifactView[];
+    inputs?: ManifestEntry[] | null; artifacts: ArtifactView[]; workspace?: WorkspaceInfo;
 };
 
 export type RunDetail = {
     id: string; projectId: string; versionId: string; versionNumber: number; title: string;
-    status: RunStatus; paused: boolean; steps: StepView[];
+    status: RunStatus; paused: boolean; steps: StepView[]; repo?: RepoInfo;
+};
+
+export type CodeChange = {
+    baseCommit: string; startCommit: string; commit: string; branch: string;
+    changes: { path: string; status: string; from?: string }[];
+    diffStat: { files: number; insertions: number; deletions: number };
+    patch: string; patchTruncated: boolean; summary?: string; tests?: unknown;
 };
 
 export type ArtifactContent = ArtifactView & {
@@ -122,7 +135,7 @@ export type InboxItem = {
     generation: number; attempt: number; round: number; approvalId?: string; messageId?: string;
     detail?: string; inputs: ManifestEntry[] | null; outputs: WorkflowOutput[];
     reworkTargets: { id: string; title: string }[]; since: string;
-    context?: ContextNote[] | null; escalation?: string;
+    context?: ContextNote[] | null; escalation?: string; workspace?: WorkspaceInfo;
 };
 
 export type ContextNote = { label: string; ref: string; text: string };

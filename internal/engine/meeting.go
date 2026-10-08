@@ -56,6 +56,7 @@ func (e *Engine) startMeeting(ctx context.Context, seen *runState, n *domain.Nod
 		return err
 	}
 	a := e.newActive(id, seen, n.ID, gen)
+	a.code = isCodeStep(n)
 	e.active[id] = a
 	e.wg.Add(1)
 	go func() {
@@ -88,6 +89,11 @@ func (e *Engine) runMeeting(a *activeAttempt, n *domain.Node) {
 	}
 	var manifest []ManifestEntry
 	json.Unmarshal(row.InputManifest, &manifest)
+	ws, err := e.prepareWorkspace(ctx, st, n, row)
+	if err != nil {
+		e.failAttempt(ctx, a, "작업 공간 준비 실패: "+err.Error())
+		return
+	}
 
 	var said []opinion
 	rounds := n.Meeting.Rounds()
@@ -100,7 +106,7 @@ func (e *Engine) runMeeting(a *activeAttempt, n *domain.Node) {
 				e.endStopped(ctx, a)
 				return
 			}
-			op, err := e.meetingTurn(a, st, n, manifest, r, pid, said)
+			op, err := e.meetingTurn(a, st, n, manifest, ws.Dir, r, pid, said)
 			if a.isStopped() {
 				e.endStopped(ctx, a)
 				return
@@ -139,16 +145,11 @@ func (e *Engine) runMeeting(a *activeAttempt, n *domain.Node) {
 		e.endStopped(ctx, a)
 		return
 	}
-	work, err := e.workspaceDir(st)
-	if err != nil {
-		e.failAttempt(ctx, a, err.Error())
-		return
-	}
 	var askable []domain.AssignmentSnapshot
 	if prov.Capabilities().Question {
 		askable = peers(st, n.AssignmentID)
 	}
-	req, err := e.aiRequest(ctx, e.db.Read(), st, n, decider, row, work, askable)
+	req, err := e.aiRequest(ctx, e.db.Read(), st, n, decider, row, ws, askable)
 	if err != nil {
 		e.failAttempt(ctx, a, err.Error())
 		return
@@ -165,13 +166,9 @@ func (e *Engine) runMeeting(a *activeAttempt, n *domain.Node) {
 
 // meetingTurn asks one participant for its opinion in a read-only side
 // session.
-func (e *Engine) meetingTurn(a *activeAttempt, st *runState, n *domain.Node, manifest []ManifestEntry, round int, pid string, said []opinion) (opinion, error) {
+func (e *Engine) meetingTurn(a *activeAttempt, st *runState, n *domain.Node, manifest []ManifestEntry, work string, round int, pid string, said []opinion) (opinion, error) {
 	snap := st.version.Assignments[pid]
 	prov, err := e.providerFor(context.Background(), snap)
-	if err != nil {
-		return opinion{}, err
-	}
-	work, err := e.workspaceDir(st)
 	if err != nil {
 		return opinion{}, err
 	}

@@ -92,3 +92,17 @@ describe('Inbox context', () => {
         expect(screen.getByText('REST로 갑시다')).toBeVisible();
     });
 });
+
+describe('Inbox code task', () => {
+    it('asks for file changes in the worktree instead of a code_change text', async () => {
+        state.inbox = [inboxItem({kind: 'task', approvalId: undefined, stepId: 'backend', stepTitle: '백엔드 개발',
+            outputs: [{key: 'change', type: 'code_change'}],
+            workspace: {kind: 'code', path: 'C:\data\wt\abc', branch: 'agent-office/r1/backend-g1-a1', status: 'active', conflicts: ['shared.txt']}})];
+        render(<LiveProvider><Inbox onOpenRun={() => {}}/></LiveProvider>);
+        expect(await screen.findByText('C:\data\wt\abc')).toBeInTheDocument();
+        expect(screen.getByText(/병합 충돌을 해결하세요: shared.txt/)).toBeInTheDocument();
+        expect(screen.queryByPlaceholderText('JSON')).not.toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', {name: '제출'}));
+        await waitFor(() => expect(fakeApi.submitHuman).toHaveBeenCalledWith('prj-1', 'att-1', 1, {}));
+    });
+});

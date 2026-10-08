@@ -32,6 +32,7 @@ type StepView struct {
 	ApprovalID   string          `json:"approvalId,omitempty"`
 	Inputs       json.RawMessage `json:"inputs,omitempty"`
 	Artifacts    []ArtifactView  `json:"artifacts"`
+	Workspace    *WorkspaceInfo  `json:"workspace,omitempty"`
 }
 
 type RunDetail struct {
@@ -43,6 +44,7 @@ type RunDetail struct {
 	Status        string     `json:"status"`
 	Paused        bool       `json:"paused"`
 	Steps         []StepView `json:"steps"`
+	Repo          *RepoInfo  `json:"repo,omitempty"`
 }
 
 // RunDetail returns a run's steps at their current generations.
@@ -56,13 +58,14 @@ func (e *Engine) RunDetail(ctx context.Context, projectID, runID string) (RunDet
 		return RunDetail{}, err
 	}
 	d := RunDetail{ID: runID, ProjectID: projectID, VersionID: st.run.VersionID, VersionNumber: st.version.Number,
-		Title: st.version.Spec.Title, Status: st.run.Status, Paused: st.run.Paused}
+		Title: st.version.Spec.Title, Status: st.run.Status, Paused: st.run.Paused, Repo: repoInfo(ctx, q, runID)}
 	for _, id := range st.graph.Order() {
 		n := st.graph.Node(id)
 		v := StepView{ID: id, Title: n.Title, Kind: string(n.Kind), Status: st.status(id), AssignmentID: n.AssignmentID,
 			Generation: st.run.Gens[id].G, Round: st.run.Gens[id].R, Artifacts: []ArtifactView{}}
 		if a, ok := st.attempts[id]; ok {
 			v.AttemptID, v.Attempt, v.Inputs = a.ID, a.Attempt, a.InputManifest
+			v.Workspace = workspaceInfo(ctx, q, a.ID)
 			q.QueryRowContext(ctx, `SELECT error FROM step_attempts WHERE id = ?`, a.ID).Scan(&v.Error)
 			var apr sql.NullString
 			q.QueryRowContext(ctx, `SELECT id FROM approvals WHERE step_attempt_id = ? AND kind = 'step'`, a.ID).Scan(&apr)

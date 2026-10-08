@@ -72,12 +72,22 @@ func (e *Engine) StartRun(ctx context.Context, projectID, versionID string) (str
 	gensJSON, _ := json.Marshal(gens)
 	limits, _ := json.Marshal(RunLimits{MaxRevisions: e.cfg.DefaultMaxRevisions})
 	runID := storage.NewID("run")
+	// The base commit is fixed now: later commits in the user's folder
+	// do not change what this run builds on.
+	repo, err := e.planRunRepo(ctx, projectID, runID, v.Policy.WorkspacePath)
+	if err != nil {
+		return "", err
+	}
 	_, err = e.db.Change(ctx, func(c *storage.Change) error {
 		if _, err := c.Tx.ExecContext(ctx, `INSERT INTO runs (id, project_id, workflow_version_id, status, limits, step_generations, started_at) VALUES (?, ?, ?, 'running', ?, ?, ?)`,
 			runID, projectID, versionID, string(limits), string(gensJSON), storage.Now()); err != nil {
 			return err
 		}
-		return c.Emit(projectID, runID, "", "run.started", map[string]any{"versionId": versionID, "versionNumber": v.Number})
+		if err := insertRunRepo(ctx, c, projectID, runID, repo); err != nil {
+			return err
+		}
+		return c.Emit(projectID, runID, "", "run.started", map[string]any{"versionId": versionID, "versionNumber": v.Number,
+			"workspace": map[string]string{"kind": repo.Kind, "base": repo.Base, "note": repo.Note}})
 	})
 	if err != nil {
 		return "", err
@@ -195,7 +205,10 @@ func (e *Engine) startStep(ctx context.Context, st *runState, n *domain.Node) (b
 	}
 	a := st.version.Assignments[n.AssignmentID]
 	if a.ActorKind == domain.ActorHuman && n.Meeting == nil {
-		_, err := e.createAttempt(ctx, st, n, StWaitingHuman, nil)
+		id, err := e.createAttempt(ctx, st, n, StWaitingHuman, nil)
+		if err == nil && id != "" {
+			e.prepareHumanWorkspace(st.run.ID, n, id)
+		}
 		return true, err
 	}
 	if u, err := projectUsage(ctx, e.db.Read(), st.run.ProjectID); err != nil {
@@ -207,6 +220,9 @@ func (e *Engine) startStep(ctx context.Context, st *runState, n *domain.Node) (b
 	app, project := e.activeCounts(st.run.ProjectID)
 	if app >= e.cfg.MaxActive || project >= e.cfg.ProjectMaxActive {
 		return false, nil
+	}
+	if rr, ok := loadRunRepo(ctx, e.db.Read(), st.run.ID); (!ok || rr.Kind == WsShared) && isCodeStep(n) && e.codeBusy(st.run.ProjectID) {
+		return false, nil // one shared folder: one code step at a time
 	}
 	if n.Meeting != nil {
 		// Participants speak first even when a person decides.

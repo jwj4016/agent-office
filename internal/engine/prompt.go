@@ -70,7 +70,7 @@ func formatHint(t domain.OutputType) string {
 
 // buildPrompt describes the task, pinned inputs and exactly where each
 // output must be written.
-func buildPrompt(dataDir string, st *runState, n *domain.Node, manifest []ManifestEntry, notes []ContextNote, askable []domain.AssignmentSnapshot, maxConsults int, attemptDir string) string {
+func buildPrompt(dataDir string, st *runState, n *domain.Node, manifest []ManifestEntry, notes []ContextNote, askable []domain.AssignmentSnapshot, maxConsults int, ws stepWorkspace, attemptDir string) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "# 업무: %s\n\n", n.Title)
 	if g := st.version.Policy.Goal; g != "" {
@@ -79,8 +79,13 @@ func buildPrompt(dataDir string, st *runState, n *domain.Node, manifest []Manife
 	writeInputs(&b, dataDir, manifest)
 	writeContext(&b, notes)
 	writePeers(&b, askable, maxConsults)
+	writeWorkspace(&b, ws)
 	b.WriteString("## 결과 제출 방법\n\n")
 	for _, o := range n.Outputs {
+		if o.Type == domain.OutCodeChange && ws.Kind == WsCode {
+			fmt.Fprintf(&b, "- %s (코드 변경): 작업 공간의 파일을 직접 고치세요. 변경 목록과 diff는 앱이 커밋에서 기록합니다. 원하면 요약을 JSON 객체 {\"summary\": \"...\", \"tests\": {\"command\": \"...\", \"passed\": true}}로 저장 → %s\n", o.Key, outputPath(attemptDir, o))
+			continue
+		}
 		req := "선택"
 		if o.IsRequired() {
 			req = "필수"

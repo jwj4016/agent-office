@@ -67,6 +67,7 @@ function InboxCard({item, onDone, onOpenRun}: { item: InboxItem; onDone: () => v
             </div>
             {item.instructions ? <p style={{whiteSpace: 'pre-wrap'}}>{item.instructions}</p> : null}
             {item.detail ? <div className="card" style={{background: 'var(--surface-2)', whiteSpace: 'pre-wrap'}}>{item.detail}</div> : null}
+            <WorkspaceNote ws={item.workspace}/>
             {item.escalation ? <p className="small" role="note"><span className="badge bad">{t.messageKind.escalation}</span> {item.escalation}</p> : null}
             {item.context?.length ? (
                 <details open={item.context.some((c) => c.label.startsWith('회의 의견'))}>
@@ -204,12 +205,16 @@ function ReviewForm({item, busy, onSubmit}: FormProps) {
 
 function TaskForm({item, busy, onSubmit}: FormProps) {
     const [values, setValues] = useState<Record<string, string>>({});
+    // Code changes are made in the workspace; the app commits them.
+    const code = item.outputs.some((o) => o.type === 'code_change');
+    const gitRun = item.workspace?.kind === 'code';
     return (
         <form className="stack" onSubmit={(e) => {
             e.preventDefault();
             onSubmit(() => api.submitHuman(item.projectId, item.attemptId, item.generation, values));
         }}>
-            {item.outputs.map((o) => (
+            {code && gitRun ? <p className="small">작업 공간의 파일을 직접 고친 뒤 제출하세요. 앱이 이 브랜치에 커밋하고 변경 목록을 기록합니다.</p> : null}
+            {item.outputs.filter((o) => o.type !== 'code_change' || !gitRun).map((o) => (
                 <label key={o.key} className="field">
                     <span>{o.key} · {t.outputType[o.type]} · {o.required === false ? t.common.optional : t.common.required}</span>
                     <textarea value={values[o.key] ?? ''} onChange={(e) => setValues({...values, [o.key]: e.target.value})}
@@ -218,6 +223,19 @@ function TaskForm({item, busy, onSubmit}: FormProps) {
             ))}
             <div className="row"><button className="btn primary" type="submit" disabled={busy}>제출</button></div>
         </form>
+    );
+}
+
+// WorkspaceNote shows where a person's task or review works.
+function WorkspaceNote({ws}: { ws: InboxItem['workspace'] }) {
+    if (!ws || ws.kind === 'shared') return null;
+    return (
+        <div className="small stack" style={{gap: 2}}>
+            <div><span className="muted">{ws.kind === 'code' ? '작업 공간' : '확인용 작업 공간(읽기 전용)'}:</span> <span className="mono">{ws.path}</span></div>
+            {ws.branch ? <div className="muted">브랜치 <span className="mono">{ws.branch}</span></div> : null}
+            {ws.conflicts.length ? <div className="alert">병합 충돌을 해결하세요: {ws.conflicts.join(', ')}</div> : null}
+            {ws.note && !ws.conflicts.length ? <div className="muted">{ws.note}</div> : null}
+        </div>
     );
 }
 

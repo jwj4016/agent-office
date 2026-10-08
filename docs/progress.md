@@ -83,7 +83,7 @@
 ### M4 협업
 - [x] Message 7종 + AI 입력 컨텍스트 구성
 - [x] 협의 작업(회의), 순환·무응답 제한 (T18) — 회의 편집 화면은 흐름 편집기 항목에서
-- [ ] Git worktree 분리·통합·테스트/빌드 (T14)
+- [x] Git worktree 분리·통합·테스트/빌드 (T14)
 - [ ] 흐름 편집기: 조건·분기·수정 대상 편집 완성
 - [ ] 🚪 게이트: 병렬 개발 통합 + 수정 회차 + 분기 합류 통과
 
@@ -254,3 +254,11 @@
 - 미검증·알려진 제한: 실제 Codex·Claude가 `@담당자ID` 형식을 지키는지는 실제 공급자 시험 전. 회의 참여자는 AI만(사람은 결정 담당자로). 합의 실패 시 별도 사용자 선택 없이 결정 담당자가 결정(라운드 제한이 반복 방지)
 - 마지막 관련 코드/테스트: `internal/engine/{consult,meeting}.go`, `collab_test.go`, `internal/domain/{workflow,validate}.go`, `runners/claude/src/bridge.ts`
 - 다음에 실행할 구체적인 작업: Git worktree 분리·통합·테스트/빌드 (T14)
+
+- 현재 단계: M4 / Git worktree (T14)
+- 구현 완료: `internal/workspace` Git 래퍼(인수 분리 실행, 터미널 질문·사용자 훅·서명 끔, 앱 작성자 정보는 환경변수로만 — 사용자 git 설정 변경 없음). migration 0004(workspaces에 kind·repo·subdir·start/commit·충돌·남은 병합). 실행 시작 시 저장소 결정: 작업 폴더가 Git 저장소면 그 HEAD를 기준 커밋으로 고정(하위 폴더면 그 위치에서 작업, 미커밋 변경은 안내만 하고 사용·변경하지 않음), 작업 폴더가 없으면 서비스별 내부 저장소(`projects/<id>/repo`, 빈 첫 커밋), Git이 없거나 저장소가 아니면 공유 폴더 + 코드 업무 한 번에 하나. 코드 업무(`code_change` 결과)는 시도마다 자기 브랜치 worktree(`<data>/wt/…`, 브랜치 `agent-office/<실행>/<업무>-g<세대>-a<시도>`): 시작점은 같은 업무의 마지막 커밋(재작업·재시도는 이어서) 또는 기준 커밋, 그 위에 상위 코드 업무 커밋들을 병합(다른 커밋에 포함된 것은 제외). 충돌은 그대로 남겨 담당자에게 파일 목록과 함께 알리고, 끝나면 앱이 스테이징·충돌 표시 검사·커밋 → `code_change` 결과를 Git에서 작성(기준·시작·커밋·브랜치·변경 목록·통계·diff 200KB, 모델이 쓴 summary·tests는 보존). 검증 명령은 그 worktree에서 실행. 코드가 아닌 업무는 최신 상위 코드의 읽기 전용 확인용 checkout(공급자 read-only). 사람 작업도 같은 방식(사람의 코드 작업은 worktree에서 고친 뒤 제출하면 앱이 커밋, 리뷰는 확인용 checkout 경로 제공). 실행이 끝나면(완료·취소) 확인용은 지우고 코드 worktree는 깨끗할 때만 지움, 브랜치는 유지. AI 시작은 스케줄러 잠금 밖에서 진행(Git 준비가 다른 업무를 막지 않게). 화면: 실행 기록에 저장소 안내·업무별 브랜치@커밋·충돌, 내 할 일에 작업 공간 경로·충돌, 결과 보기에서 코드 변경 파일 목록·diff
+- 이번 검증과 결과: `go test -count=1 ./...` 통과(Windows), linux·darwin `go vet` 통과. 새 시험 `TestWorktreesMergeAndConflict`(한글·공백 경로), `TestParallelCodeStepsIntegrateAndBuild`(T14: 별도 worktree 동시 작업 → 통합 → 실제 `go build ./...`, 서비스 저장소 작업 트리·HEAD 불변, 끝나면 worktree 정리·브랜치 유지), `TestCodeReworkContinuesFromPreviousCommit`(수정 요청 시 이전 커밋에서 이어서, 프론트엔드 재실행 없음, 통합이 새 커밋 반영), `TestIntegrationConflictMustBeResolved`(충돌 파일 안내 → 미해결이면 실패 → 해결 후 재시도 성공), `TestUserRepositoryIsLeftAlone`(미커밋 변경·추적 안 하는 파일 그대로), `TestSharedFolderRunsCodeStepsOneAtATime`. 프론트엔드 33건 통과
+- 수정: 충돌 파일을 고치기만 하고 `git add`하지 않으면 계속 미해결로 판정되던 문제 → 앱이 스테이징한 뒤 충돌 표시 유무로 판정. 검증 명령 환경에 LOCALAPPDATA·APPDATA·GOPATH 등 도구 폴더 변수 추가(Windows에서 `go build`가 캐시 폴더를 못 찾던 문제)
+- 미검증·알려진 제한: 이 PC는 git 명령 1회에 약 0.3초가 걸려 코드 업무마다 수 초가 추가됨(엔진 시험 150초). 큰 저장소는 업무마다 checkout이 생겨 디스크·시간이 듦. 실행이 실패 상태로 남으면 worktree가 정리되지 않음(취소하면 정리). 저장소 반영은 브랜치를 사람이 직접 병합(앱은 사용자 브랜치를 바꾸지 않음). 3개 이상 갈라진 변경이 연속 충돌하면 두 번째 충돌에서 실패 후 재시도 필요. 이전 버전 동작이던 Git 없는 공유 폴더에서는 코드 업무가 이제 하나씩 실행됨(시험 1건 조정)
+- 마지막 관련 코드/테스트: `internal/workspace/git.go`, `internal/engine/workspaces.go`, `worktree_test.go`, `internal/storage/migrations/0004_workspaces.sql`
+- 다음에 실행할 구체적인 작업: 흐름 편집기 — 조건·분기·수정 대상·회의·검증 명령 편집

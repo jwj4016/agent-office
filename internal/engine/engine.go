@@ -11,6 +11,7 @@ import (
 	"agent-office/internal/domain"
 	"agent-office/internal/providers"
 	"agent-office/internal/storage"
+	"agent-office/internal/workspace"
 )
 
 var (
@@ -61,6 +62,9 @@ type Config struct {
 	// MeetingTurnTimeout bounds one participant's turn in a meeting
 	// (default 10m).
 	MeetingTurnTimeout time.Duration
+	// Git isolates code steps in worktrees. nil runs every step in one
+	// shared folder (code steps then run one at a time).
+	Git *workspace.Git
 	// Ephemeral receives high-volume provider events (message deltas)
 	// that are shown live but not stored. Optional.
 	Ephemeral func(projectID string, ev providers.Event)
@@ -90,6 +94,8 @@ type Engine struct {
 type activeAttempt struct {
 	id, projectID, runID, stepID string
 	generation                   int
+	// code marks a step that changes code (see codeBusy).
+	code bool
 	// questions maps a question message id to the provider request id.
 	questions map[string]string
 	toolReqs  map[string]string // approval id -> provider request id
@@ -221,6 +227,7 @@ func (e *Engine) Run(ctx context.Context) error {
 		case <-tick.C:
 		}
 		e.schedule(ctx)
+		e.cleanupWorkspaces(ctx)
 	}
 }
 

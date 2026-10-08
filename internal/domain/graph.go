@@ -77,6 +77,25 @@ func (g *Graph) Descendants(ids ...string) map[string]bool {
 	return out
 }
 
+// Ancestors returns every node upstream of id, excluding id.
+func (g *Graph) Ancestors(id string) map[string]bool {
+	out := map[string]bool{}
+	stack := []string{id}
+	for len(stack) > 0 {
+		cur := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		if n := g.byID[cur]; n != nil {
+			for _, d := range n.DependsOn {
+				if !out[d] && d != id {
+					out[d] = true
+					stack = append(stack, d)
+				}
+			}
+		}
+	}
+	return out
+}
+
 // BranchMembers returns the nodes of the branch that starts at target
 // under a condition, up to but excluding its join node. An empty branch
 // (target is the join) has no members.

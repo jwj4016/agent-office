@@ -14,6 +14,11 @@ import (
 	"github.com/zalando/go-keyring"
 )
 
+// e2eWait bounds waits in end-to-end binding tests. The real app keeps
+// code in Git worktrees, and on some machines every git command is a
+// slow process start.
+const e2eWait = 2 * time.Minute
+
 // startApp boots the real App (DB, engine, test provider) in a temp dir.
 func startApp(t *testing.T) *App {
 	t.Helper()
@@ -80,7 +85,7 @@ func buildService(t *testing.T, a *App, name string) (domain.Project, string) {
 
 func waitInbox(t *testing.T, a *App, projectID, kind string) engine.InboxItem {
 	t.Helper()
-	deadline := time.Now().Add(10 * time.Second)
+	deadline := time.Now().Add(e2eWait)
 	for time.Now().Before(deadline) {
 		for _, it := range need(a.Inbox()) {
 			if it.ProjectID == projectID && it.Kind == kind {
@@ -113,7 +118,7 @@ func TestBindingsTwoServicesEndToEnd(t *testing.T) {
 		t.Fatalf("changes requested: %+v", r)
 	}
 	for _, p := range []domain.Project{game, estate} {
-		deadline := time.Now().Add(10 * time.Second)
+		deadline := time.Now().Add(e2eWait)
 		for {
 			it := waitInbox(t, a, p.ID, engine.InboxReview)
 			if p.ID != game.ID || it.Generation == rv.Generation+1 {
@@ -127,7 +132,7 @@ func TestBindingsTwoServicesEndToEnd(t *testing.T) {
 		}
 	}
 	for _, r := range []struct{ project, run string }{{game.ID, gameRun}, {estate.ID, estateRun}} {
-		deadline := time.Now().Add(10 * time.Second)
+		deadline := time.Now().Add(e2eWait)
 		for need(a.GetRun(r.project, r.run)).Status != engine.RunSucceeded {
 			if time.Now().After(deadline) {
 				t.Fatalf("run %s did not finish", r.run)

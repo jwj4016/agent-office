@@ -122,7 +122,7 @@ func (e *Engine) askAI(a *activeAttempt, n *domain.Node, msgID, target, question
 	if err != nil {
 		return "", err
 	}
-	work, err := e.workspaceDir(st)
+	ws, err := e.attemptWorkspace(ctx, e.db.Read(), st, a.id)
 	if err != nil {
 		return "", err
 	}
@@ -135,7 +135,7 @@ func (e *Engine) askAI(a *activeAttempt, n *domain.Node, msgID, target, question
 		ProjectID: a.projectID, RunID: a.runID, StepAttemptID: a.id, StepID: n.ID, Generation: a.generation,
 		Instructions: domain.ComposeInstructions(layers),
 		Prompt:       consultPrompt(ctx, e.db.Read(), e.cfg.DataDir, st, target, asker, n, question),
-		Workspace:    work,
+		Workspace:    ws.Dir,
 		Model:        snap.Model,
 		Policy:       providers.Policy{Sandbox: "read-only", AskApproval: true},
 		Limits:       providers.Limits{Timeout: e.cfg.ConsultTimeout},

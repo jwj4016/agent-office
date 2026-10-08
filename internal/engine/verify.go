@@ -180,7 +180,10 @@ func validateSchema(schema json.RawMessage, doc any) error {
 // verifyEnv is the minimal environment for completion commands: enough
 // to run tools, no inherited credentials (spec §10.2).
 func verifyEnv() []string {
-	keep := []string{"PATH", "HOME", "USER", "LANG", "LC_ALL", "TMPDIR", "TEMP", "TMP", "SystemRoot", "ComSpec", "PATHEXT", "USERPROFILE"}
+	// Tool caches and settings folders are kept (Go and npm need them on
+	// Windows); tokens and keys are not.
+	keep := []string{"PATH", "HOME", "USER", "LANG", "LC_ALL", "TMPDIR", "TEMP", "TMP", "SystemRoot", "ComSpec", "PATHEXT", "USERPROFILE",
+		"LOCALAPPDATA", "APPDATA", "XDG_CACHE_HOME", "XDG_CONFIG_HOME", "GOPATH", "GOCACHE", "GOMODCACHE", "GOROOT"}
 	var env []string
 	for _, k := range keep {
 		if v, ok := os.LookupEnv(k); ok {

@@ -64,6 +64,7 @@ function RunView({project, runId, onBack}: { project: Project; runId: string; on
                     </div>
                 ) : null}
             </div>
+            {run.repo?.note ? <p className="small muted" role="note">{run.repo.note}</p> : null}
             {run.paused ? <p className="notice">일시 정지 중입니다. 진행 중인 업무는 계속되고, 새 업무는 시작하지 않습니다.</p> : null}
             {run.status === 'cancelled' ? <p className="muted small">취소된 실행입니다. 이미 만들어진 파일이나 외부 조치는 되돌려지지 않았습니다.</p> : null}
             <ErrorBox error={action.error}/>
@@ -76,6 +77,12 @@ function RunView({project, runId, onBack}: { project: Project; runId: string; on
                         <td>
                             <StepBadge status={s.status}/>
                             {s.error ? <div className="small" style={{color: 'var(--danger)'}}>{s.error}</div> : null}
+                            {s.workspace?.kind === 'code' ? (
+                                <div className="small muted mono" title={s.workspace.path}>
+                                    {s.workspace.branch}{s.workspace.commit ? ` @ ${s.workspace.commit.slice(0, 8)}` : ''}
+                                </div>
+                            ) : null}
+                            {s.workspace?.conflicts.length ? <div className="small" style={{color: 'var(--danger)'}}>충돌: {s.workspace.conflicts.join(', ')}</div> : null}
                             {s.attemptId && live.deltas[s.attemptId] ? (
                                 <pre className="content small" aria-live="polite">{live.deltas[s.attemptId].slice(-600)}</pre>
                             ) : null}

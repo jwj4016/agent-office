@@ -96,12 +96,20 @@ func (e *Engine) SubmitHumanResult(ctx context.Context, projectID, attemptID str
 	if n.Kind != domain.KindTask {
 		return Outcome{}, fmt.Errorf("%w: 리뷰는 SubmitReview로 제출합니다", ErrInvalid)
 	}
+	ws, err := e.humanWorkspace(ctx, st, n, a.ID)
+	if err != nil {
+		return Outcome{}, err
+	}
 	dir, err := e.stage(projectID, st.run.ID, a.ID, n, outputs)
 	if err != nil {
 		return Outcome{}, err
 	}
-	work, _ := e.workspaceDir(st)
-	results, verr := e.verifyOutputs(ctx, n, dir, work)
+	// A person's code work is committed from their worktree like an AI's.
+	verr := e.captureCode(ctx, st, n, a.ID, dir)
+	var results []verifiedOutput
+	if verr == nil {
+		results, verr = e.verifyOutputs(ctx, n, dir, ws.Dir)
+	}
 	if verr != nil {
 		return Outcome{}, &VerificationError{Problem: verr.Error()}
 	}
@@ -109,6 +117,19 @@ func (e *Engine) SubmitHumanResult(ctx context.Context, projectID, attemptID str
 		return Outcome{}, err
 	}
 	return e.commitHuman(ctx, projectID, st.run.ID, a, results, "사람(나)이 제출한 결과입니다.", nil)
+}
+
+// humanWorkspace returns where a person's step works. In a Git run a
+// code step must have its worktree before anything can be submitted.
+func (e *Engine) humanWorkspace(ctx context.Context, st *runState, n *domain.Node, attemptID string) (stepWorkspace, error) {
+	ws, err := e.attemptWorkspace(ctx, e.db.Read(), st, attemptID)
+	if err != nil {
+		return ws, err
+	}
+	if rr, ok := loadRunRepo(ctx, e.db.Read(), st.run.ID); ok && rr.Kind == WsBase && isCodeStep(n) && ws.Kind != WsCode {
+		return ws, fmt.Errorf("%w: 작업 공간을 준비하는 중입니다. 잠시 후 다시 제출하세요", ErrInvalid)
+	}
+	return ws, nil
 }
 
 // commitHuman stores a verified human result exactly once. note is
@@ -220,8 +241,11 @@ func (e *Engine) SubmitReview(ctx context.Context, projectID, attemptID string, 
 		return Outcome{}, err
 	}
 	if decision == ReviewPass {
-		work, _ := e.workspaceDir(st)
-		results, verr := e.verifyOutputs(ctx, n, dir, work)
+		ws, err := e.humanWorkspace(ctx, st, n, a.ID)
+		if err != nil {
+			return Outcome{}, err
+		}
+		results, verr := e.verifyOutputs(ctx, n, dir, ws.Dir)
 		if verr != nil {
 			return Outcome{}, &VerificationError{Problem: verr.Error()}
 		}

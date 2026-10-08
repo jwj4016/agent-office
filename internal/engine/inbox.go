@@ -57,6 +57,8 @@ type InboxItem struct {
 	// Escalation explains why a question meant for an AI came to the
 	// person instead.
 	Escalation string `json:"escalation,omitempty"`
+	// Workspace is where a person's task or review works (Git runs).
+	Workspace *WorkspaceInfo `json:"workspace,omitempty"`
 	Since      string `json:"since"`
 }
 
@@ -107,6 +109,9 @@ func (e *Engine) Inbox(ctx context.Context) ([]InboxItem, error) {
 				base.ReworkTargets = append(base.ReworkTargets, StepRef{ID: t, Title: st.graph.Node(t).Title})
 			}
 			base.Context = []ContextNote{}
+			if a.Status == StWaitingHuman {
+				base.Workspace = workspaceInfo(ctx, q, a.ID)
+			}
 			if a.Status == StWaitingHuman || n.Kind == domain.KindApproval {
 				var manifest []ManifestEntry
 				json.Unmarshal(a.InputManifest, &manifest)

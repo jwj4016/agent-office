@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"agent-office/internal/engine"
+	"agent-office/internal/providers"
 	"agent-office/internal/testenv"
 )
 
@@ -103,8 +104,11 @@ func TestPauseOneRunOthersContinue(t *testing.T) {
 func TestFailureBlocksOnlyDependents(t *testing.T) {
 	h := newHarness(t)
 	p := testenv.ServiceDev(t, h.db, "게임")
+	// Without Git the code steps share one folder and run one at a time;
+	// the frontend works for a while after the backend fails.
+	h.prov.Scripts["slow-3s"] = []providers.Step{{Sleep: "3s"}, {Complete: &providers.CompletedPayload{Status: providers.StatusSucceeded}}}
 	h.setModel(p, "a-backend", "provider-failure")
-	h.setModel(p, "a-frontend", "slow")
+	h.setModel(p, "a-frontend", "slow-3s")
 	runID := h.start(p)
 	h.approve(p.ID, runID, "approve")
 	h.waitStep(p.ID, runID, "backend", engine.StFailed)

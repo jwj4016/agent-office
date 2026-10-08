@@ -45,10 +45,10 @@ func (e *Engine) providerFor(ctx context.Context, snap domain.AssignmentSnapshot
 }
 
 // aiRequest builds the start request for attempt a of step n done by
-// snap: layered instructions with rework feedback, the prompt with inputs
-// and related conversation, and the output paths. It creates the
-// attempt's output folder.
-func (e *Engine) aiRequest(ctx context.Context, q querier, st *runState, n *domain.Node, snap domain.AssignmentSnapshot, a attemptRow, work string, askable []domain.AssignmentSnapshot) (providers.StartRequest, error) {
+// snap: layered instructions with rework feedback, the prompt with inputs,
+// related conversation and workspace, and the output paths. It creates
+// the attempt's output folder.
+func (e *Engine) aiRequest(ctx context.Context, q querier, st *runState, n *domain.Node, snap domain.AssignmentSnapshot, a attemptRow, ws stepWorkspace, askable []domain.AssignmentSnapshot) (providers.StartRequest, error) {
 	dir := e.attemptDir(st.run.ProjectID, st.run.ID, a.ID)
 	if err := os.MkdirAll(filepath.Join(dir, "out"), 0o700); err != nil {
 		return providers.StartRequest{}, err
@@ -63,14 +63,18 @@ func (e *Engine) aiRequest(ctx context.Context, q querier, st *runState, n *doma
 	if err != nil {
 		return providers.StartRequest{}, err
 	}
+	policy := providers.Policy{Sandbox: "workspace-write", AskApproval: true}
+	if ws.ReadOnly() {
+		policy.Sandbox = "read-only"
+	}
 	req := providers.StartRequest{
 		ProjectID: st.run.ProjectID, RunID: st.run.ID, StepAttemptID: a.ID, StepID: n.ID, Generation: a.Generation,
 		Instructions: domain.ComposeInstructions(instructionLayers(snap, n, feedback)),
-		Prompt:       buildPrompt(e.cfg.DataDir, st, n, manifest, notes, askable, e.cfg.MaxConsults, dir),
-		Workspace:    work,
+		Prompt:       buildPrompt(e.cfg.DataDir, st, n, manifest, notes, askable, e.cfg.MaxConsults, ws, dir),
+		Workspace:    ws.Dir,
 		WritableDirs: []string{filepath.Join(dir, "out")},
 		Model:        snap.Model,
-		Policy:       providers.Policy{Sandbox: "workspace-write", AskApproval: true},
+		Policy:       policy,
 	}
 	for _, m := range manifest {
 		if m.ArtifactID != "" {
@@ -78,7 +82,7 @@ func (e *Engine) aiRequest(ctx context.Context, q querier, st *runState, n *doma
 		}
 	}
 	for _, o := range n.Outputs {
-		req.OutputSpec = append(req.OutputSpec, providers.OutputSpec{Key: o.Key, Type: string(o.Type), Required: o.IsRequired(), Schema: o.Schema, Path: outputPath(dir, o)})
+		req.OutputSpec = append(req.OutputSpec, providers.OutputSpec{Key: o.Key, Type: string(o.Type), Required: o.IsRequired() && !(o.Type == domain.OutCodeChange && ws.Kind == WsCode), Schema: o.Schema, Path: outputPath(dir, o)})
 	}
 	if n.Limits != nil && n.Limits.Timeout != "" {
 		req.Limits.Timeout, _ = time.ParseDuration(n.Limits.Timeout)
@@ -113,43 +117,103 @@ func (e *Engine) failNew(ctx context.Context, seen *runState, n *domain.Node, re
 	return err
 }
 
-// startAI creates a running attempt and starts its provider session.
+// startAI creates a running attempt and launches it in the background:
+// preparing a worktree can take a while and must not hold up scheduling.
 // Caller holds e.mu.
 func (e *Engine) startAI(ctx context.Context, seen *runState, n *domain.Node, snap domain.AssignmentSnapshot) error {
 	prov, perr := e.providerFor(ctx, snap)
 	if perr != nil {
 		return e.failNew(ctx, seen, n, perr)
 	}
-	work, err := e.workspaceDir(seen)
-	if err != nil {
-		return err
-	}
-	var askable []domain.AssignmentSnapshot
-	if prov.Capabilities().Question {
-		askable = peers(seen, n.AssignmentID)
-	}
-	var req providers.StartRequest
-	id, err := e.createAttempt(ctx, seen, n, StRunning, func(c *storage.Change, st *runState, a attemptRow) error {
-		var err error
-		req, err = e.aiRequest(ctx, c.Tx, st, n, snap, a, work, askable)
-		return err
-	})
+	id, err := e.createAttempt(ctx, seen, n, StRunning, nil)
 	if err != nil || id == "" {
 		return err
 	}
-	session, startErr := prov.Start(e.ctx, req)
-	if startErr != nil {
-		return e.failStart(ctx, seen.run.ID, n.ID, startErr)
-	}
-	a := e.newActive(id, seen, n.ID, req.Generation)
-	a.setSession(session)
+	a := e.newActive(id, seen, n.ID, seen.run.Gens[n.ID].G)
+	a.code = isCodeStep(n)
 	e.active[id] = a
 	e.wg.Add(1)
 	go func() {
 		defer e.wg.Done()
-		e.pump(a, n, session)
+		e.launchAI(a, n, snap, prov)
 	}()
 	return nil
+}
+
+// launchAI prepares the attempt's workspace and request, starts the
+// provider and relays its events until it completes.
+func (e *Engine) launchAI(a *activeAttempt, n *domain.Node, snap domain.AssignmentSnapshot, prov providers.Provider) {
+	ctx := context.Background()
+	fail := func(err error) {
+		if err := e.failStart(ctx, a.runID, n.ID, err); err != nil {
+			e.cfg.Logf("engine: attempt %s: %v", a.id, err)
+		}
+		e.retire(a)
+	}
+	st, err := loadState(ctx, e.db.Read(), a.runID)
+	if err != nil {
+		fail(err)
+		return
+	}
+	row, _, err := loadAttempt(ctx, e.db.Read(), a.id)
+	if err != nil {
+		fail(err)
+		return
+	}
+	if a.isStopped() || !st.isCurrent(row) {
+		e.endStopped(ctx, a)
+		e.retire(a)
+		return
+	}
+	ws, err := e.prepareWorkspace(ctx, st, n, row)
+	if err != nil {
+		fail(fmt.Errorf("작업 공간 준비 실패: %w", err))
+		return
+	}
+	var askable []domain.AssignmentSnapshot
+	if prov.Capabilities().Question {
+		askable = peers(st, n.AssignmentID)
+	}
+	req, err := e.aiRequest(ctx, e.db.Read(), st, n, snap, row, ws, askable)
+	if err != nil {
+		fail(err)
+		return
+	}
+	session, err := prov.Start(e.ctx, req)
+	if err != nil {
+		fail(err)
+		return
+	}
+	a.setSession(session) // cancels it at once if the attempt was stopped meanwhile
+	e.pump(a, n, session)
+}
+
+// prepareHumanWorkspace gives a person's task or review a workspace (in a
+// Git run: its own worktree for code, a read-only checkout otherwise).
+func (e *Engine) prepareHumanWorkspace(runID string, n *domain.Node, attemptID string) {
+	e.wg.Add(1)
+	go func() {
+		defer e.wg.Done()
+		ctx := context.Background()
+		st, err := loadState(ctx, e.db.Read(), runID)
+		if err != nil {
+			return
+		}
+		row, _, err := loadAttempt(ctx, e.db.Read(), attemptID)
+		if err != nil || !st.isCurrent(row) {
+			return
+		}
+		if rr, ok := loadRunRepo(ctx, e.db.Read(), runID); !ok || rr.Kind == WsShared {
+			if ok {
+				e.linkWorkspace(ctx, attemptID, rr.ID)
+			}
+			return
+		}
+		if _, err := e.prepareWorkspace(ctx, st, n, row); err != nil {
+			e.cfg.Logf("engine: workspace for %s: %v", attemptID, err)
+			e.sideEvent(&activeAttempt{id: attemptID, projectID: st.run.ProjectID, runID: runID}, "workspace.failed", map[string]string{"error": err.Error()})
+		}
+	}()
 }
 
 // pump relays one session's events until it completes, then retires the
@@ -329,8 +393,19 @@ func (e *Engine) complete(ctx context.Context, a *activeAttempt, n *domain.Node,
 		return err
 	}
 	fallbackText(dir, n, p.Text)
-	work, _ := e.workspaceDir(&runState{run: runRow{ID: a.runID, ProjectID: a.projectID}, version: e.versionFor(ctx, a.runID)})
-	results, verr := e.verifyOutputs(ctx, n, dir, work)
+	st, err := loadState(ctx, e.db.Read(), a.runID)
+	if err != nil {
+		return err
+	}
+	ws, err := e.attemptWorkspace(ctx, e.db.Read(), st, a.id)
+	if err != nil {
+		return err
+	}
+	var results []verifiedOutput
+	verr := e.captureCode(ctx, st, n, a.id, dir)
+	if verr == nil {
+		results, verr = e.verifyOutputs(ctx, n, dir, ws.Dir)
+	}
 	if verr == nil {
 		results, verr = e.freeze(a.projectID, a.runID, a.id, results)
 	}

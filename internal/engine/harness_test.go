@@ -31,6 +31,8 @@ type harness struct {
 
 	// stopEngine stops the harness engine (as if the app had quit).
 	stopEngine func()
+	// wait bounds waitFor (default 10s; Git runs are slower).
+	wait time.Duration
 }
 
 // started returns the start requests seen for a step, oldest first.
@@ -129,7 +131,11 @@ func (h *harness) detail(projectID, runID string) engine.RunDetail {
 // waitFor polls until cond holds, failing with the run state on timeout.
 func (h *harness) waitFor(projectID, runID, what string, cond func(engine.RunDetail) bool) engine.RunDetail {
 	h.t.Helper()
-	deadline := time.Now().Add(10 * time.Second)
+	wait := h.wait
+	if wait == 0 {
+		wait = 10 * time.Second
+	}
+	deadline := time.Now().Add(wait)
 	for {
 		d := h.detail(projectID, runID)
 		if cond(d) {

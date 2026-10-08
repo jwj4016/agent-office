@@ -29,7 +29,7 @@
 | T11 | 이전 승인·이벤트가 늦게 도착 | 🟡 | `TestLateResultFromSupersededAttemptIsIgnored` (늦은 결과는 provider.late로만 기록, 새 시도는 이전 프로세스 종료 후 시작), 이전 승인 stale (`TestPlanRejectionKeepsIndependentResults`) |
 | T12 | 도구 승인 거절 | 🟡 | 공급자·엔진 시험(`TestToolApprovalDecline` 등). 실제 Claude의 Bash 승인 요청을 내 할 일에서 처리(허용 경로 확인). 실제 공급자 거절 경로는 가짜 시험만 |
 | T13 | 실행 중 초안·공통 역할 편집 | 🟡 | 버전 스냅샷 고정: `TestVersionSnapshotIsFrozen` (초안·역할 지침·담당자 변경 후 v1 불변, v2에 반영). 실행 중 시나리오는 엔진 항목에서 |
-| T14 | 두 개발 AI의 병렬 변경 | ⬜ | |
+| T14 | 두 개발 AI의 병렬 변경 | 🟡 | `TestParallelCodeStepsIntegrateAndBuild`(별도 worktree·브랜치, 통합 worktree에서 병합 후 실제 `go build ./...` 검증, 원본 작업 트리 불변), 충돌: `TestIntegrationConflictMustBeResolved`, 재작업: `TestCodeReworkContinuesFromPreviousCommit`, 사용자 저장소 보존: `TestUserRepositoryIsLeftAlone`. Windows에서 실행, 실제 AI 미시험 |
 | T15 | 모델은 완료 주장, 테스트 실패 | 🟡 | `TestClaimedDoneWithoutOutputFails`, `TestFailingVerificationCommandFails`, 사람 리뷰도 동일 기준: `TestReviewPassMeetsCompletionCriteria` |
 | T16 | 앱 강제 종료·재시작 | 🟡 | `TestRecoverAfterEngineStopped`, 실제 앱 `kill -9` 후 재시작(테스트 provider). 실제 공급자 실행 중 강제 종료는 미시험 |
 | T17 | 프로세스 취소 | 🟡 | 가짜: `TestCodexCancelKillsStuckProcessTree`, `TestClaudeCancelLeavesNoChildren`. 실제(2026-10-07, macOS): `TestCodexRealCancel`, `TestClaudeRealCancel` — 취소 후 프로세스 그룹에 남은 프로세스 없음. Windows 미시험 |
