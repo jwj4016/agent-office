@@ -1,6 +1,6 @@
 // Pure editing operations on a workflow draft. The Go validator is the
 // authority; these only keep the draft consistent while editing.
-import type {NodeKind, WorkflowNode, WorkflowOutput, WorkflowSpec} from './types';
+import type {Branch, NodeKind, Routing, WorkflowNode, WorkflowOutput, WorkflowSpec} from './types';
 
 export function byId(spec: WorkflowSpec): Map<string, WorkflowNode> {
     return new Map(spec.nodes.map((n) => [n.id, n]));
@@ -75,8 +75,10 @@ export function addNode(spec: WorkflowSpec, kind: NodeKind, after?: string): { s
 
 const without = (xs: string[] | undefined, id: string) => (xs ?? []).filter((x) => x !== id);
 
-// removeNode deletes a node and every reference to it.
+// removeNode deletes a node and every reference to it. Routing that
+// pointed at it is cleared so the validator asks for a new choice.
 export function removeNode(spec: WorkflowSpec, id: string): WorkflowSpec {
+    const clear = (x: string) => (x === id ? '' : x);
     return {
         ...spec,
         nodes: spec.nodes.filter((n) => n.id !== id).map((n) => ({
@@ -84,6 +86,15 @@ export function removeNode(spec: WorkflowSpec, id: string): WorkflowSpec {
             dependsOn: without(n.dependsOn, id),
             ...(n.inputs ? {inputs: n.inputs.filter((i) => i.fromStep !== id)} : {}),
             ...(n.reworkTargets ? {reworkTargets: without(n.reworkTargets, id)} : {}),
+            ...(n.routing ? {
+                routing: {
+                    ...n.routing,
+                    source: n.routing.source.fromStep === id ? {fromStep: '', outputKey: '', fieldPath: n.routing.source.fieldPath} : n.routing.source,
+                    branches: n.routing.branches.filter((b) => b.targetStep !== id),
+                    defaultTarget: clear(n.routing.defaultTarget),
+                    joinStep: clear(n.routing.joinStep),
+                },
+            } : {}),
         })),
     };
 }
@@ -154,4 +165,101 @@ export function availableInputs(spec: WorkflowSpec, id: string): { fromStep: str
     return [...ancestors(spec, id)].flatMap((a) => (map.get(a)?.outputs ?? []).map((o) => ({
         fromStep: a, title: map.get(a)!.title, output: o,
     })));
+}
+
+// descendants lists every node downstream of id.
+export function descendants(spec: WorkflowSpec, id: string): Set<string> {
+    const out = new Set<string>();
+    const stack = [id];
+    while (stack.length) {
+        const cur = stack.pop()!;
+        for (const n of spec.nodes) {
+            if (n.dependsOn.includes(cur) && !out.has(n.id)) {
+                out.add(n.id);
+                stack.push(n.id);
+            }
+        }
+    }
+    return out;
+}
+
+// routingSources lists upstream JSON results a condition can branch on
+// (only required json/report outputs are allowed).
+export function routingSources(spec: WorkflowSpec, condition: string) {
+    return availableInputs(spec, condition).filter((x) =>
+        (x.output.type === 'json' || x.output.type === 'report') && x.output.required !== false);
+}
+
+// branchStarts are the nodes right after a condition: the possible
+// branch targets (a join directly after it means an empty branch).
+export function branchStarts(spec: WorkflowSpec, condition: string): WorkflowNode[] {
+    return spec.nodes.filter((n) => n.dependsOn.includes(condition));
+}
+
+// joinCandidates are join nodes downstream of a condition.
+export function joinCandidates(spec: WorkflowSpec, condition: string): WorkflowNode[] {
+    const down = descendants(spec, condition);
+    return spec.nodes.filter((n) => n.kind === 'join' && down.has(n.id));
+}
+
+// scaffoldBranch gives a condition a working shape: one branch task that
+// runs when the rule matches, and a join that also takes the empty
+// default path, so neither path can leave the join waiting (T09).
+export function scaffoldBranch(spec: WorkflowSpec, condition: string): { spec: WorkflowSpec; branch: string; join: string } {
+    const a = addNode(spec, 'task', condition);
+    const branch = a.id;
+    const withBranch = updateNode(a.spec, branch, {title: '조건이 맞을 때'});
+    const j = addNode(withBranch, 'join');
+    const join = j.id;
+    const src = routingSources(j.spec, condition)[0];
+    const routing: Routing = {
+        source: {fromStep: src?.fromStep ?? '', outputKey: src?.output.key ?? '', fieldPath: ''},
+        branches: [{operator: 'eq', value: true, targetStep: branch}],
+        defaultTarget: join, joinStep: join,
+    };
+    let out = updateNode(j.spec, join, {dependsOn: [branch, condition]});
+    out = updateNode(out, condition, {routing});
+    return {spec: out, branch, join};
+}
+
+// branchLabel describes when a condition takes the path to target.
+export function branchLabel(r: Routing | undefined, target: string): string | undefined {
+    if (!r) return undefined;
+    const labels = r.branches.filter((b) => b.targetStep === target).map(describeBranch);
+    if (r.defaultTarget === target) labels.push('기본');
+    return labels.length ? labels.join(' / ') : undefined;
+}
+
+export function describeBranch(b: Branch): string {
+    if (b.operator === 'exists') return '값 있음';
+    const v = typeof b.value === 'string' ? b.value : JSON.stringify(b.value);
+    return {eq: '= ', ne: '≠ ', in: '∈ '}[b.operator] + v;
+}
+
+// parseBranchValue reads what a person typed: JSON (true, 3, "x", [..])
+// when it parses, otherwise plain text; for `in`, comma separated text
+// becomes a list.
+export function parseBranchValue(op: Branch['operator'], text: string): unknown {
+    const t = text.trim();
+    let v: unknown;
+    try {
+        v = JSON.parse(t);
+    } catch {
+        v = t;
+    }
+    if (op === 'in' && !Array.isArray(v)) {
+        return t === '' ? [] : t.split(',').map((x) => {
+            try {
+                return JSON.parse(x.trim());
+            } catch {
+                return x.trim();
+            }
+        });
+    }
+    return v;
+}
+
+export function formatBranchValue(v: unknown): string {
+    if (v === undefined) return '';
+    return typeof v === 'string' ? v : JSON.stringify(v);
 }

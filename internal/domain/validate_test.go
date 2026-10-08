@@ -207,3 +207,23 @@ func TestMeetingValidation(t *testing.T) {
 		}
 	}
 }
+
+// The editor's "분기 구조 만들기" shape (one branch task, a join that
+// also takes the empty default path) is a valid workflow.
+func TestEditorBranchScaffoldIsValid(t *testing.T) {
+	w, err := ParseWorkflow([]byte(`{"schemaVersion": 1, "title": "t", "nodes": [
+		{"id": "scope", "title": "범위", "kind": "task", "assignmentId": "a", "dependsOn": [], "outputs": [{"key": "scope", "type": "json"}]},
+		{"id": "route", "title": "분기", "kind": "condition", "dependsOn": ["scope"],
+		 "routing": {"source": {"fromStep": "scope", "outputKey": "scope", "fieldPath": "legal.needed"},
+		             "branches": [{"operator": "eq", "value": true, "targetStep": "step-1"}], "defaultTarget": "step-2", "joinStep": "step-2"}},
+		{"id": "step-1", "title": "조건이 맞을 때", "kind": "task", "assignmentId": "a", "dependsOn": ["route"], "outputs": [{"key": "result", "type": "markdown"}]},
+		{"id": "step-2", "title": "합류", "kind": "join", "dependsOn": ["step-1", "route"]},
+		{"id": "after", "title": "다음", "kind": "task", "assignmentId": "a", "dependsOn": ["step-2"], "outputs": [{"key": "r", "type": "markdown"}]}
+	]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if issues := ValidateStructure(w); len(issues) > 0 {
+		t.Fatal(issues)
+	}
+}

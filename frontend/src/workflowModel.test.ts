@@ -1,6 +1,9 @@
 import {describe, expect, it} from 'vitest';
 import type {WorkflowSpec} from './types';
-import {addNode, ancestors, availableInputs, connect, disconnect, layout, removeNode, renameNode} from './workflowModel';
+import {
+    addNode, ancestors, availableInputs, branchLabel, connect, disconnect, joinCandidates, layout, parseBranchValue, removeNode,
+    renameNode, routingSources, scaffoldBranch,
+} from './workflowModel';
 
 const base = (): WorkflowSpec => ({
     schemaVersion: 1, title: 't', nodes: [
@@ -65,5 +68,49 @@ describe('workflowModel', () => {
     it('lists only upstream outputs as possible inputs', () => {
         expect(availableInputs(base(), 'dev').map((i) => i.fromStep)).toEqual(['plan']);
         expect(availableInputs(base(), 'plan')).toEqual([]);
+    });
+});
+
+const scoped = (): WorkflowSpec => ({
+    schemaVersion: 1, title: 't', nodes: [
+        {id: 'scope', title: '범위', kind: 'task', dependsOn: [], outputs: [{key: 'scope', type: 'json'}, {key: 'memo', type: 'markdown'}]},
+        {id: 'route', title: '분기', kind: 'condition', dependsOn: ['scope']},
+    ],
+});
+
+describe('branch editing', () => {
+    it('scaffolds a branch and a join that also takes the default path', () => {
+        const {spec, branch, join} = scaffoldBranch(scoped(), 'route');
+        const route = spec.nodes.find((n) => n.id === 'route')!;
+        expect(route.routing).toEqual({
+            source: {fromStep: 'scope', outputKey: 'scope', fieldPath: ''},
+            branches: [{operator: 'eq', value: true, targetStep: branch}],
+            defaultTarget: join, joinStep: join,
+        });
+        expect(spec.nodes.find((n) => n.id === branch)!.dependsOn).toEqual(['route']);
+        expect(spec.nodes.find((n) => n.id === join)!.dependsOn).toEqual([branch, 'route']);
+        expect(joinCandidates(spec, 'route').map((n) => n.id)).toEqual([join]);
+        expect(branchLabel(route.routing, branch)).toBe('= true');
+        expect(branchLabel(route.routing, join)).toBe('기본');
+    });
+
+    it('offers only required JSON results as the branch source', () => {
+        expect(routingSources(scoped(), 'route').map((s) => s.output.key)).toEqual(['scope']);
+    });
+
+    it('clears routing that pointed at a deleted node', () => {
+        const {spec, branch, join} = scaffoldBranch(scoped(), 'route');
+        const route = removeNode(removeNode(spec, branch), join).nodes.find((n) => n.id === 'route')!;
+        expect(route.routing!.branches).toEqual([]);
+        expect(route.routing!.defaultTarget).toBe('');
+        expect(route.routing!.joinStep).toBe('');
+    });
+
+    it('reads typed branch values', () => {
+        expect(parseBranchValue('eq', 'true')).toBe(true);
+        expect(parseBranchValue('eq', '3')).toBe(3);
+        expect(parseBranchValue('eq', 'web')).toBe('web');
+        expect(parseBranchValue('in', 'web, app, 2')).toEqual(['web', 'app', 2]);
+        expect(parseBranchValue('in', '["a"]')).toEqual(['a']);
     });
 });
