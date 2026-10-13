@@ -5,6 +5,7 @@ import {t} from '../i18n';
 import {useLoad} from '../live';
 import type {Budget, Project} from '../types';
 import {ConfirmButton, ErrorBox, useAction} from '../ui';
+import {ExportButton} from './ExportButton';
 import {Office} from './Office';
 import {Runs} from './Runs';
 import {Team} from './Team';
@@ -119,6 +120,12 @@ function Overview({project, onSaved}: { project: Project; onSaved: () => void })
                     비용을 보고하지 않는 연결(예: Codex)은 토큰 예산으로 관리하세요.</p>
             </section>
             {form.mode === 'auto' ? <AutoScope project={project}/> : null}
+            <section className="card stack" aria-label="내보내기">
+                <h2>내보내기</h2>
+                <p className="muted small">서비스의 역할·담당자·업무 흐름·실행 기록과 결과 파일을 ZIP 하나로 저장합니다.
+                    API 키, 키 참조, 로그인 파일·토큰, 공급자 세션은 넣지 않으며 내용에 섞인 키 값은 가립니다.</p>
+                <ExportButton projectId={project.id}/>
+            </section>
             <ErrorBox error={action.error}/>
             <div className="row">
                 <button className="btn primary" disabled={archived || !dirty || action.busy} onClick={save}>{t.project.save}</button>

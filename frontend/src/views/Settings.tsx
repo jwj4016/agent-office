@@ -4,10 +4,12 @@ import {t} from '../i18n';
 import {useLoad} from '../live';
 import {applyMotion, ErrorBox, REDUCED_MOTION} from '../ui';
 import {Connections} from './Connections';
+import {ExportButton} from './ExportButton';
 
 export function Settings() {
     const status = useLoad(() => api.systemStatus(), []);
     const settings = useLoad(() => api.settings(), []);
+    const services = useLoad(() => api.dashboard(true), []);
     const [error, setError] = useState<string | null>(null);
     const reduced = settings.data?.[REDUCED_MOTION] === 'true';
     return (
@@ -24,6 +26,17 @@ export function Settings() {
                 </label>
             </section>
             <Connections/>
+            <section className="card stack" aria-label="서비스 내보내기">
+                <h2>서비스 내보내기</h2>
+                <p className="muted small">서비스마다 ZIP 하나로 저장합니다. API 키·로그인 정보·공급자 세션은 포함하지 않습니다.</p>
+                {(services.data ?? []).map((s) => (
+                    <div key={s.project.id} className="stack">
+                        <strong>{s.project.name}{s.project.status === 'archived' ? ' (보관됨)' : ''}</strong>
+                        <ExportButton projectId={s.project.id}/>
+                    </div>
+                ))}
+                {services.data?.length === 0 ? <p className="muted small">아직 서비스가 없습니다.</p> : null}
+            </section>
             <section className="card stack">
                 <h2>정보</h2>
                 {status.data ? (

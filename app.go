@@ -17,6 +17,7 @@ import (
 	"agent-office/internal/design"
 	"agent-office/internal/domain"
 	"agent-office/internal/engine"
+	"agent-office/internal/export"
 	"agent-office/internal/providers"
 	"agent-office/internal/secrets"
 	"agent-office/internal/storage"
@@ -59,10 +60,13 @@ type App struct {
 
 	deltaMu sync.Mutex
 	deltas  map[string]*Delta
+
+	// saveDialog asks where to save a file; tests replace it.
+	saveDialog func(ctx context.Context, o runtime.SaveDialogOptions) (string, error)
 }
 
 func NewApp() *App {
-	return &App{emit: runtime.EventsEmit, deltas: map[string]*Delta{}}
+	return &App{emit: runtime.EventsEmit, deltas: map[string]*Delta{}, saveDialog: runtime.SaveFileDialog}
 }
 
 // dataDir returns AGENT_OFFICE_DATA_DIR when set (tests, side-by-side
@@ -1181,4 +1185,63 @@ func (a *App) SetAutoPolicy(projectID string, allowedConnectionIDs []string) err
 	}
 	raw, _ := json.Marshal(design.AutoPolicy{AllowedConnectionIDs: allowedConnectionIDs})
 	return uiErr(a.db.SetAutoPolicy(a.ctx, projectID, raw))
+}
+
+// ExportResult says where a service was exported and what it holds.
+type ExportResult struct {
+	export.Result
+	// Path is empty when the person cancelled the save dialog.
+	Path string `json:"path"`
+}
+
+// ExportProject asks where to save and writes the service's archive
+// without keys or login data (T20).
+func (a *App) ExportProject(projectID string) (ExportResult, error) {
+	var name string
+	if err := a.db.Read().QueryRowContext(a.ctx, `SELECT name FROM projects WHERE id = ?`, projectID).Scan(&name); err != nil {
+		return ExportResult{}, errors.New("서비스를 찾을 수 없습니다")
+	}
+	path, err := a.saveDialog(a.ctx, runtime.SaveDialogOptions{
+		Title:           "서비스 내보내기 (키 제외)",
+		DefaultFilename: exportFileName(name, time.Now()),
+		Filters:         []runtime.FileFilter{{DisplayName: "ZIP 압축 파일 (*.zip)", Pattern: "*.zip"}},
+	})
+	if err != nil || path == "" {
+		return ExportResult{}, err
+	}
+	if !strings.EqualFold(filepath.Ext(path), ".zip") {
+		path += ".zip"
+	}
+	// Write next to the target first so a failure never leaves half a file.
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".agent-office-export-*")
+	if err != nil {
+		return ExportResult{}, err
+	}
+	defer os.Remove(tmp.Name())
+	res, err := export.Project(a.ctx, export.Options{DB: a.db, DataDir: a.dataDir, Secrets: a.secrets, AppVersion: appVersion}, projectID, tmp)
+	if cerr := tmp.Close(); err == nil {
+		err = cerr
+	}
+	if err != nil {
+		return ExportResult{}, err
+	}
+	if err := os.Rename(tmp.Name(), path); err != nil {
+		return ExportResult{}, err
+	}
+	return ExportResult{Result: res, Path: path}, nil
+}
+
+// exportFileName is "<service>-내보내기-20261013.zip" with characters
+// that file systems reject replaced.
+func exportFileName(name string, now time.Time) string {
+	clean := strings.Map(func(r rune) rune {
+		if strings.ContainsRune(`<>:"/\|?*`, r) || r < 32 {
+			return '_'
+		}
+		return r
+	}, strings.TrimSpace(name))
+	if clean == "" {
+		clean = "서비스"
+	}
+	return clean + "-내보내기-" + now.Format("20060102") + ".zip"
 }

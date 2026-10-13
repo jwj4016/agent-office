@@ -40,6 +40,8 @@ export function EnsureTestConnection():Promise<domain.ProviderConnection>;
 
 export function EventsAfter(arg1:string,arg2:number):Promise<Array<storage.EventRecord>>;
 
+export function ExportProject(arg1:string):Promise<main.ExportResult>;
+
 export function GetDesign(arg1:string):Promise<main.DesignView>;
 
 export function GetOrganization():Promise<domain.Organization>;

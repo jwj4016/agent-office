@@ -4,7 +4,7 @@ import * as Go from '../wailsjs/go/main/App';
 import {EventsOn} from '../wailsjs/runtime/runtime';
 import type {
     ActionResult, ArtifactContent, Assignment, CheckReport, ConfirmResult, Connection, ConnectionKind, ConnectionSettings, Delta,
-    DesignView, ApplyResult, DetectedPaths, Usage, InboxItem, InstructionPreview, MessageView,
+    DesignView, ApplyResult, DetectedPaths, ExportResult, Usage, InboxItem, InstructionPreview, MessageView,
     Organization, Project, ProjectSummary, Role, RunDetail, StartResult, StoredEvent, SystemStatus, Template,
     Validation, Workflow, WorkflowSpec,
 } from './types';
@@ -28,6 +28,7 @@ export const api = {
     updateProject: (p: ProjectInput) => call<Project>(Go.UpdateProject(p as never)),
     setArchived: (id: string, archived: boolean) => call<void>(Go.SetProjectArchived(id, archived)),
     projectUsage: (id: string) => call<Usage>(Go.ProjectUsage(id)),
+    exportProject: (id: string) => call<ExportResult>(Go.ExportProject(id)),
 
     organization: () => call<Organization>(Go.GetOrganization()),
     updateOrganization: (name: string, instructions: string) => call<void>(Go.UpdateOrganization(name, instructions)),

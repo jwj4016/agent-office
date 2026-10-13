@@ -194,3 +194,8 @@ export type DesignView = {
 export type ApplyResult = {
     applied: { projectId: string; workflowId: string; newProject: boolean } | null; issues: Issue[]; runId?: string; version?: number;
 };
+
+export type ExportResult = {
+    path: string; projectName: string; tables: number; rows: number; artifacts: number; missing: string[]; masked: number;
+};
+

@@ -66,6 +66,10 @@ export function EventsAfter(arg1, arg2) {
   return window['go']['main']['App']['EventsAfter'](arg1, arg2);
 }
 
+export function ExportProject(arg1) {
+  return window['go']['main']['App']['ExportProject'](arg1);
+}
+
 export function GetDesign(arg1) {
   return window['go']['main']['App']['GetDesign'](arg1);
 }

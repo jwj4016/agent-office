@@ -1957,6 +1957,30 @@ export namespace main {
 	        this.claude = source["claude"];
 	    }
 	}
+	export class ExportResult {
+	    projectName: string;
+	    tables: number;
+	    rows: number;
+	    artifacts: number;
+	    missing: string[];
+	    masked: number;
+	    path: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ExportResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.projectName = source["projectName"];
+	        this.tables = source["tables"];
+	        this.rows = source["rows"];
+	        this.artifacts = source["artifacts"];
+	        this.missing = source["missing"];
+	        this.masked = source["masked"];
+	        this.path = source["path"];
+	    }
+	}
 	export class InstructionPreview {
 	    layers: domain.InstructionLayer[];
 	    composed: string;
