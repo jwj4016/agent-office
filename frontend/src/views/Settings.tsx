@@ -2,10 +2,8 @@ import {useState} from 'react';
 import {api} from '../api';
 import {t} from '../i18n';
 import {useLoad} from '../live';
-import {ErrorBox} from '../ui';
+import {applyMotion, ErrorBox, REDUCED_MOTION} from '../ui';
 import {Connections} from './Connections';
-
-const REDUCED_MOTION = 'ui.reducedMotion';
 
 export function Settings() {
     const status = useLoad(() => api.systemStatus(), []);
@@ -18,9 +16,11 @@ export function Settings() {
             <section className="card stack">
                 <h2>화면</h2>
                 <label className="check">
-                    <input type="checkbox" checked={reduced} onChange={(e) => api.setSetting(REDUCED_MOTION, String(e.target.checked))
-                        .then(settings.reload, (err) => setError(String(err)))}/>
-                    모션 줄이기
+                    <input type="checkbox" checked={reduced} onChange={(e) => {
+                        const on = e.target.checked;
+                        api.setSetting(REDUCED_MOTION, String(on)).then(() => { applyMotion(on); settings.reload(); }, (err) => setError(String(err)));
+                    }}/>
+                    모션 줄이기 (사무실 캐릭터 동작을 멈추고 상태 표시만 남깁니다. OS 설정도 따릅니다)
                 </label>
             </section>
             <Connections/>

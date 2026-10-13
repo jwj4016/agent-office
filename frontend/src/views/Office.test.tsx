@@ -114,6 +114,23 @@ describe('Office', () => {
         expect(screen.queryByRole('application')).not.toBeInTheDocument();
     });
 
+    it('animates only when motion is allowed', async () => {
+        const timers = vi.spyOn(window, 'setInterval');
+        const {unmount} = renderIt();
+        await screen.findByRole('application');
+        await waitFor(() => expect(timers.mock.calls.some(([, ms]) => ms === 170)).toBe(true));
+        unmount();
+        timers.mockClear();
+        state.settings = {'ui.reducedMotion': 'true'};
+        renderIt();
+        await screen.findByRole('application');
+        await waitFor(() => expect(fakeApi.settings).toHaveBeenCalled());
+        await new Promise((r) => setTimeout(r, 50));
+        expect(timers.mock.calls.some(([, ms]) => ms === 170)).toBe(false);
+        // The state is still drawn, just without motion.
+        expect(drawn).toContain('개발 AI');
+    });
+
     it('explains an empty office', async () => {
         fakeApi.assignments.mockResolvedValue([]);
         renderIt();

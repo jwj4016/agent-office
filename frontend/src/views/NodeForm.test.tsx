@@ -32,6 +32,19 @@ function Editor({id, onSpec}: { id: string; onSpec: (s: WorkflowSpec) => void })
 const node = (s: WorkflowSpec, id: string) => s.nodes.find((n) => n.id === id)!;
 
 describe('NodeForm', () => {
+    it('adds a dependency without dragging, offering only steps that keep the flow acyclic', () => {
+        let spec = flow();
+        render(<Editor id="scope" onSpec={(s) => (spec = s)}/>);
+        const select = screen.getByLabelText('선행 업무 추가');
+        // scope comes before route and design, so neither may precede it.
+        expect([...select.querySelectorAll('option')].map((o) => o.textContent)).toEqual(['선택…']);
+        render(<Editor id="design" onSpec={(s) => (spec = s)}/>);
+        const second = screen.getAllByLabelText('선행 업무 추가')[1];
+        expect([...second.querySelectorAll('option')].map((o) => o.textContent)).toEqual(['선택…', '분기']);
+        fireEvent.change(second, {target: {value: 'route'}});
+        expect(node(spec, 'design').dependsOn).toEqual(['scope', 'route']);
+    });
+
     it('builds and edits a condition', () => {
         let spec = flow();
         render(<Editor id="route" onSpec={(s) => (spec = s)}/>);

@@ -34,6 +34,9 @@ body {
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+:root[data-reduced-motion="true"] *, :root[data-reduced-motion="true"] *::before, :root[data-reduced-motion="true"] *::after {
+    animation: none !important; transition: none !important;
+}
 
 h1, h2, h3 { margin: 0 0 8px; line-height: 1.3; }
 h1 { font-size: 20px; }

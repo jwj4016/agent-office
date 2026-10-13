@@ -9,7 +9,7 @@ import {useLoad} from '../live';
 import type {Assignment, Branch, Issue, NodeKind, OutputType, Project, Routing, WorkflowNode, WorkflowSpec} from '../types';
 import {ActorBadge, ConfirmButton, ErrorBox, IssueList, useAction, useDetail} from '../ui';
 import {
-    addNode, ancestors, availableInputs, branchLabel, branchStarts, byId, connect, describeBranch, disconnect, formatBranchValue,
+    addNode, ancestors, availableInputs, branchLabel, branchStarts, byId, connect, descendants, describeBranch, disconnect, formatBranchValue,
     joinCandidates, layout, parseBranchValue, removeNode, renameNode, routingSources, scaffoldBranch, updateNode,
 } from '../workflowModel';
 
@@ -249,6 +249,7 @@ export function NodeForm({spec, id, people, readOnly, onChange, onRenamed, onDel
     useEffect(() => setIdText(id), [id]);
     const set = (patch: Partial<WorkflowNode>) => onChange(updateNode(spec, id, patch));
     const upstream = ancestors(spec, id);
+    const below = descendants(spec, id);
     const map = byId(spec);
     const inputs = availableInputs(spec, id);
     const needsAssignee = n.kind !== 'condition' && n.kind !== 'join';
@@ -349,6 +350,19 @@ export function NodeForm({spec, id, people, readOnly, onChange, onRenamed, onDel
                     <div key={d} className="row small">{map.get(d)?.title ?? d}
                         <button type="button" className="btn small" onClick={() => onChange(disconnect(spec, d, id))}>연결 끊기</button></div>
                 ))}
+                {/* Keyboard alternative to dragging a connection in the graph. */}
+                <label className="field"><span>선행 업무 추가</span>
+                    <select value="" onChange={(e) => {
+                        const res = connect(spec, e.target.value, id);
+                        setError(res.error ?? null);
+                        if (!res.error) onChange(res.spec);
+                    }}>
+                        <option value="">선택…</option>
+                        {spec.nodes.filter((x) => x.id !== id && !n.dependsOn.includes(x.id) && !below.has(x.id)).map((x) => (
+                            <option key={x.id} value={x.id}>{x.title || x.id}</option>
+                        ))}
+                    </select>
+                </label>
             </div>
             {error ? <ErrorBox error={error}/> : null}
             <ConfirmButton label="업무 삭제" confirmLabel="삭제하기" className="btn danger"

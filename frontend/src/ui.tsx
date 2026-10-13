@@ -86,3 +86,12 @@ export function shortTime(iso?: string) {
 }
 
 export const errMsg = errorText;
+
+export const REDUCED_MOTION = 'ui.reducedMotion';
+
+// applyMotion mirrors the app's '모션 줄이기' setting on the document so CSS
+// stops animations as it does for the OS preference.
+export function applyMotion(reduced: boolean) {
+    document.documentElement.dataset.reducedMotion = reduced ? 'true' : 'false';
+}
+

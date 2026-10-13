@@ -6,11 +6,10 @@ import {useLoad} from '../live';
 import {buildOffice, describe, type Desk, type DeskState, type Office as OfficeModel} from '../office/model';
 import {draw, hit, layout, SCENE_W} from '../office/scene';
 import type {Project} from '../types';
-import {ActorBadge, ErrorBox, StepBadge, useAction, useDetail} from '../ui';
+import {ActorBadge, ErrorBox, REDUCED_MOTION, StepBadge, useAction, useDetail} from '../ui';
 import {ArtifactViewer} from './ArtifactViewer';
 
 const VIEW = 'ui.officeView';
-const REDUCED_MOTION = 'ui.reducedMotion';
 const COLS = 3;
 
 // useOffice loads everything the office shows and rebuilds it whenever
@@ -25,7 +24,8 @@ export function useOffice(projectId: string) {
     return {office, error: team.error ?? runs.error ?? inbox.error, reload: runs.reload};
 }
 
-// useReducedMotion follows the app setting and the OS preference.
+// useReducedMotion follows the app setting and the OS preference. Until
+// the setting is loaded motion counts as reduced, so nothing moves first.
 function useReducedMotion() {
     const settings = useLoad(() => api.settings(), []);
     const query = typeof window !== 'undefined' && window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
@@ -36,7 +36,7 @@ function useReducedMotion() {
         query.addEventListener?.('change', on);
         return () => query.removeEventListener?.('change', on);
     }, [query]);
-    return os || settings.data?.[REDUCED_MOTION] === 'true';
+    return os || !settings.data || settings.data[REDUCED_MOTION] === 'true';
 }
 
 export function Office({project, onRoute}: { project: Project; onRoute: (r: Route) => void }) {
@@ -45,6 +45,16 @@ export function Office({project, onRoute}: { project: Project; onRoute: (r: Rout
     const [view, setView] = useState<'office' | 'list' | null>(null);
     const shown = view ?? (settings.data?.[VIEW] === 'list' ? 'list' : 'office');
     const setDetail = useDetail();
+    // A window too narrow for the office shows the list instead.
+    const box = useRef<HTMLDivElement>(null);
+    const [narrow, setNarrow] = useState(false);
+    useEffect(() => {
+        const el = box.current;
+        if (!el || typeof ResizeObserver === 'undefined') return;
+        const ro = new ResizeObserver(() => setNarrow(el.clientWidth > 0 && el.clientWidth < SCENE_W + 2));
+        ro.observe(el);
+        return () => ro.disconnect();
+    }, [office !== undefined]);
     const choose = (v: 'office' | 'list') => { setView(v); api.setSetting(VIEW, v).catch(() => {}); };
     const open = (d: Desk) => setDetail(<DeskDetail project={project} assignmentId={d.assignment.id} onRoute={onRoute}/>);
 
@@ -54,7 +64,7 @@ export function Office({project, onRoute}: { project: Project; onRoute: (r: Rout
         return <p className="muted">아직 담당자가 없습니다. ‘담당자’ 탭에서 역할과 담당자를 배정하면 사무실에 자리가 생깁니다.</p>;
     }
     return (
-        <div className="stack">
+        <div className="stack" ref={box}>
             <div className="row between">
                 <p className="muted small" style={{margin: 0}}>실제 실행 상태를 보여 줍니다. 캐릭터 동작은 표시일 뿐 상태를 정하지 않습니다.</p>
                 <div className="segmented" role="group" aria-label="보기 방식">
@@ -62,7 +72,8 @@ export function Office({project, onRoute}: { project: Project; onRoute: (r: Rout
                     <button className="btn small" aria-pressed={shown === 'list'} onClick={() => choose('list')}>목록</button>
                 </div>
             </div>
-            {shown === 'office' ? <OfficeCanvas office={office} onOpen={open}/> : <OfficeList office={office} onOpen={open}/>}
+            {shown === 'office' && narrow ? <p className="notice small">창이 좁아 목록으로 보여 줍니다.</p> : null}
+            {shown === 'office' && !narrow ? <OfficeCanvas office={office} onOpen={open}/> : <OfficeList office={office} onOpen={open}/>}
             {office.meetings.length > 1 ? (
                 <p className="small">진행 중인 회의: {office.meetings.map((m) => m.title).join(', ')}</p>
             ) : null}

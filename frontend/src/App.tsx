@@ -1,8 +1,8 @@
-import {type ReactNode, useEffect, useState} from 'react';
+import {type ReactNode, useEffect, useRef, useState} from 'react';
 import {api} from './api';
 import {t} from './i18n';
 import {LiveProvider, useLoad} from './live';
-import {DetailProvider} from './ui';
+import {applyMotion, DetailProvider, REDUCED_MOTION} from './ui';
 import {Dashboard} from './views/Dashboard';
 import {Design} from './views/Design';
 import {Inbox} from './views/Inbox';
@@ -46,12 +46,16 @@ function Shell() {
 function Workspace() {
     const [route, setRoute] = useState<Route>({view: 'dashboard'});
     const [detail, setDetail] = useState<ReactNode | null>(null);
+    const aside = useRef<HTMLElement>(null);
+    // Keyboard users land in the detail when it opens; Escape closes it.
+    useEffect(() => { if (detail) aside.current?.focus(); }, [detail]);
     const dash = useLoad(() => api.dashboard(false), [], '*');
     const inbox = useLoad(() => api.inbox(), [], '*');
 
     // Restore the last selected service; switching never affects runs.
     useEffect(() => {
         api.settings().then((s) => {
+            applyMotion(s[REDUCED_MOTION] === 'true');
             const id = s[LAST_PROJECT];
             if (id) setRoute((r) => (r.view === 'dashboard' ? {view: 'project', projectId: id, tab: 'office'} : r));
         }).catch(() => {});
@@ -129,7 +133,10 @@ function Workspace() {
                     {navButton(t.nav.settings, {view: 'settings'}, route.view === 'settings')}
                 </nav>
                 <main className="main">{main}</main>
-                {detail ? <aside className="detail" aria-label="상세">{detail}</aside> : null}
+                {detail ? (
+                    <aside ref={aside} className="detail" aria-label="상세" tabIndex={-1}
+                           onKeyDown={(e) => { if (e.key === 'Escape') setDetail(null); }}>{detail}</aside>
+                ) : null}
             </div>
         </DetailProvider>
     );

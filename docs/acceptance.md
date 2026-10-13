@@ -38,6 +38,6 @@
 | T19 | 예산·수정 한도 도달 | 🟡 | 수정 한도: `TestRevisionLimit`. 예산: `TestBudgetHoldsNewAIWork`(새 AI 업무 보류·사람 대기·내 할 일 표시·상향 시 재개), `TestUsageUnknownCost`(미보고 비용 별도 집계). 실제 공급자 미시험 |
 | T20 | 키 저장소 없음·내보내기 | ⬜ | 키 저장소 없을 때 메모리 fallback: `secrets_test.go` TestOpenFallsBackToMemory. 내보내기는 M5 |
 | T21 | 한글·공백 경로, 설치 패키지 | 🟡 | DB 경로: `TestMigrationsApplyOnceAndPersistAcrossReopen`. 실제 AI 작업 폴더 '게이트 작업 폴더'에서 Codex 작성·Claude 검증·검증 명령 정상(M2 게이트). 설치 패키지 미시험 |
-| T22 | 도트 모션 줄이기·키보드 | ⬜ | |
+| T22 | 도트 모션 줄이기·키보드 | 🟡 | `views/Office.test.tsx`: 화살표·Home/End로 담당자 선택과 상태 문장 낭독(aria-live), Enter로 상세와 '다시 시도'·'실행 보기', '목록' 보기에서 같은 상세·'내 할 일에서 처리', 모션 줄이기(앱 설정·OS) 시 애니메이션 타이머 없음(설정 불러오기 전에도 정지). 흐름 편집: 끌기 대신 '선행 업무 추가' 선택(`NodeForm.test.tsx`, 순환 후보 제외). 상세 패널은 열릴 때 초점 이동·Esc로 닫기. 좁은 창은 사무실 대신 목록. 실제 화면 키보드 시험은 M5 게이트 |
 | T23 | 악성 프로젝트·산출물 ID 참조 | 🟡 | 저장: `TestCrossProjectReferencesRejected`, `TestCheckScope`. 엔진: `TestEngineRejectsCrossProjectIDs`. 바인딩: `TestBindingsTwoServicesEndToEnd`, 실제 앱 콘솔에서 교차 GetRun·ReadArtifact 거절 확인 |
 | T24 | 두 앱 인스턴스·이중 완료 클릭 | 🟡 | 이중 클릭: `TestStepApprovalDecidedOnce`, `TestDuplicateApprovalClicks`. 두 인스턴스: 데이터 폴더 잠금 `TestSecondOpenIsLocked`, `TestSecondAppInstanceRefused`, 엔진 1개 `TestSecondEngineRefusedWhileFirstRuns`, macOS 빌드 앱 두 번 실행 시 두 번째 즉시 종료(2026-10-03). Windows·Linux 미시험 |
