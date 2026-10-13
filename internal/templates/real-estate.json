@@ -1,0 +1,207 @@
+{
+  "schemaVersion": 1,
+  "title": "부동산 분석",
+  "nodes": [
+    {
+      "id": "target",
+      "title": "대상·목적",
+      "kind": "task",
+      "assignmentId": "",
+      "dependsOn": [],
+      "instructions": "분석 대상(위치·유형·규모)과 목적(매입·임대·개발 등), 판단 기준을 정리한다.",
+      "outputs": [
+        {
+          "key": "brief",
+          "type": "markdown"
+        }
+      ]
+    },
+    {
+      "id": "data",
+      "title": "자료 확보·품질 점검",
+      "kind": "task",
+      "assignmentId": "",
+      "dependsOn": [
+        "target"
+      ],
+      "instructions": "사용할 자료의 출처, 기준일, 빠진 항목, 신뢰도를 점검한다. 실제 자료가 없으면 필요한 자료와 출처 후보만 적고 가격을 추정하지 않는다.",
+      "inputs": [
+        {
+          "name": "대상·목적",
+          "fromStep": "target",
+          "outputKey": "brief",
+          "required": true
+        }
+      ],
+      "outputs": [
+        {
+          "key": "data",
+          "type": "markdown"
+        }
+      ]
+    },
+    {
+      "id": "market",
+      "title": "시장 분석",
+      "kind": "task",
+      "assignmentId": "",
+      "dependsOn": [
+        "data"
+      ],
+      "instructions": "확보된 자료로 시세·수요·공급을 분석한다. 실제 자료 연결이 없으면 수치나 사례를 지어내지 않는다. 확인된 사실, 가정, 추가로 확인할 항목을 구분해 적는다.",
+      "inputs": [
+        {
+          "name": "자료",
+          "fromStep": "data",
+          "outputKey": "data",
+          "required": true
+        }
+      ],
+      "outputs": [
+        {
+          "key": "market",
+          "type": "markdown"
+        }
+      ]
+    },
+    {
+      "id": "cost",
+      "title": "비용 분석",
+      "kind": "task",
+      "assignmentId": "",
+      "dependsOn": [
+        "data"
+      ],
+      "instructions": "취득·보유·운영·처분 비용과 세금 항목을 정리한다. 실제 자료 연결이 없으면 수치나 사례를 지어내지 않는다. 확인된 사실, 가정, 추가로 확인할 항목을 구분해 적는다.",
+      "inputs": [
+        {
+          "name": "자료",
+          "fromStep": "data",
+          "outputKey": "data",
+          "required": true
+        }
+      ],
+      "outputs": [
+        {
+          "key": "cost",
+          "type": "markdown"
+        }
+      ]
+    },
+    {
+      "id": "issues",
+      "title": "쟁점 분석",
+      "kind": "task",
+      "assignmentId": "",
+      "dependsOn": [
+        "data"
+      ],
+      "instructions": "권리관계·규제·입지 위험 등 확인할 쟁점을 정리한다. 법률·세무 판단은 하지 않고 확인할 질문으로 남긴다.",
+      "inputs": [
+        {
+          "name": "자료",
+          "fromStep": "data",
+          "outputKey": "data",
+          "required": true
+        }
+      ],
+      "outputs": [
+        {
+          "key": "issues",
+          "type": "markdown"
+        }
+      ]
+    },
+    {
+      "id": "compare",
+      "title": "비교·검토",
+      "kind": "review",
+      "assignmentId": "",
+      "dependsOn": [
+        "market",
+        "cost",
+        "issues"
+      ],
+      "instructions": "분석들이 같은 자료와 기준일을 쓰는지, 근거 없는 수치가 없는지 비교·검토한다.",
+      "inputs": [
+        {
+          "name": "시장",
+          "fromStep": "market",
+          "outputKey": "market",
+          "required": true
+        },
+        {
+          "name": "비용",
+          "fromStep": "cost",
+          "outputKey": "cost",
+          "required": true
+        },
+        {
+          "name": "쟁점",
+          "fromStep": "issues",
+          "outputKey": "issues",
+          "required": true
+        }
+      ],
+      "reworkTargets": [
+        "market",
+        "cost",
+        "issues"
+      ],
+      "outputs": [
+        {
+          "key": "review",
+          "type": "report"
+        }
+      ]
+    },
+    {
+      "id": "report",
+      "title": "보고서",
+      "kind": "task",
+      "assignmentId": "",
+      "dependsOn": [
+        "compare"
+      ],
+      "instructions": "목적에 맞춰 결론 후보와 근거, 한계, 추가 확인 항목을 정리한다. 최종 판단은 사람이 한다.",
+      "inputs": [
+        {
+          "name": "대상·목적",
+          "fromStep": "target",
+          "outputKey": "brief",
+          "required": true
+        },
+        {
+          "name": "시장",
+          "fromStep": "market",
+          "outputKey": "market",
+          "required": true
+        },
+        {
+          "name": "비용",
+          "fromStep": "cost",
+          "outputKey": "cost",
+          "required": true
+        },
+        {
+          "name": "쟁점",
+          "fromStep": "issues",
+          "outputKey": "issues",
+          "required": true
+        },
+        {
+          "name": "검토",
+          "fromStep": "compare",
+          "outputKey": "review",
+          "required": true
+        }
+      ],
+      "outputs": [
+        {
+          "key": "report",
+          "type": "markdown"
+        }
+      ]
+    }
+  ]
+}

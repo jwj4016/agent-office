@@ -1,0 +1,262 @@
+{
+  "schemaVersion": 1,
+  "title": "게임 출시",
+  "nodes": [
+    {
+      "id": "plan",
+      "title": "게임 기획",
+      "kind": "task",
+      "assignmentId": "",
+      "dependsOn": [],
+      "instructions": "게임 개요, 핵심 재미, 출시 범위, 완료 기준을 작성한다.",
+      "outputs": [
+        {
+          "key": "spec",
+          "type": "markdown"
+        }
+      ]
+    },
+    {
+      "id": "market",
+      "title": "시장 분석",
+      "kind": "task",
+      "assignmentId": "",
+      "dependsOn": [],
+      "instructions": "대상 이용자, 비슷한 게임, 출시 채널을 정리한다. 실제 자료 연결이 없으면 수치나 사례를 지어내지 않는다. 확인된 사실, 가정, 추가로 확인할 항목을 구분해 적는다.",
+      "outputs": [
+        {
+          "key": "market",
+          "type": "markdown"
+        }
+      ]
+    },
+    {
+      "id": "legal",
+      "title": "법률 쟁점 정리",
+      "kind": "task",
+      "assignmentId": "",
+      "dependsOn": [],
+      "instructions": "저작권·개인정보·결제·연령 등급 등 확인할 쟁점과 질문을 정리한다. 법률 판단은 하지 않고 근거를 조사한 것처럼 쓰지 않는다. 최종 판단은 사람의 승인으로 한다.",
+      "outputs": [
+        {
+          "key": "issues",
+          "type": "markdown"
+        }
+      ]
+    },
+    {
+      "id": "cost",
+      "title": "비용 분석",
+      "kind": "task",
+      "assignmentId": "",
+      "dependsOn": [],
+      "instructions": "개발·운영·마케팅 비용 항목과 가정을 정리한다. 실제 자료 연결이 없으면 수치나 사례를 지어내지 않는다. 확인된 사실, 가정, 추가로 확인할 항목을 구분해 적는다.",
+      "outputs": [
+        {
+          "key": "cost",
+          "type": "markdown"
+        }
+      ]
+    },
+    {
+      "id": "direction",
+      "title": "방향 승인",
+      "kind": "approval",
+      "assignmentId": "",
+      "dependsOn": [
+        "plan",
+        "market",
+        "legal",
+        "cost"
+      ],
+      "instructions": "기획·시장·법률 쟁점·비용을 보고 출시 방향을 정한다.",
+      "inputs": [
+        {
+          "name": "기획서",
+          "fromStep": "plan",
+          "outputKey": "spec",
+          "required": true
+        },
+        {
+          "name": "시장 분석",
+          "fromStep": "market",
+          "outputKey": "market",
+          "required": true
+        },
+        {
+          "name": "법률 쟁점",
+          "fromStep": "legal",
+          "outputKey": "issues",
+          "required": true
+        },
+        {
+          "name": "비용 분석",
+          "fromStep": "cost",
+          "outputKey": "cost",
+          "required": true
+        }
+      ],
+      "reworkTargets": [
+        "plan",
+        "market",
+        "legal",
+        "cost"
+      ],
+      "outputs": []
+    },
+    {
+      "id": "dev",
+      "title": "게임 개발",
+      "kind": "task",
+      "assignmentId": "",
+      "dependsOn": [
+        "direction"
+      ],
+      "instructions": "승인된 기획대로 게임을 구현하고 실행·테스트 방법을 남긴다.",
+      "inputs": [
+        {
+          "name": "기획서",
+          "fromStep": "plan",
+          "outputKey": "spec",
+          "required": true
+        }
+      ],
+      "outputs": [
+        {
+          "key": "change",
+          "type": "code_change"
+        }
+      ]
+    },
+    {
+      "id": "marketing",
+      "title": "마케팅 준비",
+      "kind": "task",
+      "assignmentId": "",
+      "dependsOn": [
+        "direction"
+      ],
+      "instructions": "스토어 소개 문구, 스크린샷 목록, 공개 일정 초안을 만든다. 확인되지 않은 성과 수치는 쓰지 않는다.",
+      "inputs": [
+        {
+          "name": "기획서",
+          "fromStep": "plan",
+          "outputKey": "spec",
+          "required": true
+        },
+        {
+          "name": "시장 분석",
+          "fromStep": "market",
+          "outputKey": "market",
+          "required": true
+        }
+      ],
+      "outputs": [
+        {
+          "key": "kit",
+          "type": "markdown"
+        }
+      ]
+    },
+    {
+      "id": "qa",
+      "title": "통합·QA",
+      "kind": "review",
+      "assignmentId": "",
+      "dependsOn": [
+        "dev",
+        "marketing"
+      ],
+      "instructions": "게임이 기획의 완료 기준을 만족하는지, 마케팅 자료가 실제 게임과 맞는지 확인한다.",
+      "inputs": [
+        {
+          "name": "게임 변경",
+          "fromStep": "dev",
+          "outputKey": "change",
+          "required": true
+        },
+        {
+          "name": "마케팅 자료",
+          "fromStep": "marketing",
+          "outputKey": "kit",
+          "required": true
+        }
+      ],
+      "reworkTargets": [
+        "dev",
+        "marketing"
+      ],
+      "outputs": [
+        {
+          "key": "review",
+          "type": "report"
+        }
+      ]
+    },
+    {
+      "id": "release",
+      "title": "출시 승인",
+      "kind": "approval",
+      "assignmentId": "",
+      "dependsOn": [
+        "qa"
+      ],
+      "instructions": "출시 여부를 사람이 결정한다.",
+      "inputs": [
+        {
+          "name": "QA 결과",
+          "fromStep": "qa",
+          "outputKey": "review",
+          "required": true
+        },
+        {
+          "name": "게임 변경",
+          "fromStep": "dev",
+          "outputKey": "change",
+          "required": true
+        },
+        {
+          "name": "마케팅 자료",
+          "fromStep": "marketing",
+          "outputKey": "kit",
+          "required": true
+        }
+      ],
+      "reworkTargets": [
+        "dev",
+        "marketing"
+      ],
+      "outputs": []
+    },
+    {
+      "id": "package",
+      "title": "배포 패키지",
+      "kind": "task",
+      "assignmentId": "",
+      "dependsOn": [
+        "release"
+      ],
+      "instructions": "배포 파일 목록, 배포 절차, 확인 항목을 정리한다. 실제 배포는 사람이 확인한 절차로만 한다.",
+      "inputs": [
+        {
+          "name": "게임 변경",
+          "fromStep": "dev",
+          "outputKey": "change",
+          "required": true
+        },
+        {
+          "name": "마케팅 자료",
+          "fromStep": "marketing",
+          "outputKey": "kit",
+          "required": true
+        }
+      ],
+      "outputs": [
+        {
+          "key": "package",
+          "type": "markdown"
+        }
+      ]
+    }
+  ]
+}
