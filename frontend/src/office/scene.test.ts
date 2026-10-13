@@ -1,7 +1,7 @@
 import {describe, expect, it} from 'vitest';
 import type {Assignment} from '../types';
 import type {Office} from './model';
-import {hit, layout, SCENE_W, seats} from './scene';
+import {hit, layout, looks, SCENE_W, seats} from './scene';
 
 const desk = (id: string) => ({
     assignment: {id, displayName: id, actorKind: 'ai'} as Assignment, roleName: '', state: 'idle' as const, label: '', summary: '', work: [],
@@ -30,3 +30,14 @@ describe('scene layout', () => {
         expect(hit(office, l, l.lounge.x + 2, l.lounge.y + 2)).toBe(-1);
     });
 });
+
+describe('looks', () => {
+    it('gives every id a full set of colors', () => {
+        for (let i = 0; i < 500; i++) {
+            const l = looks(`asg-${i}-${i * 7919}`);
+            expect([l.shirt, l.hair, l.skin].every((c) => /^#[0-9a-f]{6}$/.test(c))).toBe(true);
+        }
+        expect(looks('asg-x')).toEqual(looks('asg-x'));
+    });
+});
+

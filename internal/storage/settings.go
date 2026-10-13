@@ -12,6 +12,7 @@ import (
 var SettingKeys = map[string]bool{
 	"ui.reducedMotion": true,
 	"ui.lastProjectId": true,
+	"ui.officeView":    true,
 }
 
 var ErrUnknownSetting = errors.New("unknown setting key")

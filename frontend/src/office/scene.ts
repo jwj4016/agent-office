@@ -27,7 +27,7 @@ export function layout(deskCount: number): Layout {
     const desks = Array.from({length: deskCount}, (_, i) => {
         const x = 8 + (i % COLS) * CELL_W;
         const y = TOP + Math.floor(i / COLS) * CELL_H;
-        return {cell: {x, y, w: CELL_W - 4, h: CELL_H - 4}, seat: {x: x + 30, y: y + 14}};
+        return {cell: {x, y, w: CELL_W - 4, h: CELL_H - 1}, seat: {x: x + 30, y: y + 14}};
     });
     const room = {x: ROOM_X, y: TOP, w: ROOM_W, h: 84};
     const lounge = {x: ROOM_X, y: TOP + 92, w: ROOM_W, h: height - TOP - 100};
@@ -87,6 +87,13 @@ function hash(s: string): number {
     return h >>> 0;
 }
 
+// looks picks a character's colors from its assignment id, so the same
+// person always looks the same.
+export function looks(id: string) {
+    const h = hash(id);
+    return {shirt: shirts[h % shirts.length], hair: hairs[(h >>> 3) % hairs.length], skin: skins[(h >>> 6) % skins.length]};
+}
+
 export type Frame = {
     // tick advances about 6 times a second; 0 when motion is reduced.
     tick: number;
@@ -99,7 +106,7 @@ export function draw(ctx: CanvasRenderingContext2D, office: Office, l: Layout, f
     const r = (x: number, y: number, w: number, h: number, c: string) => { ctx.fillStyle = c; ctx.fillRect(x, y, w, h); };
     // Floor and wall.
     r(0, 0, SCENE_W, l.height, pal.floor);
-    for (let y = TOP; y < l.height; y += 8) for (let x = (y / 8) % 2 ? 0 : 8; x < SCENE_W; x += 16) r(x, y, 8, 8, pal.floor2);
+    for (let y = TOP; y < l.height; y += 8) for (let x = ((y - TOP) / 8) % 2 ? 0 : 8; x < SCENE_W; x += 16) r(x, y, 8, 8, pal.floor2);
     r(0, 0, SCENE_W, TOP - 4, pal.wall);
     r(0, TOP - 5, SCENE_W, 1, pal.wallLine);
     for (const wx of [24, 96, 168]) { r(wx, 3, 26, 8, '#cfe9f5'); r(wx + 12, 3, 2, 8, pal.wallLine); }
@@ -194,8 +201,7 @@ function drawDesk(r: R, ctx: CanvasRenderingContext2D, d: Desk, c: Rect, away: b
 }
 
 function drawPerson(r: R, d: Desk, x: number, y: number, f: Frame) {
-    const h = hash(d.assignment.id);
-    const shirt = shirts[h % shirts.length], hair = hairs[(h >> 3) % hairs.length], skin = skins[(h >> 6) % skins.length];
+    const {shirt, hair, skin} = looks(d.assignment.id);
     let dy = 0;
     if (f.joy.has(d.assignment.id) && f.tick > 0) dy = f.tick % 2 ? -2 : 0;
     else if (d.state === 'idle' && f.tick % 16 === 0 && f.tick > 0) dy = -1;

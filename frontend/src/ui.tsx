@@ -1,4 +1,4 @@
-import {createContext, type ReactNode, useContext, useState} from 'react';
+import {createContext, type ReactNode, useContext, useEffect, useRef, useState} from 'react';
 import {errorText} from './api';
 import {t} from './i18n';
 import type {ActorKind, Issue, RunStatus, StepStatus} from './types';
@@ -78,6 +78,20 @@ export function ConfirmButton({label, confirmLabel, onConfirm, className = 'btn'
 const DetailContext = createContext<(node: ReactNode | null) => void>(() => {});
 export const DetailProvider = DetailContext.Provider;
 export const useDetail = () => useContext(DetailContext);
+
+// DetailPane is the right-hand pane. Keyboard users land in it when it
+// opens — not on every update, which would pull focus out of a field
+// being typed in — and Escape closes it.
+export function DetailPane({detail, onClose}: { detail: ReactNode | null; onClose: () => void }) {
+    const aside = useRef<HTMLElement>(null);
+    const open = detail !== null;
+    useEffect(() => { if (open) aside.current?.focus(); }, [open]);
+    if (!open) return null;
+    return (
+        <aside ref={aside} className="detail" aria-label="상세" tabIndex={-1}
+               onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}>{detail}</aside>
+    );
+}
 
 export function shortTime(iso?: string) {
     if (!iso) return '';
