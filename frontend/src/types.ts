@@ -106,7 +106,7 @@ export type WorkspaceInfo = {
 export type RepoInfo = { kind: 'base' | 'shared'; path: string; base?: string; note?: string };
 
 export type StepView = {
-    id: string; title: string; kind: NodeKind; status: StepStatus; assignmentId: string; attemptId: string;
+    id: string; title: string; kind: NodeKind; status: StepStatus; assignmentId: string; participants?: string[]; attemptId: string;
     generation: number; attempt: number; round: number; error?: string; approvalId?: string;
     inputs?: ManifestEntry[] | null; artifacts: ArtifactView[]; workspace?: WorkspaceInfo;
 };

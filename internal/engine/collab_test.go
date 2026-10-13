@@ -199,6 +199,10 @@ func TestMeetingRunsRoundsThenAIDecides(t *testing.T) {
 	if len(d.Artifacts) != 1 || d.Artifacts[0].OutputKey != "contract" {
 		t.Fatalf("design artifacts = %+v", d.Artifacts)
 	}
+	// The office seats the participants at the meeting table.
+	if got := d.Participants; len(got) != 2 || got[0] == got[1] || got[0] == d.AssignmentID || got[1] == d.AssignmentID {
+		t.Fatalf("participants = %v", got)
+	}
 	msgs := messagesOf(t, h, p.ID, runID)
 	if got := proposals(msgs); len(got) != 4 || got[0] != 1 || got[3] != 2 {
 		t.Fatalf("proposal rounds = %v", got)

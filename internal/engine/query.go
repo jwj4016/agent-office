@@ -19,11 +19,14 @@ type ArtifactView struct {
 
 // StepView is a step's current state within a run.
 type StepView struct {
-	ID           string          `json:"id"`
-	Title        string          `json:"title"`
-	Kind         string          `json:"kind"`
-	Status       string          `json:"status"`
-	AssignmentID string          `json:"assignmentId"`
+	ID           string `json:"id"`
+	Title        string `json:"title"`
+	Kind         string `json:"kind"`
+	Status       string `json:"status"`
+	AssignmentID string `json:"assignmentId"`
+	// Participants are a meeting task's other assignments (the office
+	// seats them at the meeting table while the meeting runs).
+	Participants []string        `json:"participants,omitempty"`
 	AttemptID    string          `json:"attemptId"`
 	Generation   int             `json:"generation"`
 	Attempt      int             `json:"attempt"`
@@ -63,6 +66,9 @@ func (e *Engine) RunDetail(ctx context.Context, projectID, runID string) (RunDet
 		n := st.graph.Node(id)
 		v := StepView{ID: id, Title: n.Title, Kind: string(n.Kind), Status: st.status(id), AssignmentID: n.AssignmentID,
 			Generation: st.run.Gens[id].G, Round: st.run.Gens[id].R, Artifacts: []ArtifactView{}}
+		if n.Meeting != nil {
+			v.Participants = n.Meeting.Participants
+		}
 		if a, ok := st.attempts[id]; ok {
 			v.AttemptID, v.Attempt, v.Inputs = a.ID, a.Attempt, a.InputManifest
 			v.Workspace = workspaceInfo(ctx, q, a.ID)

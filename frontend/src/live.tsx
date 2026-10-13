@@ -15,6 +15,11 @@ const LiveContext = createContext<Live>({version: 0, projectVersion: {}, deltas:
 
 const terminalStep = /^step\.(succeeded|failed|cancelled|interrupted|superseded|verifying)$/;
 
+// Completions, errors and anything that waits for a person are shown at
+// once; other events (and streamed text) are batched about every 100ms.
+export const urgentEvent =
+    /^(step\.(succeeded|failed|cancelled|interrupted|waiting_human|waiting_approval|waiting_input)|run\.status|approval\.|message\.(question|escalation)|provider\.(error|approval_request|question|completed))/;
+
 // LiveProvider turns Go events into re-render signals. Events are applied
 // in batches so a burst causes one refresh, not one per event.
 export function LiveProvider({children}: { children: ReactNode }) {
@@ -39,7 +44,12 @@ export function LiveProvider({children}: { children: ReactNode }) {
         };
         const offEvents = api.onEvents((evs) => {
             pending.current.push(...evs);
-            if (timer.current === undefined) timer.current = window.setTimeout(flush, 100);
+            if (evs.some((ev) => urgentEvent.test(ev.kind))) {
+                window.clearTimeout(timer.current);
+                flush();
+            } else if (timer.current === undefined) {
+                timer.current = window.setTimeout(flush, 100);
+            }
         });
         const offDeltas = api.onDeltas((ds) => {
             setLive((prev) => {

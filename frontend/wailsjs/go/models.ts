@@ -1534,6 +1534,7 @@ export namespace engine {
 	    kind: string;
 	    status: string;
 	    assignmentId: string;
+	    participants?: string[];
 	    attemptId: string;
 	    generation: number;
 	    attempt: number;
@@ -1555,6 +1556,7 @@ export namespace engine {
 	        this.kind = source["kind"];
 	        this.status = source["status"];
 	        this.assignmentId = source["assignmentId"];
+	        this.participants = source["participants"];
 	        this.attemptId = source["attemptId"];
 	        this.generation = source["generation"];
 	        this.attempt = source["attempt"];

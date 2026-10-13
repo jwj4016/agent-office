@@ -53,7 +53,7 @@ function Workspace() {
     useEffect(() => {
         api.settings().then((s) => {
             const id = s[LAST_PROJECT];
-            if (id) setRoute((r) => (r.view === 'dashboard' ? {view: 'project', projectId: id, tab: 'overview'} : r));
+            if (id) setRoute((r) => (r.view === 'dashboard' ? {view: 'project', projectId: id, tab: 'office'} : r));
         }).catch(() => {});
     }, []);
 
@@ -84,7 +84,7 @@ function Workspace() {
     let main: ReactNode;
     switch (route.view) {
         case 'dashboard':
-            main = <Dashboard summaries={projects} loaded={dash.data !== undefined} onOpen={(id) => go({view: 'project', projectId: id, tab: 'overview'})} onCreated={dash.reload}/>;
+            main = <Dashboard summaries={projects} loaded={dash.data !== undefined} onOpen={(id) => go({view: 'project', projectId: id, tab: 'office'})} onCreated={dash.reload}/>;
             break;
         case 'inbox':
             main = <Inbox onOpenRun={(projectId, runId) => go({view: 'project', projectId, tab: 'runs', runId})}/>;
@@ -118,7 +118,7 @@ function Workspace() {
                     {projects.map((s) => (
                         <button key={s.project.id} className="nav-item"
                                 aria-current={route.view === 'project' && route.projectId === s.project.id ? 'page' : undefined}
-                                onClick={() => go({view: 'project', projectId: s.project.id, tab: 'overview'})}>
+                                onClick={() => go({view: 'project', projectId: s.project.id, tab: 'office'})}>
                             <span>{s.project.name}</span>
                             {s.inbox > 0 ? <span className="badge warn">{s.inbox}</span>
                                 : s.activeRuns > 0 ? <span className="badge info">{t.runStatus.running}</span> : null}

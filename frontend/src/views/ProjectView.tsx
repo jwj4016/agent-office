@@ -5,11 +5,12 @@ import {t} from '../i18n';
 import {useLoad} from '../live';
 import type {Budget, Project} from '../types';
 import {ConfirmButton, ErrorBox, useAction} from '../ui';
+import {Office} from './Office';
 import {Runs} from './Runs';
 import {Team} from './Team';
 import {Workflows} from './Workflows';
 
-export type ProjectTab = 'overview' | 'team' | 'workflows' | 'runs';
+export type ProjectTab = 'office' | 'overview' | 'team' | 'workflows' | 'runs';
 
 type ProjectRoute = Extract<Route, { view: 'project' }>;
 
@@ -36,11 +37,13 @@ export function ProjectView({route, onRoute, onChanged}: {
             </div>
             {archived ? <p className="notice">{t.project.archivedNote}</p> : null}
             <div role="tablist" className="tabs">
+                {tab('office', t.project.tabs.office)}
                 {tab('overview', t.project.tabs.overview)}
                 {tab('team', t.project.tabs.team)}
                 {tab('workflows', t.project.tabs.workflows)}
                 {tab('runs', t.project.tabs.runs)}
             </div>
+            {route.tab === 'office' ? <Office project={p} onRoute={onRoute}/> : null}
             {route.tab === 'overview' ? <Overview project={p} onSaved={() => { reload(); onChanged(); }}/> : null}
             {route.tab === 'team' ? <Team project={p}/> : null}
             {route.tab === 'workflows' ? (

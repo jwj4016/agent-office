@@ -118,3 +118,12 @@ pre.content { white-space: pre-wrap; word-break: break-word; background: var(--s
 .flow-node.selected { border-color: var(--focus); box-shadow: 0 0 0 1px var(--focus); }
 .flow-node.has-error { border-color: var(--danger); }
 .flow-node .kind { font-size: 11px; color: var(--muted); }
+
+/* office */
+.office { width: 100%; }
+.office-canvas { display: block; image-rendering: pixelated; border: 1px solid var(--border); border-radius: var(--radius); background: #fbefd9; cursor: pointer; }
+.segmented { display: inline-flex; gap: 0; }
+.segmented .btn { border-radius: 0; }
+.segmented .btn:first-child { border-radius: var(--radius) 0 0 var(--radius); }
+.segmented .btn:last-child { border-radius: 0 var(--radius) var(--radius) 0; margin-left: -1px; }
+.segmented .btn[aria-pressed="true"] { background: var(--lavender); color: var(--lavender-ink); font-weight: 600; }

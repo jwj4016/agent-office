@@ -59,7 +59,7 @@ type InboxItem struct {
 	Escalation string `json:"escalation,omitempty"`
 	// Workspace is where a person's task or review works (Git runs).
 	Workspace *WorkspaceInfo `json:"workspace,omitempty"`
-	Since      string `json:"since"`
+	Since     string         `json:"since"`
 }
 
 // Inbox lists every open human item across active projects.
