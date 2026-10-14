@@ -3,6 +3,7 @@ package main
 import (
 	"embed"
 	"log"
+	"os"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -13,6 +14,10 @@ import (
 var assets embed.FS
 
 func main() {
+	// The installed app checks itself without opening a window.
+	if len(os.Args) > 1 && os.Args[1] == "--self-check" {
+		os.Exit(selfCheckMain(os.Args[2:], os.Stdout))
+	}
 	app := NewApp()
 
 	err := wails.Run(&options.App{

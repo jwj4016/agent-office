@@ -95,8 +95,20 @@
 - [x] 🚪 게이트: 화면과 실제 상태 일치, 모든 템플릿 편집·실행 — 통과 (2026-10-14, macOS 실제 앱·테스트 provider)
 
 ### M6 출시 검증
-- [ ] 3 OS 설치 패키지 (exe·dmg·deb)
-- [ ] 한글·공백 경로 (T21), 성능 측정 시나리오 기록
+**진단·프로세스**
+- [x] 설치된 앱 자체 진단 `--self-check` — 저장소 저장·다시 열기, 포함된 bridge 실제 실행(probe), 테스트 AI 흐름·취소·재시작, 한글·공백 임시 폴더
+- [ ] Windows 하위 프로세스: 콘솔 창 숨김, Job Object로 손자 프로세스 정리 — 구현·macOS 시험 완료, Windows는 CI 확인 후 체크
+
+**3 OS 설치 패키지**
+- [ ] Claude bridge·SDK 동봉 (OS·CPU별 Claude 실행 파일)
+- [ ] macOS dmg (arm64·x64), 최소 macOS 버전 확정
+- [ ] Windows 설치 exe (NSIS)
+- [ ] Linux deb
+- [ ] CI에서 3 OS 패키지 설치 → 한글·공백 경로에서 진단 통과 (T21)
+
+**측정·안내**
+- [ ] 성능 측정 시나리오 기록 (서비스 2·담당자 20·노드 50·활성 AI 2)
+- [ ] 설치·실행 안내, 알려진 제한
 - [ ] 서명·공증 (자격증명 준비 시)
 - [ ] 🚪 게이트: acceptance.md에 T01~T24 증거 + 알려진 제한 정리
 
@@ -336,3 +348,9 @@
 - 미검증·알려진 제한: 내보내기의 실제 저장 대화상자는 브라우저 조작으로 다룰 수 없어 바인딩 테스트(`TestExportProjectBinding`)로만 확인. 실제 AI(Codex·Claude)로 사무실을 본 것은 아님(상태 매핑은 공급자와 무관한 실행 기록 기준). Windows·Linux 화면 미시험
 - 다음에 실행할 구체적인 작업: M5 게이트 보고 후 사용자 확인 → push·3 OS CI → M6 출시 검증
 
+### 2026-10-14 (M6)
+- 현재 단계: M6 / 진단·프로세스 (브랜치 `feat/m6-release`, main 위)
+- 구현 완료: `agent-office --self-check [-out 결과.json] [-data-dir 빈 폴더] [-keep]` — 창 없이 설치된 실행 파일로 데이터 폴더·SQLite(역할 저장 → 닫기 → 다시 열기), 키 저장소, 포함된 Claude bridge(`node main.js --probe`: SDK 로드, OS·CPU별 Claude 실행 파일 `--version` 실행, API 호출 없음), Codex·Git 탐지, 테스트 AI로 서비스 개발 흐름(승인·리뷰 포함)·결과 해시 확인, 실행 취소, 앱 재시작 후 기록 복원. 기본은 '에이전트 오피스 진단 *' 임시 폴더(끝나면 삭제), 작업 폴더는 '작업 폴더 (진단)'. 내용이 있는 폴더는 거부(사용자 데이터 보호). Windows GUI 실행 파일은 콘솔이 없어 결과를 파일로도 씀. `internal/proc`: 하위 프로세스 콘솔 창 숨김(Windows `CREATE_NO_WINDOW` — 배포 빌드에서 git·node 호출마다 창이 깜박이는 결함, `go test`·`wails dev`로는 드러나지 않았음), Windows Job Object(kill-on-close, 부모가 먼저 끝난 손자 프로세스도 정리, 실패 시 기존 taskkill로 대체). 공급자·git·연결 확인·검증 명령에 적용. `appVersion`은 릴리스 빌드에서 `-ldflags -X`로 지정
+- 이번 검증과 결과: `selfcheck_test.go` 4건(한글 데이터 폴더, 결과 파일·임시 폴더 삭제, 잘못된 폴더, 기존 데이터 폴더 거부), `internal/proc` 손자 프로세스 정리 시험(macOS), bridge `probe.test.ts` 3건. 이 Mac에서 `go run . --self-check` 전 항목 ok(SDK 0.3.288, Claude 2.1.288). 전체 Go·bridge 테스트 통과. 진단의 전체 결과(ok)가 defer에서 계산돼 반환값에 반영되지 않던 결함을 실행으로 발견·수정, 테스트 보강
+- 미검증: Windows Job Object·창 숨김은 CI(windows-latest) 결과 전
+- 다음에 실행할 구체적인 작업: bridge 동봉 스크립트, macOS dmg·Windows NSIS·Linux deb, 패키지 설치 후 진단을 돌리는 CI

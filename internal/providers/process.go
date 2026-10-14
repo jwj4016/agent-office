@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	osproc "agent-office/internal/proc"
 )
 
 // maxLineBytes bounds one JSONL message from a child process.
@@ -28,6 +30,7 @@ type proc struct {
 
 	writeMu sync.Mutex
 	stderr  *tailBuffer
+	group   *osproc.Group
 }
 
 func startProc(ctx context.Context, exe string, args []string, dir string, env []string) (*proc, error) {
@@ -35,7 +38,9 @@ func startProc(ctx context.Context, exe string, args []string, dir string, env [
 	cmd.Dir = dir
 	cmd.Env = env
 	cmd.WaitDelay = 3 * time.Second
-	configureProcAttr(cmd)
+	osproc.Prepare(cmd)
+	var p *proc
+	cmd.Cancel = func() error { p.kill(); return nil }
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return nil, err
@@ -44,11 +49,13 @@ func startProc(ctx context.Context, exe string, args []string, dir string, env [
 	if err != nil {
 		return nil, err
 	}
-	p := &proc{cmd: cmd, stdin: stdin, lines: make(chan []byte, 64), exited: make(chan struct{}), stderr: newTailBuffer(64 << 10)}
+	p = &proc{cmd: cmd, stdin: stdin, lines: make(chan []byte, 64), exited: make(chan struct{}), stderr: newTailBuffer(64 << 10)}
 	cmd.Stderr = p.stderr
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("start %s: %w", exe, err)
 	}
+	// On Windows a failed job assignment leaves taskkill as the fallback.
+	p.group, _ = osproc.Attach(cmd)
 	go func() {
 		sc := bufio.NewScanner(stdout)
 		sc.Buffer(make([]byte, 64<<10), maxLineBytes)
@@ -85,10 +92,20 @@ func (p *proc) stop(grace time.Duration) {
 	select {
 	case <-p.exited:
 	case <-time.After(grace):
-		killProc(p.cmd)
+		p.kill()
 		<-p.exited
 	}
-	killProc(p.cmd)
+	p.kill()
+	p.group.Close()
+}
+
+// kill stops the child and everything it started.
+func (p *proc) kill() {
+	if p.group == nil { // cancelled between Start and Attach
+		p.cmd.Process.Kill()
+		return
+	}
+	p.group.Kill()
 }
 
 // stderrTail returns recent stderr output for diagnostics.

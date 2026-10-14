@@ -18,6 +18,7 @@ import (
 	"github.com/santhosh-tekuri/jsonschema/v6"
 
 	"agent-office/internal/domain"
+	osproc "agent-office/internal/proc"
 	"agent-office/internal/storage"
 )
 
@@ -205,6 +206,7 @@ func runVerifyCommand(ctx context.Context, vc domain.VerifyCommand, dir string) 
 	cmd := exec.CommandContext(ctx, vc.Executable, vc.Args...)
 	cmd.Dir = dir
 	cmd.Env = verifyEnv()
+	osproc.Hide(cmd)
 	cmd.WaitDelay = 5 * time.Second
 	var buf tail
 	cmd.Stdout, cmd.Stderr = &buf, &buf

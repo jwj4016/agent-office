@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -47,40 +46,11 @@ func need[T any](v T, err error) T {
 func buildService(t *testing.T, a *App, name string) (domain.Project, string) {
 	t.Helper()
 	conn := need(a.EnsureTestConnection())
-	p := need(a.CreateProject(ProjectInput{Name: name, Goal: name + "를 만든다", Mode: "review"}))
-	roleIDs := map[string]string{}
-	roles := need(a.ListRoles())
-	for _, r := range roles {
-		roleIDs[r.Name] = r.ID
+	p, version, err := setupExampleService(a, name, "", conn.ID)
+	if err != nil {
+		t.Fatal(err)
 	}
-	for _, name := range []string{"기획", "설계", "백엔드", "프론트엔드", "QA", "리뷰어"} {
-		if roleIDs[name] == "" {
-			roleIDs[name] = need(a.SaveRole(domain.Role{Name: name, Instructions: name + " 지침"})).ID
-		}
-	}
-	assign := map[string]string{}
-	for fixture, role := range map[string]string{"a-planner": "기획", "a-architect": "설계", "a-backend": "백엔드", "a-frontend": "프론트엔드", "a-qa": "QA"} {
-		assign[fixture] = need(a.SaveAssignment(domain.Assignment{ProjectID: p.ID, RoleID: roleIDs[role], ActorKind: domain.ActorAI,
-			DisplayName: role + " AI", ConnectionID: conn.ID, Model: "auto"})).ID
-	}
-	assign["a-owner"] = need(a.SaveAssignment(domain.Assignment{ProjectID: p.ID, RoleID: roleIDs["리뷰어"], ActorKind: domain.ActorHuman, DisplayName: "나"})).ID
-
-	w := need(a.CreateWorkflow(p.ID, "service-dev", ""))
-	// The template leaves assignees empty; fill them like the editor does.
-	fixture := map[string]string{"plan": "a-planner", "approve": "a-owner", "design": "a-architect", "backend": "a-backend",
-		"frontend": "a-frontend", "integrate": "a-architect", "review": "a-owner", "qa": "a-qa", "deliver": "a-planner"}
-	var spec domain.WorkflowSpec
-	json.Unmarshal(w.Draft, &spec)
-	for i := range spec.Nodes {
-		spec.Nodes[i].AssignmentID = assign[fixture[spec.Nodes[i].ID]]
-	}
-	draft, _ := json.Marshal(spec)
-	w = need(a.SaveWorkflowDraft(p.ID, w.ID, w.Revision, string(draft)))
-	res := need(a.ConfirmVersion(p.ID, w.ID, w.Revision))
-	if res.Version == nil || !res.Validation.CanRun {
-		t.Fatalf("confirm: %+v", res.Validation.Issues)
-	}
-	return p, res.Version.ID
+	return p, version
 }
 
 func waitInbox(t *testing.T, a *App, projectID, kind string) engine.InboxItem {

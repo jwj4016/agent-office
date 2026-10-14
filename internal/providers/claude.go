@@ -194,7 +194,7 @@ func (s *claudeSession) Cancel(context.Context) error {
 			select {
 			case <-s.proc.exited:
 			case <-time.After(s.grace):
-				killProc(s.proc.cmd)
+				s.proc.kill()
 			}
 		}()
 	})

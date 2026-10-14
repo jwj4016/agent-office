@@ -13,6 +13,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"agent-office/internal/proc"
 )
 
 // Git runs git commands for the engine. Every command gets the arguments
@@ -70,6 +72,7 @@ func (g *Git) run(ctx context.Context, dir string, args ...string) (string, erro
 	cmd := exec.CommandContext(ctx, g.Exe, full...)
 	cmd.Dir = dir
 	cmd.Env = g.env()
+	proc.Hide(cmd)
 	var out, errb bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &errb
 	err := cmd.Run()

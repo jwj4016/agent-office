@@ -28,7 +28,9 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
-const appVersion = "0.1.0-dev"
+// appVersion is set at release build time with
+// -ldflags "-X main.appVersion=<version>".
+var appVersion = "0.1.0-dev"
 
 // Wails event names.
 const (

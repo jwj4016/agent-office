@@ -15,6 +15,8 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	"agent-office/internal/proc"
 )
 
 // Connection kinds.
@@ -153,6 +155,7 @@ func runQuiet(ctx context.Context, exe string, args ...string) (string, error) {
 	defer cancel()
 	cmd := exec.CommandContext(ctx, exe, args...)
 	cmd.Env = withPath(os.Environ(), filepath.Dir(exe))
+	proc.Hide(cmd)
 	out, err := cmd.CombinedOutput()
 	return strings.TrimSpace(string(out)), err
 }
