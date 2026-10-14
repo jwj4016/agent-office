@@ -70,6 +70,8 @@ export function ListWorkflows(arg1:string):Promise<Array<domain.Workflow>>;
 
 export function PauseRun(arg1:string,arg2:string):Promise<void>;
 
+export function PerfMark(arg1:string,arg2:string):Promise<void>;
+
 export function Ping(arg1:string):Promise<main.PingResult>;
 
 export function PostNote(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string):Promise<string>;

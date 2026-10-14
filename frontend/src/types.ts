@@ -160,6 +160,8 @@ export type Delta = { projectId: string; runId: string; stepAttemptId: string; t
 
 export type SystemStatus = {
     dataDir: string; schemaVersion: number; secretsPersistent: boolean; version: string; error: string;
+    /** Started for performance measurement (AGENT_OFFICE_PERF). */
+    perf?: boolean;
 };
 
 export type Budget = { maxTokens?: number; maxCostUsd?: number };

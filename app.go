@@ -117,6 +117,12 @@ func (a *App) startup(ctx context.Context) {
 		close(a.engineDone)
 	}()
 	go a.flushDeltas(ectx)
+	if perfEnabled() {
+		perfLog("startup", map[string]any{"version": appVersion})
+		if os.Getenv(perfRunsEnv) != "off" { // off: measure the idle app
+			go a.startPerfRuns()
+		}
+	}
 }
 
 func (a *App) onSecondInstance(options.SecondInstanceData) {
@@ -292,10 +298,12 @@ type SystemStatus struct {
 	SecretsPersistent bool   `json:"secretsPersistent"`
 	Version           string `json:"version"`
 	Error             string `json:"error"`
+	// Perf is true when the app was started for measurement (perf.go).
+	Perf bool `json:"perf"`
 }
 
 func (a *App) SystemStatus() SystemStatus {
-	st := SystemStatus{DataDir: a.dataDir, Version: appVersion}
+	st := SystemStatus{DataDir: a.dataDir, Version: appVersion, Perf: perfEnabled()}
 	if a.secrets != nil {
 		st.SecretsPersistent = a.secrets.Persistent()
 	}

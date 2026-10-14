@@ -126,6 +126,10 @@ export function PauseRun(arg1, arg2) {
   return window['go']['main']['App']['PauseRun'](arg1, arg2);
 }
 
+export function PerfMark(arg1, arg2) {
+  return window['go']['main']['App']['PerfMark'](arg1, arg2);
+}
+
 export function Ping(arg1) {
   return window['go']['main']['App']['Ping'](arg1);
 }

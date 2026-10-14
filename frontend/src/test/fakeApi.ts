@@ -13,6 +13,7 @@ const acted = (status: string) => vi.fn(async (..._args: unknown[]): Promise<Act
 
 export const fakeApi = {
     systemStatus: vi.fn(async () => ({dataDir: '/data', schemaVersion: 2, secretsPersistent: true, version: 'test', error: ''})),
+    perfMark: vi.fn(async (_n: string, _d: string) => {}),
     settings: vi.fn(async () => ({...state.settings})),
     setSetting: vi.fn(async (k: string, v: string) => { state.settings[k] = v; }),
     dashboard: vi.fn(async () => state.summaries),

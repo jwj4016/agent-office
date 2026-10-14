@@ -15,8 +15,13 @@ var assets embed.FS
 
 func main() {
 	// The installed app checks itself without opening a window.
-	if len(os.Args) > 1 && os.Args[1] == "--self-check" {
-		os.Exit(selfCheckMain(os.Args[2:], os.Stdout))
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "--self-check":
+			os.Exit(selfCheckMain(os.Args[2:], os.Stdout))
+		case "--perf-seed":
+			os.Exit(perfSeedMain(os.Args[2:], os.Stdout))
+		}
 	}
 	app := NewApp()
 

@@ -1,7 +1,8 @@
-import {type ReactNode, useEffect, useState} from 'react';
+import {type ReactNode, useEffect, useRef, useState} from 'react';
 import {api} from './api';
 import {t} from './i18n';
 import {LiveProvider, useLoad} from './live';
+import {markReady, startLagProbe} from './perf';
 import {applyMotion, DetailPane, DetailProvider, REDUCED_MOTION} from './ui';
 import {Dashboard} from './views/Dashboard';
 import {Design} from './views/Design';
@@ -40,14 +41,24 @@ function Shell() {
             </main>
         );
     }
-    return <Workspace/>;
+    return <Workspace perf={status.data?.perf === true}/>;
 }
 
-function Workspace() {
+function Workspace({perf}: { perf: boolean }) {
     const [route, setRoute] = useState<Route>({view: 'dashboard'});
     const [detail, setDetail] = useState<ReactNode | null>(null);
     const dash = useLoad(() => api.dashboard(false), [], '*');
     const inbox = useLoad(() => api.inbox(), [], '*');
+
+    // Measurement runs only (perf.go): first screen and screen lag.
+    const readyMarked = useRef(false);
+    useEffect(() => {
+        if (perf && dash.data !== undefined && !readyMarked.current) {
+            readyMarked.current = true;
+            markReady();
+        }
+    }, [perf, dash.data]);
+    useEffect(() => (perf ? startLagProbe() : undefined), [perf]);
 
     // Restore the last selected service; switching never affects runs.
     useEffect(() => {

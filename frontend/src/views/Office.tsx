@@ -122,15 +122,23 @@ function OfficeCanvas({office, onOpen}: { office: OfficeModel; onOpen: (d: Desk)
         return () => window.clearInterval(id);
     }, [animate]);
 
+    // Size the backing store only when the size changes: assigning width
+    // reallocates it, and doing that every frame cost most of the CPU of an
+    // idle, visible office (M6 measurement).
     useEffect(() => {
         const c = canvas.current;
-        const ctx = c?.getContext?.('2d');
-        if (!c || !ctx) return;
+        if (!c) return;
         const dpr = window.devicePixelRatio || 1;
         c.width = SCENE_W * scale * dpr;
         c.height = l.height * scale * dpr;
+    }, [scale, l.height]);
+    useEffect(() => {
+        const ctx = canvas.current?.getContext?.('2d');
+        if (!ctx) return;
+        const dpr = window.devicePixelRatio || 1;
         ctx.setTransform(scale * dpr, 0, 0, scale * dpr, 0, 0);
         ctx.imageSmoothingEnabled = false;
+        // draw() paints the whole floor first, so no clear is needed.
         draw(ctx, office, l, {tick: animate ? tick : 0, selected: sel, joy});
     }, [office, l, scale, tick, animate, sel, joy]);
 

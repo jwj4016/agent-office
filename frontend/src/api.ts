@@ -20,6 +20,7 @@ export type ProjectInput = {
 
 export const api = {
     systemStatus: () => call<SystemStatus>(Go.SystemStatus()),
+    perfMark: (name: string, data: string) => call<void>(Go.PerfMark(name, data)),
     settings: () => call<Record<string, string>>(Go.GetSettings()),
     setSetting: (k: string, v: string) => call<void>(Go.SetSetting(k, v)),
 

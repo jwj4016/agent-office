@@ -2109,6 +2109,7 @@ export namespace main {
 	    secretsPersistent: boolean;
 	    version: string;
 	    error: string;
+	    perf: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new SystemStatus(source);
@@ -2121,6 +2122,7 @@ export namespace main {
 	        this.secretsPersistent = source["secretsPersistent"];
 	        this.version = source["version"];
 	        this.error = source["error"];
+	        this.perf = source["perf"];
 	    }
 	}
 

@@ -1,4 +1,4 @@
-import {fireEvent, render, screen, waitFor, within} from '@testing-library/react';
+import {act, fireEvent, render, screen, waitFor, within} from '@testing-library/react';
 import {type ReactNode, useState} from 'react';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {fakeApi, inboxItem, state} from '../test/fakeApi';
@@ -129,6 +129,26 @@ describe('Office', () => {
         expect(timers.mock.calls.some(([, ms]) => ms === 170)).toBe(false);
         // The state is still drawn, just without motion.
         expect(drawn).toContain('개발 AI');
+    });
+
+    it('redraws animation frames without resizing the canvas', async () => {
+        let resized = 0;
+        const desc = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'width')!;
+        vi.spyOn(HTMLCanvasElement.prototype, 'width', 'set').mockImplementation(function (this: HTMLCanvasElement, v: number) {
+            resized++;
+            desc.set!.call(this, v);
+        });
+        const intervals = vi.spyOn(window, 'setInterval');
+        renderIt();
+        await screen.findByRole('application');
+        await waitFor(() => expect(intervals.mock.calls.some(([, ms]) => ms === 170)).toBe(true));
+        const tick = intervals.mock.calls.find(([, ms]) => ms === 170)![0] as () => void;
+        await waitFor(() => expect(drawn).toContain('개발 AI'));
+        const before = resized;
+        drawn.length = 0;
+        for (let i = 0; i < 5; i++) await act(async () => tick());
+        expect(drawn).toContain('개발 AI'); // frames were drawn
+        expect(resized).toBe(before);
     });
 
     it('explains an empty office', async () => {

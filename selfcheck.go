@@ -17,6 +17,7 @@ import (
 	"agent-office/internal/connect"
 	"agent-office/internal/domain"
 	"agent-office/internal/engine"
+	"agent-office/internal/providers"
 	osproc "agent-office/internal/proc"
 	"agent-office/internal/secrets"
 	"agent-office/internal/storage"
@@ -300,7 +301,7 @@ func startHeadless(ctx context.Context) (*App, error) {
 // setupExampleService builds a service the way a person does in the UI:
 // roles, assignments (AI on the given connection, the owner as a person)
 // and the example workflow with every step assigned, then confirms it.
-func setupExampleService(a *App, name, workspacePath, connectionID string) (domain.Project, string, error) {
+func setupExampleService(a *App, name, workspacePath, connectionID, model string) (domain.Project, string, error) {
 	p, err := a.CreateProject(ProjectInput{Name: name, Goal: name + "를 만든다", Mode: "review", WorkspacePath: workspacePath})
 	if err != nil {
 		return p, "", err
@@ -325,7 +326,7 @@ func setupExampleService(a *App, name, workspacePath, connectionID string) (doma
 	assign := map[string]string{}
 	for key, role := range map[string]string{"a-planner": "기획", "a-architect": "설계", "a-backend": "백엔드", "a-frontend": "프론트엔드", "a-qa": "QA"} {
 		as, err := a.SaveAssignment(domain.Assignment{ProjectID: p.ID, RoleID: roleIDs[role], ActorKind: domain.ActorAI,
-			DisplayName: role + " AI", ConnectionID: connectionID, Model: "auto"})
+			DisplayName: role + " AI", ConnectionID: connectionID, Model: model})
 		if err != nil {
 			return p, "", err
 		}
@@ -415,7 +416,7 @@ func checkFlow(a *App, dir string, wait time.Duration) (domain.Project, string, 
 	if err != nil {
 		return domain.Project{}, "", "", err
 	}
-	p, version, err := setupExampleService(a, "진단 서비스", work, conn.ID)
+	p, version, err := setupExampleService(a, "진단 서비스", work, conn.ID, providers.AutoScenario)
 	if err != nil {
 		return p, "", "", err
 	}

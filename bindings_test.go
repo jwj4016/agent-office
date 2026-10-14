@@ -46,7 +46,7 @@ func need[T any](v T, err error) T {
 func buildService(t *testing.T, a *App, name string) (domain.Project, string) {
 	t.Helper()
 	conn := need(a.EnsureTestConnection())
-	p, version, err := setupExampleService(a, name, "", conn.ID)
+	p, version, err := setupExampleService(a, name, "", conn.ID, "auto")
 	if err != nil {
 		t.Fatal(err)
 	}
