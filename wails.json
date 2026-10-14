@@ -9,5 +9,12 @@
   "author": {
     "name": "J",
     "email": "jwj4016@gmail.com"
+  },
+  "info": {
+    "companyName": "Agent Office",
+    "productName": "Agent Office",
+    "productVersion": "0.1.0",
+    "copyright": "Copyright © 2026 J",
+    "comments": "AI와 사람이 함께 일하는 사무실"
   }
 }

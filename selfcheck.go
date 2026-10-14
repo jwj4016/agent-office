@@ -277,7 +277,7 @@ func checkBridge(ctx context.Context) (string, string) {
 	if !p.OK {
 		return CheckFailed, p.Error
 	}
-	return CheckOK, fmt.Sprintf("SDK %s, Claude %s, node %s", p.SDKVersion, p.BinaryVersion, p.Node)
+	return CheckOK, fmt.Sprintf("SDK %s, Claude %s, node %s (%s)", p.SDKVersion, p.BinaryVersion, p.Node, script)
 }
 
 func truncate(s string, n int) string {

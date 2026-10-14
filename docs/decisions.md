@@ -36,3 +36,9 @@
 | 2026-10-08 | worktree는 데이터 폴더 `wt/`(짧은 경로), 브랜치는 서비스 저장소에 `agent-office/…`로 생성·유지. 사용자 작업 트리·현재 브랜치·미커밋 변경은 건드리지 않고, 반영은 사람이 직접 병합 | Windows 경로 길이, 원본 보존(§10.1 "명시적인 반영") | 사용자 저장소에 브랜치와 `.git/worktrees` 항목이 생김 |
 | 2026-10-08 | 작업 폴더가 없으면 서비스별 내부 Git 저장소 사용, Git이 없거나 저장소가 아니면 공유 폴더에서 코드 업무를 하나씩 실행 | 기본으로 병렬 개발 분리를 제공하되 Git 없는 환경도 안전하게 | 내부 저장소 기준은 매 실행 같은 첫 커밋(실행 간 자동 누적 없음) |
 | 2026-10-08 | 앱이 하는 git 커밋은 사용자 훅을 실행하지 않음(`core.hooksPath` 비활성, `--no-verify`) | 사용자 저장소 훅이 앱 작업을 멈추거나 부작용을 내지 않도록 | 훅이 하던 검사는 업무의 검증 명령으로 지정 |
+| 2026-10-14 | 설치 패키지에 Claude bridge(dist + 운영용 node_modules, OS·CPU별 Claude 실행 파일 1개)를 넣고 Node.js는 사용자가 설치 | SDK가 OS별 Claude 실행 파일(약 220MB)을 쓰므로 패키지마다 해당 OS·CPU 것만 포함. Node 런타임까지 넣으면 패키지가 더 커지고 보안 업데이트 책임이 생김 | 패키지 크기 dmg 약 130MB·설치 exe 약 95MB. Claude 연결에는 Node 18 이상 필요(연결 확인·진단에 표시) |
+| 2026-10-14 | macOS는 arm64·x64 dmg를 따로 만들고 최소 버전 13.0 | 포함된 Claude 실행 파일의 최소 버전이 13.0(LC_BUILD_VERSION). universal로 만들면 Claude 실행 파일 2개로 약 220MB 증가 | 잘못된 CPU용 dmg를 받으면 진단·연결 확인에 'darwin-arm64용 Claude 실행 파일이 없습니다'로 표시 |
+| 2026-10-14 | 번들 ID `com.agent-office.desktop`(Wails 기본 `com.wails.agent-office`에서 변경) | 단일 인스턴스 ID와 맞추고 Wails 이름을 제품 식별자에 쓰지 않음 | 출시 전 개발 빌드만 있어 이전 데이터 이관 없음(데이터 폴더는 번들 ID와 무관) |
+| 2026-10-14 | 서명 자격증명이 없으면 macOS는 ad-hoc 서명, Windows는 서명 없음. 자격증명은 환경변수로만 받음(`MACOS_SIGN_IDENTITY`·`MACOS_NOTARY_PROFILE`·`WINDOWS_SIGN_CERT`) | 명세 §15: 서명·공증은 실제 자격증명 준비 시 | 첫 실행 때 Gatekeeper·SmartScreen 허용 절차 필요(설치 안내에 기록) |
+| 2026-10-14 | Windows 하위 프로세스는 Job Object(kill-on-close)로 묶고 콘솔 창을 숨김. Job 생성 실패 시 기존 taskkill 사용 | 결정 기록의 'M6 Job Object 검토'. 부모가 먼저 끝난 손자 프로세스와 앱 비정상 종료 시 남는 프로세스 정리 | 공급자 프로세스에만 Job 적용. git·연결 확인·검증 명령은 창 숨김만 |
+| 2026-10-14 | 진단(`--self-check`)은 빈 폴더(기본: 새 임시 폴더)에서만 실행 | 흐름 시험이 서비스·실행을 만들므로 사람의 실제 데이터와 섞이지 않게 | 실제 데이터 폴더 점검은 화면의 연결 확인으로 |

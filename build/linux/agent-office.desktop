@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Agent Office
+Comment=AI와 사람이 함께 일하는 사무실
+Exec=agent-office
+Icon=agent-office
+Terminal=false
+Categories=Development;Office;
+StartupWMClass=agent-office

@@ -1,0 +1,159 @@
+name: package
+
+# Builds the install packages on each OS, installs them into a folder
+# with Korean letters and spaces, runs the installed app's self-check
+# and uninstalls (spec §15, T21). Tags v* also get a draft release.
+on:
+  push:
+    branches: [main, "feat/m6-**"]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macos-arm64
+            os: macos-latest
+            arch: arm64
+          - name: macos-x64
+            os: macos-15-intel
+            arch: amd64
+          - name: windows-x64
+            os: windows-latest
+          - name: linux-x64
+            os: ubuntu-24.04
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.27.x"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "26"
+
+      - name: Version
+        shell: bash
+        run: |
+          base=$(node -p "require('./wails.json').info.productVersion")
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then v=${GITHUB_REF_NAME#v}; else v="$base-dev.${GITHUB_SHA::7}"; fi
+          echo "VERSION=$v" >> "$GITHUB_ENV"
+
+      - name: Tools
+        shell: bash
+        run: |
+          go install github.com/wailsapp/wails/v2/cmd/wails@v2.16.0
+          if [ "$RUNNER_OS" = Linux ]; then
+            sudo apt-get update
+            sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
+          fi
+          if [ "$RUNNER_OS" = Windows ]; then
+            choco install nsis -y --no-progress
+            echo "C:\\Program Files (x86)\\NSIS" >> "$GITHUB_PATH"
+          fi
+
+      - name: Claude bridge
+        working-directory: runners/claude
+        run: |
+          npm ci
+          npm run build
+
+      - name: Package
+        shell: bash
+        run: |
+          case "$RUNNER_OS" in
+            macOS) scripts/package-macos.sh "${{ matrix.arch }}" "$VERSION" dist ;;
+            Windows) scripts/package-windows.sh "$VERSION" dist ;;
+            Linux) scripts/package-linux.sh "$VERSION" dist ;;
+          esac
+          ls -la dist
+
+      # ---- install, self-check, uninstall ----
+      - name: Install and check (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          dmg=$(ls dist/*.dmg)
+          mnt=$(mktemp -d)
+          hdiutil attach -nobrowse -mountpoint "$mnt" "$dmg"
+          dest="$RUNNER_TEMP/설치 시험/응용 프로그램"
+          mkdir -p "$dest"
+          cp -R "$mnt/Agent Office.app" "$dest/"
+          hdiutil detach "$mnt"
+          codesign --verify --strict "$dest/Agent Office.app"
+          cd "$RUNNER_TEMP"
+          "$dest/Agent Office.app/Contents/MacOS/agent-office" --self-check -out "$GITHUB_WORKSPACE/dist/self-check-${{ matrix.name }}.json"
+
+      - name: Install and check (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $setup = (Get-ChildItem dist\*-setup.exe).FullName
+          $dir = "C:\에이전트 오피스 시험\Agent Office"
+          $p = Start-Process $setup -ArgumentList '/S', "/D=$dir" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "installer exit $($p.ExitCode)" }
+          Get-ChildItem $dir | Format-Table Name, Length
+          if (-not (Test-Path "$dir\claude-runner\dist\main.js")) { throw "claude-runner missing" }
+          $report = "$env:GITHUB_WORKSPACE\dist\self-check-${{ matrix.name }}.json"
+          Set-Location $env:RUNNER_TEMP
+          $c = Start-Process "$dir\agent-office.exe" -ArgumentList '--self-check', '-out', "`"$report`"" -Wait -PassThru
+          Get-Content $report
+          if ($c.ExitCode -ne 0) { throw "self-check exit $($c.ExitCode)" }
+          $u = Start-Process "$dir\uninstall.exe" -ArgumentList '/S' -Wait -PassThru
+          # The uninstaller copies itself away and returns at once; wait for it.
+          for ($i = 0; $i -lt 60 -and (Test-Path "$dir\agent-office.exe"); $i++) { Start-Sleep 1 }
+          if (Test-Path "$dir\agent-office.exe") { throw "uninstall left the app behind" }
+
+      - name: Install and check (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          sudo apt-get install -y "./$(ls dist/*.deb)"
+          dpkg -L agent-office | grep -E 'claude-runner/dist/main.js|bin/agent-office|desktop'
+          mkdir -p "$RUNNER_TEMP/작업 공간 시험" && cd "$RUNNER_TEMP/작업 공간 시험"
+          agent-office --self-check -out "$GITHUB_WORKSPACE/dist/self-check-${{ matrix.name }}.json"
+          sudo apt-get remove -y agent-office
+          test ! -e /usr/lib/agent-office/agent-office
+
+      - name: Bridge must be the bundled one
+        shell: bash
+        run: |
+          node -e '
+            const r = require(process.argv[1]);
+            const b = r.checks.find((c) => c.id === "bridge");
+            console.log(r.version, r.os, r.arch, b.status, b.detail);
+            if (!r.ok || b.status !== "ok" || !/claude-runner/.test(b.detail)) process.exit(1);
+          ' "$PWD/dist/self-check-${{ matrix.name }}.json"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: agent-office-${{ matrix.name }}
+          path: dist/
+          retention-days: 14
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: package
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft --title "Agent Office ${GITHUB_REF_NAME#v}" \
+            --notes "설치 안내와 알려진 제한은 docs/install.ko.md 참고" dist/*.dmg dist/*.exe dist/*.deb

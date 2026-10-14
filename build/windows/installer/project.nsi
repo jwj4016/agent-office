@@ -1,4 +1,6 @@
 Unicode true
+# The Claude bridge is ~270MB; solid LZMA roughly halves the installer.
+SetCompressor /SOLID lzma
 
 ####
 ## Please note: Template replacements don't work in this file. They are provided with default defines like
@@ -64,7 +66,8 @@ ManifestDPIAware true
 
 !insertmacro MUI_UNPAGE_INSTFILES # Uinstalling page
 
-!insertmacro MUI_LANGUAGE "English" # Set the Language of the installer
+!insertmacro MUI_LANGUAGE "Korean" # The first language is used when Windows asks for one not listed
+!insertmacro MUI_LANGUAGE "English"
 
 ## The following two statements can be used to sign the installer and the uninstaller. The path to the binaries are provided in %1
 #!uninstfinalize 'signtool --file "%1"'
@@ -95,6 +98,17 @@ Section
     SetOutPath $INSTDIR
 
     !insertmacro wails.files
+
+    # The Claude bridge staged by scripts/stage-runner.mjs. An update
+    # replaces it as a whole so no files of an older SDK are left behind.
+    !if /FileExists "..\..\bin\claude-runner\dist\main.js"
+        RMDir /r "$INSTDIR\claude-runner"
+        SetOutPath "$INSTDIR\claude-runner"
+        File /r "..\..\bin\claude-runner\*.*"
+        SetOutPath $INSTDIR
+    !else
+        !warning "claude-runner is not staged: this installer has no Claude bridge"
+    !endif
 
     CreateShortcut "$SMPROGRAMS\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"
     CreateShortCut "$DESKTOP\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"

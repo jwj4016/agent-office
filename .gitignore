@@ -8,3 +8,5 @@ runners/claude/dist
 *.db-shm
 .DS_Store
 frontend/package.json.md5
+build/windows/installer/tmp
+dist/

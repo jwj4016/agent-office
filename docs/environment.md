@@ -37,6 +37,23 @@ Wails CLI는 `$(go env GOPATH)/bin`에 설치된다. PATH에 추가해야 한다
     wails dev
     wails build
 
+## 설치 패키지 만들기 (M6)
+
+`runners/claude`를 먼저 빌드한다(`npm ci && npm run build`). 결과는 `dist/`.
+
+    scripts/package-macos.sh arm64|amd64 [버전] [출력 폴더]   # macOS, dmg (최소 macOS 13)
+    scripts/package-windows.sh [버전] [출력 폴더]             # Git Bash 또는 macOS(교차 빌드, brew install makensis)
+    scripts/package-linux.sh [버전] [출력 폴더]               # Ubuntu 24.04, deb
+    node scripts/stage-runner.mjs <폴더> --os <os> --cpu <cpu> # bridge만 따로 준비
+
+설치한 앱 진단(창 없이, 빈 임시 폴더에서):
+
+    "Agent Office.app/Contents/MacOS/agent-office" --self-check
+    "C:\Program Files\Agent Office\Agent Office\agent-office.exe" --self-check -out 결과.json   # Windows는 결과를 파일로
+    agent-office --self-check
+
+CI: `.github/workflows/package.yml` — macOS arm64(macos-latest)·x64(macos-15-intel), Windows x64, Ubuntu 24.04에서 패키지 → 한글·공백 경로에 설치 → 진단 → 제거. 태그 `v*`는 초안 릴리스.
+
 ## 미확인 환경
 
 - Ubuntu LTS x64, macOS x64: 시험 장비 없음 (CI 빌드·시험만)
