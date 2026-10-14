@@ -3,6 +3,7 @@ package workspace
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -133,5 +134,27 @@ func TestHeadOfEmptyRepo(t *testing.T) {
 	}
 	if _, err := g.Head(context.Background(), dir); err != ErrNoCommit {
 		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestFindGitSkipsTheMacStubWithoutDeveloperTools(t *testing.T) {
+	stub := func(string) (string, error) { return "/usr/bin/git", nil }
+	brew := func(string) (string, error) { return "/opt/homebrew/bin/git", nil }
+	missing := func(string) (string, error) { return "", exec.ErrNotFound }
+	no, yes := func() bool { return false }, func() bool { return true }
+	if g := findGit("darwin", stub, no); g != nil {
+		t.Fatalf("stub without developer tools used: %+v", g)
+	}
+	if g := findGit("darwin", stub, yes); g == nil || g.Exe != "/usr/bin/git" {
+		t.Fatalf("stub with developer tools: %+v", g)
+	}
+	if g := findGit("darwin", brew, no); g == nil || g.Exe != "/opt/homebrew/bin/git" {
+		t.Fatalf("Homebrew git: %+v", g)
+	}
+	if g := findGit("linux", stub, no); g == nil {
+		t.Fatal("/usr/bin/git on Linux is real git")
+	}
+	if findGit("windows", missing, yes) != nil {
+		t.Fatal("no git found")
 	}
 }

@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -29,8 +30,20 @@ type Git struct {
 
 // FindGit returns git from PATH, or nil when it is not installed.
 func FindGit() *Git {
-	exe, err := exec.LookPath("git")
+	return findGit(runtime.GOOS, exec.LookPath, func() bool {
+		return exec.Command("/usr/bin/xcode-select", "-p").Run() == nil
+	})
+}
+
+// findGit skips macOS's /usr/bin/git stub when the Command Line Tools are
+// missing: running the stub opens an "install developer tools" dialog
+// in the middle of a run instead of doing any git work.
+func findGit(goos string, lookPath func(string) (string, error), devToolsInstalled func() bool) *Git {
+	exe, err := lookPath("git")
 	if err != nil {
+		return nil
+	}
+	if goos == "darwin" && exe == "/usr/bin/git" && !devToolsInstalled() {
 		return nil
 	}
 	return &Git{Exe: exe}
