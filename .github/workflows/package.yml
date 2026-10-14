@@ -124,6 +124,38 @@ jobs:
           sudo apt-get remove -y agent-office
           test ! -e /usr/lib/agent-office/agent-office
 
+      # ---- performance scenario on the CI machine (spec §11) ----
+      # CI VMs are not the people's PCs: the numbers are recorded as
+      # "CI VM" and never stand in for a measurement on real hardware.
+      - name: Performance (macOS)
+        if: runner.os == 'macOS'
+        continue-on-error: true
+        shell: bash
+        run: |
+          cd dist
+          ../scripts/perf.sh "$RUNNER_TEMP/설치 시험/응용 프로그램/Agent Office.app/Contents/MacOS/agent-office" 60 30
+
+      - name: Performance (Linux)
+        if: runner.os == 'Linux'
+        continue-on-error: true
+        shell: bash
+        run: |
+          sudo apt-get install -y "./$(ls dist/*.deb)" xvfb
+          cd dist
+          xvfb-run -a ../scripts/perf.sh /usr/lib/agent-office/agent-office 60 30
+          sudo apt-get remove -y agent-office
+
+      - name: Performance (Windows)
+        if: runner.os == 'Windows'
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $setup = (Get-ChildItem dist\*-setup.exe).FullName
+          $dir = "C:\에이전트 오피스 시험\Agent Office"
+          Start-Process $setup -ArgumentList '/S', "/D=$dir" -Wait
+          Set-Location dist
+          & ../scripts/perf.ps1 -Exe "$dir\agent-office.exe" -Active 60 -Idle 30
+
       - name: Bridge must be the bundled one
         shell: bash
         run: |

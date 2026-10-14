@@ -10,6 +10,8 @@
 # CPU time, app + its WebKit processes), resident memory (sum of RSS, so
 # shared pages are counted per process) and screen lag (a 100ms timer's
 # delay inside the page). Results are printed and saved as perf-<os>.json.
+# Keep the window in front: a hidden or covered window throttles its
+# timers and stops the office animation (hiddenReports counts those).
 set -euo pipefail
 exe=${1:?app executable}
 active=${2:-60}
@@ -41,11 +43,11 @@ launch() { # $1 = log file, $2 = runs on|off
   AGENT_OFFICE_PERF="$1" AGENT_OFFICE_PERF_RUNS="$2" AGENT_OFFICE_DATA_DIR="$data" "$exe" >/dev/null 2>&1 &
   pid=$!
   for _ in $(seq 1 300); do grep -q '"ui-ready"' "$1" 2>/dev/null && break; sleep 0.2; done
-  grep -q '"ui-ready"' "$1" || { echo "first screen never reported" >&2; exit 1; }
+  grep -q '"ui-ready"' "$1" || { echo "first screen never reported ($1):" >&2; cat "$1" >&2 2>/dev/null; exit 1; }
   sleep 2
   procs="$pid $(comm -13 <(echo "$before") <(webkit_pids) | tr '\n' ' ')"
 }
-stop() { kill "$pid"; wait "$pid" 2>/dev/null || true; sleep 2; }
+stop() { kill "$pid"; wait "$pid" 2>/dev/null || true; sleep 4; }
 
 ready_ms() { sed -n 's/.*"ms":\([0-9]*\),"name":"ui-ready".*/\1/p' "$1"; }
 
@@ -57,14 +59,15 @@ window() { # $1 = seconds -> "cpu_percent rss_mb peak_rss_mb"
   echo "$(awk -v a="$c0" -v b="$c1" -v s="$1" 'BEGIN { printf "%.1f", (b - a) * 100 / s }') $(rss_mb $procs) $peak"
 }
 
-lag() { # worst p95 and max of the lag reports in a log
-  awk -F'"p95":' '/"name":"lag"/ { split($2, a, ","); if (a[1] > p) p = a[1]; m = $0; sub(/.*"max":/, "", m); sub(/[,}].*/, "", m); if (m + 0 > mx) mx = m + 0 } END { printf "%d %d", p, mx }' "$1"
+lag() { # worst p95, max, and reports taken while the window was hidden / all
+  awk -F'"p95":' '/"name":"lag"/ { n++; if (/"hidden":true/) h++; split($2, a, ","); if (a[1] > p) p = a[1]; m = $0; sub(/.*"max":/, "", m); sub(/[,}].*/, "", m); if (m + 0 > mx) mx = m + 0 } END { printf "%d %d %d/%d", p, mx, h, n }' "$1"
 }
+lagjson() { set -- $1; echo "\"lagP95Ms\":$1,\"lagMaxMs\":$2,\"hiddenReports\":\"$3\""; }
 
 log1="$work/idle.jsonl"; launch "$log1" off; nprocs=$(echo $procs | wc -w | tr -d ' ')
-sleep 8; read -r idle_cpu idle_rss idle_peak < <(window "$idle"); idle_lag=$(lag "$log1"); stop
+sleep 8; read -r idle_cpu idle_rss idle_peak < <(window "$idle"); idle_lag=$(lagjson "$(lag "$log1")"); stop
 log2="$work/active.jsonl"; launch "$log2" on
-read -r act_cpu act_rss act_peak < <(window "$active"); act_lag=$(lag "$log2"); stop
+read -r act_cpu act_rss act_peak < <(window "$active"); act_lag=$(lagjson "$(lag "$log2")"); stop
 log3="$work/third.jsonl"; launch "$log3" off; stop
 
 os=$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m)
@@ -72,7 +75,7 @@ ver=$(sed -n 's/.*"version":"\([^"]*\)".*/\1/p' "$log1" | head -1)
 cat > "perf-$os.json" <<JSON
 {"os":"$os","version":"$ver","processes":$nprocs,
  "startupMs":[$(ready_ms "$log1"),$(ready_ms "$log2"),$(ready_ms "$log3")],
- "idle":{"seconds":$idle,"cpuPercent":$idle_cpu,"rssMb":$idle_rss,"peakRssMb":$idle_peak,"lagP95Ms":${idle_lag% *},"lagMaxMs":${idle_lag#* }},
- "active":{"seconds":$active,"cpuPercent":$act_cpu,"rssMb":$act_rss,"peakRssMb":$act_peak,"lagP95Ms":${act_lag% *},"lagMaxMs":${act_lag#* }}}
+ "idle":{"seconds":$idle,"cpuPercent":$idle_cpu,"rssMb":$idle_rss,"peakRssMb":$idle_peak,$idle_lag},
+ "active":{"seconds":$active,"cpuPercent":$act_cpu,"rssMb":$act_rss,"peakRssMb":$act_peak,$act_lag}}
 JSON
 cat "perf-$os.json"
