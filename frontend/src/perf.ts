@@ -33,9 +33,13 @@ export function startLagProbe(intervalMs = 100, reportMs = 10_000): () => void {
     };
 }
 
-// markReady records the first screen with data, after it is painted.
+// markReady records the first screen with data, after it is painted. A
+// hidden window never paints (no animation frames), so it is recorded at
+// once and marked hidden.
 export function markReady() {
-    requestAnimationFrame(() => setTimeout(() => {
-        api.perfMark('ui-ready', JSON.stringify({sinceNavigationMs: Math.round(performance.now())})).catch(() => {});
-    }, 0));
+    const mark = () => api.perfMark('ui-ready', JSON.stringify({
+        sinceNavigationMs: Math.round(performance.now()), hidden: document.hidden,
+    })).catch(() => {});
+    if (document.hidden) setTimeout(mark, 0);
+    else requestAnimationFrame(() => setTimeout(mark, 0));
 }

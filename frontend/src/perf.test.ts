@@ -3,7 +3,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 const perfMark = vi.fn(async (_n: string, _d: string) => {});
 vi.mock('./api', () => ({api: {perfMark: (n: string, d: string) => perfMark(n, d)}}));
 
-import {lagStats, startLagProbe} from './perf';
+import {lagStats, markReady, startLagProbe} from './perf';
 
 describe('perf', () => {
     beforeEach(() => vi.useFakeTimers());
@@ -28,5 +28,15 @@ describe('perf', () => {
         stop();
         vi.advanceTimersByTime(5000);
         expect(perfMark).toHaveBeenCalledTimes(1);
+    });
+
+    it('marks the first screen even when the window is hidden', () => {
+        const hidden = vi.spyOn(document, 'hidden', 'get').mockReturnValue(true);
+        const raf = vi.spyOn(window, 'requestAnimationFrame');
+        markReady();
+        vi.advanceTimersByTime(1);
+        expect(raf).not.toHaveBeenCalled();
+        expect(perfMark).toHaveBeenCalledWith('ui-ready', expect.stringContaining('"hidden":true'));
+        hidden.mockRestore();
     });
 });

@@ -27,25 +27,38 @@ webkit_pids() {
   else pgrep -f 'WebKit(Web|Network|GPU)Process' | sort || true; fi
 }
 
-# seconds of CPU time used so far by the given pids
-cpu_seconds() {
-  ps -o time= -p "$(echo "$@" | tr ' ' ,)" 2>/dev/null | awk '
-    { n = split($1, p, /[:-]/); s = 0
+# "pid seconds" lines: CPU time used so far by each of the given pids
+cpu_times() {
+  ps -o pid=,time= -p "$(echo "$@" | tr ' ' ,)" 2>/dev/null | awk '
+    { n = split($2, p, /[:-]/); s = 0
       if (n == 4) s = p[1]*86400 + p[2]*3600 + p[3]*60 + p[4]
       else if (n == 3) s = p[1]*3600 + p[2]*60 + p[3]
       else s = p[1]*60 + p[2]
-      t += s } END { printf "%.2f", t }'
+      print $1, s }'
+}
+
+# started_near <epoch> <pids...>: the pids that started within 20s after
+# the launch. macOS starts WebKit helpers through launchd (parent 1), so
+# they are told apart from other apps' WebKit processes by start time.
+started_near() {
+  local t0=$1 p st; shift
+  for p in "$@"; do
+    st=$(LC_ALL=C ps -o lstart= -p "$p" 2>/dev/null) || continue
+    st=$(LC_ALL=C date -j -f "%a %b %e %T %Y" "$st" +%s 2>/dev/null || date -d "$st" +%s)
+    if [ "$st" -ge $((t0 - 1)) ] && [ "$st" -le $((t0 + 20)) ]; then echo "$p"; fi
+  done
 }
 rss_mb() { ps -o rss= -p "$(echo "$@" | tr ' ' ,)" | awk '{ t += $1 } END { printf "%.0f", t / 1024 }'; }
 
 launch() { # $1 = log file, $2 = runs on|off
   before=$(webkit_pids)
+  t0=$(date +%s)
   AGENT_OFFICE_PERF="$1" AGENT_OFFICE_PERF_RUNS="$2" AGENT_OFFICE_DATA_DIR="$data" "$exe" >/dev/null 2>&1 &
   pid=$!
   for _ in $(seq 1 300); do grep -q '"ui-ready"' "$1" 2>/dev/null && break; sleep 0.2; done
   grep -q '"ui-ready"' "$1" || { echo "first screen never reported ($1):" >&2; cat "$1" >&2 2>/dev/null; exit 1; }
   sleep 2
-  procs="$pid $(comm -13 <(echo "$before") <(webkit_pids) | tr '\n' ' ')"
+  procs="$pid $(started_near "$t0" $(comm -13 <(echo "$before") <(webkit_pids)) | tr '\n' ' ')"
 }
 stop() { kill "$pid"; wait "$pid" 2>/dev/null || true; sleep 4; }
 
@@ -53,10 +66,12 @@ ready_ms() { sed -n 's/.*"ms":\([0-9]*\),"name":"ui-ready".*/\1/p' "$1"; }
 
 window() { # $1 = seconds -> "cpu_percent rss_mb peak_rss_mb"
   local c0 c1 peak=0 r
-  c0=$(cpu_seconds $procs)
+  c0=$(cpu_times $procs)
   for _ in $(seq 1 "$1"); do sleep 1; r=$(rss_mb $procs); [ "$r" -gt "$peak" ] && peak=$r; done
-  c1=$(cpu_seconds $procs)
-  echo "$(awk -v a="$c0" -v b="$c1" -v s="$1" 'BEGIN { printf "%.1f", (b - a) * 100 / s }') $(rss_mb $procs) $peak"
+  c1=$(cpu_times $procs)
+  # Only processes alive at both ends count; one that exited would make
+  # the total go backwards.
+  echo "$(awk -v s="$1" 'NR == FNR { a[$1] = $2; next } ($1 in a) { t += $2 - a[$1] } END { printf "%.1f", t * 100 / s }' <(echo "$c0") <(echo "$c1")) $(rss_mb $procs) $peak"
 }
 
 lag() { # worst p95, max, and reports taken while the window was hidden / all
