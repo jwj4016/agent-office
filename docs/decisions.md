@@ -42,3 +42,4 @@
 | 2026-10-14 | 서명 자격증명이 없으면 macOS는 ad-hoc 서명, Windows는 서명 없음. 자격증명은 환경변수로만 받음(`MACOS_SIGN_IDENTITY`·`MACOS_NOTARY_PROFILE`·`WINDOWS_SIGN_CERT`) | 명세 §15: 서명·공증은 실제 자격증명 준비 시 | 첫 실행 때 Gatekeeper·SmartScreen 허용 절차 필요(설치 안내에 기록) |
 | 2026-10-14 | Windows 하위 프로세스는 Job Object(kill-on-close)로 묶고 콘솔 창을 숨김. Job 생성 실패 시 기존 taskkill 사용 | 결정 기록의 'M6 Job Object 검토'. 부모가 먼저 끝난 손자 프로세스와 앱 비정상 종료 시 남는 프로세스 정리 | 공급자 프로세스에만 Job 적용. git·연결 확인·검증 명령은 창 숨김만 |
 | 2026-10-14 | 진단(`--self-check`)은 빈 폴더(기본: 새 임시 폴더)에서만 실행 | 흐름 시험이 서비스·실행을 만들므로 사람의 실제 데이터와 섞이지 않게 | 실제 데이터 폴더 점검은 화면의 연결 확인으로 |
+| 2026-10-14 | 첫 출시는 서명·공증 없이 진행(사용자 결정) | Apple Developer ID·Windows 코드 서명 인증서 없음. 앱 기능에는 영향 없음 | 첫 실행 때 Gatekeeper(그래도 열기)·SmartScreen(추가 정보 → 실행) 허용 필요. 인증서가 생기면 환경변수만 지정해 패키지 스크립트로 서명·공증 |
