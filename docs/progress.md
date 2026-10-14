@@ -97,19 +97,19 @@
 ### M6 출시 검증
 **진단·프로세스**
 - [x] 설치된 앱 자체 진단 `--self-check` — 저장소 저장·다시 열기, 포함된 bridge 실제 실행(probe), 테스트 AI 흐름·취소·재시작, 한글·공백 임시 폴더
-- [ ] Windows 하위 프로세스: 콘솔 창 숨김, Job Object로 손자 프로세스 정리 — 구현·macOS 시험 완료, Windows는 CI 확인 후 체크
+- [x] Windows 하위 프로세스: 콘솔 창 숨김, Job Object로 손자 프로세스 정리 — windows-latest CI(run 38575688557) `TestCloseEndsTheJob`·`TestKillReachesOrphanedGrandchild`·`TestHideSetsNoWindow` 통과
 
 **3 OS 설치 패키지**
-- [ ] Claude bridge·SDK 동봉 (OS·CPU별 Claude 실행 파일)
-- [ ] macOS dmg (arm64·x64), 최소 macOS 버전 확정
-- [ ] Windows 설치 exe (NSIS)
-- [ ] Linux deb
-- [ ] CI에서 3 OS 패키지 설치 → 한글·공백 경로에서 진단 통과 (T21)
+- [x] Claude bridge·SDK 동봉 (OS·CPU별 Claude 실행 파일) — `scripts/stage-runner.mjs`
+- [x] macOS dmg (arm64·x64), 최소 macOS 13.0 확정
+- [x] Windows 설치 exe (NSIS, Linux에서 교차 빌드)
+- [x] Linux deb (Ubuntu 24.04)
+- [x] CI에서 3 OS 패키지 설치 → 한글·공백 경로에서 진단 통과 (T21) — run 38575688891·38581308212, 4개 패키지
 
 **측정·안내**
-- [ ] 성능 측정 시나리오 기록 (서비스 2·담당자 20·노드 50·활성 AI 2)
-- [ ] 설치·실행 안내, 알려진 제한
-- [ ] 서명·공증 (자격증명 준비 시)
+- [x] 성능 측정 시나리오 기록 (서비스 2·담당자 20·노드 50·활성 AI 2) — 개발 Mac + CI 4환경, acceptance.md. ⚠️ Windows·Linux 실제 PC 미측정
+- [x] 설치·실행 안내, 알려진 제한 — `docs/install.ko.md`
+- [ ] 서명·공증 (자격증명 준비 시) — 스크립트는 환경변수로 서명·공증 가능, ⚠️ 자격증명 없어 미실행
 - [ ] 🚪 게이트: acceptance.md에 T01~T24 증거 + 알려진 제한 정리
 
 
@@ -354,3 +354,10 @@
 - 이번 검증과 결과: `selfcheck_test.go` 4건(한글 데이터 폴더, 결과 파일·임시 폴더 삭제, 잘못된 폴더, 기존 데이터 폴더 거부), `internal/proc` 손자 프로세스 정리 시험(macOS), bridge `probe.test.ts` 3건. 이 Mac에서 `go run . --self-check` 전 항목 ok(SDK 0.3.288, Claude 2.1.288). 전체 Go·bridge 테스트 통과. 진단의 전체 결과(ok)가 defer에서 계산돼 반환값에 반영되지 않던 결함을 실행으로 발견·수정, 테스트 보강
 - 미검증: Windows Job Object·창 숨김은 CI(windows-latest) 결과 전
 - 다음에 실행할 구체적인 작업: bridge 동봉 스크립트, macOS dmg·Windows NSIS·Linux deb, 패키지 설치 후 진단을 돌리는 CI
+
+- 현재 단계: M6 / 패키지·측정·안내
+- 구현 완료: `scripts/stage-runner.mjs`(bridge dist + 운영용 node_modules, 해당 OS·CPU Claude 실행 파일만), `package-macos.sh`(dmg, 최소 macOS 13 — CGO 플래그로 링커 경고 해소, ad-hoc 서명, `MACOS_SIGN_IDENTITY`·`MACOS_NOTARY_PROFILE` 있으면 서명·공증), `package-windows.sh`(NSIS, bridge 포함·한국어 화면·LZMA, `WINDOWS_SIGN_CERT` 있으면 signtool), `package-linux.sh`(deb, /usr/lib/agent-office, 데스크톱 항목). 번들 ID `com.agent-office.desktop`. `.github/workflows/package.yml`: 4개 패키지 → 한글·공백 경로 설치 → 진단 → 제거 → 성능 측정, 태그 v*는 초안 릴리스. 성능 측정 모드(`--perf-seed`, `AGENT_OFFICE_PERF`, `AGENT_OFFICE_PERF_RUNS=off`)와 `scripts/perf.sh`·`perf.ps1`. `docs/install.ko.md`, README 갱신. 개발자 도구 없는 Mac의 `/usr/bin/git` 대리 실행 파일을 Git 없음으로 처리
+- 이번 검증과 결과: CI 4개 패키지 설치·진단 통과(위 run). 성능 결과는 acceptance.md. 측정 중 발견·수정: ① 사무실 캔버스를 프레임마다 다시 할당(유휴 CPU 원인) ② 숨겨진 창에서는 첫 화면 기록이 안 남음(requestAnimationFrame 미호출) ③ macOS에서 다른 앱의 WebKit 프로세스가 측정에 섞이고 종료된 프로세스 때문에 CPU가 음수로 나옴 → 실행 직후 시작된 프로세스만, 양 끝에 살아 있는 프로세스끼리 차이 ④ Chocolatey 503에도 종료 코드 0이라 makensis 없이 진행 → Windows 설치 파일은 Ubuntu(apt nsis)에서 교차 빌드
+- 미검증·알려진 제한: 서명·공증(자격증명 없음), Windows·Linux 실제 PC 설치·화면·성능, Linux 실제 X11·Wayland, 설치 패키지에서 실제 AI 공급자 실행, 첫 실행 OS 경고 화면. 목록은 `docs/install.ko.md` '알려진 제한'
+- 다음에 실행할 구체적인 작업: M6 게이트 보고 → 사용자 확인(서명 자격증명 여부, Windows PC 시험 여부) → main 병합
+

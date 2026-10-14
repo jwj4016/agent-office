@@ -33,11 +33,49 @@
 | T14 | 두 개발 AI의 병렬 변경 | 🟡 | `TestParallelCodeStepsIntegrateAndBuild`(별도 worktree·브랜치, 통합 worktree에서 병합 후 실제 `go build ./...` 검증, 원본 작업 트리 불변), 충돌: `TestIntegrationConflictMustBeResolved`, 재작업: `TestCodeReworkContinuesFromPreviousCommit`, 사용자 저장소 보존: `TestUserRepositoryIsLeftAlone`. 실제 AI(2026-10-08, Windows): Codex 백엔드·Claude 프론트엔드가 별도 worktree에서 동시 작업, Claude 통합이 병합 후 `go build`·`go vet`·`go test ./...` 통과(`TestRealM4Gate`) |
 | T15 | 모델은 완료 주장, 테스트 실패 | 🟡 | `TestClaimedDoneWithoutOutputFails`, `TestFailingVerificationCommandFails`, 사람 리뷰도 동일 기준: `TestReviewPassMeetsCompletionCriteria` |
 | T16 | 앱 강제 종료·재시작 | 🟡 | `TestRecoverAfterEngineStopped`, 실제 앱 `kill -9` 후 재시작(테스트 provider). 실제 공급자 실행 중 강제 종료는 미시험 |
-| T17 | 프로세스 취소 | 🟡 | 가짜: `TestCodexCancelKillsStuckProcessTree`, `TestClaudeCancelLeavesNoChildren`. 실제(2026-10-07, macOS): `TestCodexRealCancel`, `TestClaudeRealCancel` — 취소 후 프로세스 그룹에 남은 프로세스 없음. Windows 미시험 |
+| T17 | 프로세스 취소 | 🟡 | 가짜: `TestCodexCancelKillsStuckProcessTree`, `TestClaudeCancelLeavesNoChildren`. 실제(2026-10-07, macOS): `TestCodexRealCancel`, `TestClaudeRealCancel` — 취소 후 프로세스 그룹에 남은 프로세스 없음. 프로세스 묶음(M6, `internal/proc`): 부모가 먼저 끝난 손자 프로세스까지 정리 `TestKillReachesOrphanedGrandchild`(macOS·Linux·Windows CI), Windows Job Object 닫힘 시 정리 `TestCloseEndsTheJob`·콘솔 창 숨김 `TestHideSetsNoWindow`(windows-latest, run 38575688557). 설치 패키지 진단의 실행 취소(4개 패키지). 실제 공급자 취소는 Windows에서 미시험 |
 | T18 | 질문이 서로 순환 또는 무응답 | 🟡 | 무응답: `TestAIQuestionEscalatesWhenUnanswered`(제한 시간 후 사용자에게 넘김, 사람 답변 후 계속). 순환: `TestAIQuestionLoopIsCapped`(같은 두 담당자 사이 한도 초과 질문은 사용자에게), 보조 세션은 질문 불가(고정 답변). 회의: 라운드 한도 `TestMeetingRunsRoundsThenAIDecides`, 합의 시 조기 종료 `TestMeetingStopsWhenAllAgree`. 실제 공급자 미시험 |
 | T19 | 예산·수정 한도 도달 | 🟡 | 수정 한도: `TestRevisionLimit`. 예산: `TestBudgetHoldsNewAIWork`(새 AI 업무 보류·사람 대기·내 할 일 표시·상향 시 재개), `TestUsageUnknownCost`(미보고 비용 별도 집계). 실제 공급자 미시험 |
 | T20 | 키 저장소 없음·내보내기 | 🟡 | 키 저장소 없을 때 메모리 fallback: `secrets_test.go` TestOpenFallsBackToMemory. 내보내기: `TestExportExcludesKeys`(끝난 실행을 내보내 저장된 키·키 형태 문자열 가림, secret://참조·실행 파일 경로·공급자 세션 없음, 연결은 id·이름·종류만, 다른 서비스 행 없음, 없는 결과 파일은 목록에만), `TestReadInsideStaysInTheDataFolder`(데이터 폴더 밖·심볼릭 링크 거부), `TestExportProjectBinding`(저장 대화상자·.zip 붙임·임시 파일 남지 않음·취소), 화면 `ExportButton.test.tsx`. 실제 앱 저장은 M5 게이트 |
-| T21 | 한글·공백 경로, 설치 패키지 | 🟡 | DB 경로: `TestMigrationsApplyOnceAndPersistAcrossReopen`. 실제 AI 작업 폴더 '게이트 작업 폴더'에서 Codex 작성·Claude 검증·검증 명령 정상(M2 게이트). 설치 패키지 미시험 |
+| T21 | 한글·공백 경로, 설치 패키지 | 🟡 | DB 경로: `TestMigrationsApplyOnceAndPersistAcrossReopen`. 실제 AI 작업 폴더 '게이트 작업 폴더'에서 Codex 작성·Claude 검증·검증 명령 정상(M2 게이트). 설치 패키지(M6, CI run 38575688891): dmg arm64·x64를 '설치 시험/응용 프로그램', NSIS 설치 파일을 `C:\에이전트 오피스 시험\Agent Office`에 설치하고 deb는 /usr/lib에 설치. 이후 설치된 실행 파일의 `--self-check`가 '에이전트 오피스 진단 *' 데이터 폴더·'작업 폴더 (진단)' 작업 폴더에서 저장·다시 열기, 포함된 Claude bridge 실행(SDK 0.3.288, Claude 2.1.288), 테스트 AI 흐름 9업무·결과 8개 해시 확인, 취소, 재시작 복원을 모두 통과. Windows·Linux는 제거까지 확인(`selfcheck_test.go`). 실제 AI 공급자로 설치 패키지에서 업무를 실행한 것은 아님 |
 | T22 | 도트 모션 줄이기·키보드 | 🟡 | `views/Office.test.tsx`: 화살표·Home/End로 담당자 선택과 상태 문장 낭독(aria-live), Enter로 상세와 '다시 시도'·'실행 보기', '목록' 보기에서 같은 상세·'내 할 일에서 처리', 모션 줄이기(앱 설정·OS) 시 애니메이션 타이머 없음(설정 불러오기 전에도 정지). 흐름 편집: 끌기 대신 '선행 업무 추가' 선택(`NodeForm.test.tsx`, 순환 후보 제외). 상세 패널은 열릴 때만 초점 이동·Esc로 닫기(`ui.test.tsx`). 좁은 창은 사무실 대신 목록. 실제 앱(2026-10-14, macOS): 키보드 선택·상세, 목록 보기 선택 기억, 모션 줄이기 시 캔버스 고정 확인 |
 | T23 | 악성 프로젝트·산출물 ID 참조 | 🟡 | 저장: `TestCrossProjectReferencesRejected`, `TestCheckScope`. 엔진: `TestEngineRejectsCrossProjectIDs`. 바인딩: `TestBindingsTwoServicesEndToEnd`, 실제 앱 콘솔에서 교차 GetRun·ReadArtifact 거절 확인 |
-| T24 | 두 앱 인스턴스·이중 완료 클릭 | 🟡 | 이중 클릭: `TestStepApprovalDecidedOnce`, `TestDuplicateApprovalClicks`. 두 인스턴스: 데이터 폴더 잠금 `TestSecondOpenIsLocked`, `TestSecondAppInstanceRefused`, 엔진 1개 `TestSecondEngineRefusedWhileFirstRuns`, macOS 빌드 앱 두 번 실행 시 두 번째 즉시 종료(2026-10-03). Windows·Linux 미시험 |
+| T24 | 두 앱 인스턴스·이중 완료 클릭 | 🟡 | 이중 클릭: `TestStepApprovalDecidedOnce`, `TestDuplicateApprovalClicks`. 두 인스턴스: 데이터 폴더 잠금 `TestSecondOpenIsLocked`, `TestSecondAppInstanceRefused`(3 OS CI), 엔진 1개 `TestSecondEngineRefusedWhileFirstRuns`, macOS 빌드 앱 두 번 실행 시 두 번째 즉시 종료(2026-10-03). Windows·Linux 설치 앱으로 두 번 실행하는 화면 시험은 미시험 |
+
+## 플랫폼별 설치 시험 (M6)
+
+`.github/workflows/package.yml`: 패키지 생성 → 한글·공백 경로에 설치 → 설치된 실행 파일의 `--self-check` → 제거. 진단은 bridge가 패키지에 포함된 것(`claude-runner`)인지까지 확인한다.
+
+| 패키지 | 크기 | 설치 위치 | 진단 | 제거 | 증거 |
+|---|---|---|---|---|---|
+| macOS arm64 dmg | 133MB | `$RUNNER_TEMP/설치 시험/응용 프로그램` | 전 항목 ok (Codex 미설치 warn) | — (앱 폴더 삭제) | run 38575688891, macos-latest |
+| macOS x64 dmg | 140MB | 같은 방식 | 전 항목 ok (Codex warn) | — | run 38575688891, macos-15-intel |
+| Windows x64 설치 exe | 95MB | `C:\에이전트 오피스 시험\Agent Office` | 전 항목 ok (Codex warn) | 앱 파일 삭제 확인 | run 38575688891 windows-latest에서 빌드·시험, run 38581308212 Linux 교차 빌드 → windows-latest 시험 |
+| Ubuntu 24.04 deb | 99MB | `/usr/lib/agent-office` | ok, 키 저장소 warn(CI에 Secret Service 없음), Codex warn | 실행 파일 삭제 확인 | run 38575688891, ubuntu-24.04 |
+| macOS arm64 (개발 Mac) | — | `scratchpad/설치 시험/응용 프로그램` | 전 항목 ok | — | 2026-10-14 수동, macOS 26.4 |
+
+서명: macOS는 ad-hoc 서명(`codesign --verify --strict` 통과), Windows는 서명하지 않음. 실제 화면으로 첫 실행 경고(Gatekeeper·SmartScreen)를 확인하지는 않았다.
+
+## 성능 측정 (M6, 명세 §11)
+
+시나리오: 서비스 2개(담당자 10명씩, 총 20명), 50단계 흐름 1개와 서비스 개발 흐름 1개. 테스트 AI는 업무당 20초가 걸리고, 앱 전체 동시 실행 한도 2 때문에 '실행 중'에는 AI 업무 2개가 계속 작업한다. 첫 화면은 50단계 서비스의 사무실이다. 측정은 `scripts/perf.sh`(macOS·Linux)와 `scripts/perf.ps1`(Windows)로 한다(`--perf-seed`, `AGENT_OFFICE_PERF`).
+
+- 시작: 프로세스 시작부터 데이터가 있는 첫 화면이 그려질 때까지. 실행 3회 값이다.
+- CPU: 앱과 그 WebView 프로세스의 누적 CPU 시간 증가분을 측정 시간으로 나눈 값. 코어 1개가 100%다.
+- 메모리: RSS 합계(Windows는 작업 집합 합계). 공유 메모리가 프로세스마다 중복 계산된다.
+- 화면 지연: 페이지 안 100ms 타이머의 지연. 10초마다 p95·최대를 기록한다.
+
+| 환경 | 프로세스 | 시작(ms) | 유휴 CPU | 유휴 메모리 | 실행 중 CPU | 실행 중 메모리(최대) | 화면 지연 p95 / 최대 (실행 중) |
+|---|---|---|---|---|---|---|---|
+| 개발 Mac, M1 Pro·32GB, macOS 26.4 (dev 빌드, 2026-10-14) | 4 | 534 / 532 / 551 | 5.9% | 242MB | 7.3% | 261MB | 5 / 6ms |
+| CI macOS arm64 (macos-latest VM) | 4 | 4699 / 1853 / 1913 | 0.4%¹ | 245MB | 1.5% | 268MB | 8 / 115ms |
+| CI macOS x64 (macos-15-intel VM) | 4 | 5563 / 3764 / 1590 | 1.5% | 134MB | 5.6% | 154MB | 8 / 27ms |
+| CI Windows x64 (windows-latest VM) | 7 | 8434 / 488 / 479 | 0.4% | 349MB | 2.3% | 377MB | 11 / 16ms |
+| CI Ubuntu 24.04 (ubuntu-24.04 VM, xvfb) | 3 | 1590 / 313 / 307 | 3.3% | 460MB | 5.0% | 476MB | 5 / 7ms |
+
+CI 수치는 run 38581308212에서 나왔다. CI는 가상 머신이고, 첫 실행에는 디스크 캐시가 비어 있어 느리다. 사용자의 PC 성능을 보장하는 값이 아니다. Windows·Linux 실제 PC에서는 아직 측정하지 않았다.
+
+¹ CI macOS arm64의 유휴 구간은 화면 지연 p95가 900ms였다. 페이지는 hidden이 아니었지만 앱이 앞에 있지 않아 macOS가 타이머를 늦춘 것으로 보이며(App Nap 등), 사무실 애니메이션이 거의 돌지 않은 값이다. 앞에 띄운 창 기준은 개발 Mac 행을 본다.
+
+측정하면서 고친 것: 사무실 캔버스가 애니메이션 프레임(170ms)마다 `canvas.width`를 다시 지정해 버퍼를 다시 할당하고 있었다. 크기가 바뀔 때만 지정하도록 고쳤다(`Office.test.tsx` 'redraws animation frames without resizing the canvas', 수정 전 실패 확인). 개발 Mac의 유휴 CPU는 첫 측정 14.2%에서 수정 후 5.9~7.5%가 됐다. 다만 첫 측정은 창 상태를 기록하기 전이라 엄밀한 비교는 아니다. 남은 유휴 CPU는 대부분 화면에 보이는 사무실 애니메이션(약 6fps)이며, 모션 줄이기를 켜거나 다른 탭으로 가면 멈춘다.
+
