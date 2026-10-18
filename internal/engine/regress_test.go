@@ -10,7 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"agent-office/internal/domain"
 	"agent-office/internal/engine"
+	"agent-office/internal/providers"
 	"agent-office/internal/testenv"
 )
 
@@ -152,6 +154,45 @@ func TestRecoverAfterEngineStopped(t *testing.T) {
 	if attempts != 1 {
 		t.Fatalf("interrupted step was re-run automatically (%d attempts)", attempts)
 	}
+}
+
+// Quitting the app stops live provider sessions. That must not count as
+// the person cancelling: the steps stay live until the next start marks
+// them interrupted, and the run is retryable rather than failed.
+func TestAppQuitInterruptsLiveSteps(t *testing.T) {
+	h := newHarness(t)
+	p := seedIndependent(t, h)
+	h.useScenario("market", "tool-approval")
+	h.useScenario("side", "slow")
+	runID := h.start(p)
+	h.waitStep(p.ID, runID, "market", engine.StWaitingApproval)
+	h.waitStep(p.ID, runID, "side", engine.StRunning)
+	h.stopEngine()
+
+	d := h.detail(p.ID, runID)
+	if d.Step("market").Status == engine.StCancelled || d.Step("side").Status == engine.StCancelled || d.Status == engine.RunFailed {
+		t.Fatalf("quit recorded as cancel: market=%s side=%s run=%s", d.Step("market").Status, d.Step("side").Status, d.Status)
+	}
+
+	second := engine.New(engine.Config{DB: h.db, DataDir: t.TempDir(), Logf: t.Logf,
+		Providers: func(domain.ProviderConnection) (providers.Provider, error) { return scenarioProvider{h.prov, h}, nil }})
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- second.Run(ctx) }()
+	defer func() { cancel(); <-done }()
+	h.eng = second
+
+	h.waitStep(p.ID, runID, "market", engine.StInterrupted)
+	h.waitStep(p.ID, runID, "side", engine.StInterrupted)
+	// The plan approval still waits for the person, so the run does too.
+	if d := h.detail(p.ID, runID); d.Status != engine.RunWaiting || d.Step("approve").Status != engine.StWaitingApproval {
+		t.Fatalf("run = %s, approve = %s", d.Status, d.Step("approve").Status)
+	}
+	h.useScenario("market", "auto")
+	if err := h.eng.RetryStep(h.ctx, p.ID, runID, "market"); err != nil {
+		t.Fatal(err)
+	}
+	h.waitStep(p.ID, runID, "market", engine.StSucceeded)
 }
 
 // Verified outputs are copied into the artifact store read-only, so

@@ -145,6 +145,10 @@ func (e *Engine) startAI(ctx context.Context, seen *runState, n *domain.Node, sn
 func (e *Engine) launchAI(a *activeAttempt, n *domain.Node, snap domain.AssignmentSnapshot, prov providers.Provider) {
 	ctx := context.Background()
 	fail := func(err error) {
+		if e.ctx.Err() != nil { // shutting down: start-up recovery marks it interrupted
+			e.retire(a)
+			return
+		}
 		if err := e.failStart(ctx, a.runID, n.ID, err); err != nil {
 			e.cfg.Logf("engine: attempt %s: %v", a.id, err)
 		}
@@ -346,7 +350,13 @@ func (e *Engine) onEvent(a *activeAttempt, n *domain.Node, ev providers.Event) e
 
 // complete records a provider's end. A provider "success" only starts
 // verification; the step succeeds only if its outputs check out (T15).
+// A session that ends without success while the app is shutting down was
+// stopped by the shutdown, not by the person or the provider, so the
+// attempt is left for start-up recovery to mark interrupted.
 func (e *Engine) complete(ctx context.Context, a *activeAttempt, n *domain.Node, p providers.CompletedPayload) error {
+	if e.ctx.Err() != nil && p.Status != providers.StatusSucceeded {
+		return nil
+	}
 	dir := e.attemptDir(a.projectID, a.runID, a.id)
 	current := false
 	_, err := e.db.Change(ctx, func(c *storage.Change) error {
