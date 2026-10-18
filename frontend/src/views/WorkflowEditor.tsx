@@ -18,6 +18,7 @@ import {
     addNode, ancestors, availableInputs, branchLabel, branchStarts, byId, connect, descendants, describeBranch, disconnect, formatBranchValue,
     joinCandidates, layout, parseBranchValue, removeNode, renameNode, routingSources, scaffoldBranch, updateNode,
 } from '../workflowModel';
+import {WorkflowAssist} from './WorkflowAssist';
 
 type StepData = { node: WorkflowNode; assignee?: Assignment; hasError: boolean; selected: boolean };
 
@@ -231,6 +232,8 @@ export function WorkflowEditor({project, workflowId, onStarted, onClose}: {
                     <Controls showInteractive={false}/>
                 </ReactFlow>
             </div>
+            <WorkflowAssist project={project} workflowId={workflowId} dirty={dirty} saveFirst={persist}
+                            onApplied={() => { setDirty(false); setVersion(null); setChecked(false); setIssues([]); loaded.reload(); }}/>
             <details className="card subtle tight small">
                 <summary><Icon icon={HelpCircle} size={14}/> 편집 방법</summary>
                 <ul style={{margin: '8px 0 0', paddingLeft: 18}} className="stack tight">

@@ -86,12 +86,8 @@ func (e *Engine) aiRequest(ctx context.Context, q querier, st *runState, n *doma
 	for _, o := range n.Outputs {
 		req.OutputSpec = append(req.OutputSpec, providers.OutputSpec{Key: o.Key, Type: string(o.Type), Required: o.IsRequired() && !(o.Type == domain.OutCodeChange && ws.Kind == WsCode), Schema: o.Schema, Path: outputPath(dir, o)})
 	}
-	if hasDiagram(n) && e.cfg.Diagram.Plugin != "" {
-		req.Plugins = []string{e.cfg.Diagram.Plugin}
-		req.ReadableDirs = []string{e.cfg.Diagram.Plugin}
-		if e.cfg.Diagram.Python != "" {
-			req.CheckCommand = []string{e.cfg.Diagram.Python, e.cfg.Diagram.selfCheckScript()}
-		}
+	if hasDiagram(n) {
+		e.cfg.Diagram.Grant(&req)
 	}
 	if n.Limits != nil && n.Limits.Timeout != "" {
 		req.Limits.Timeout, _ = time.ParseDuration(n.Limits.Timeout)

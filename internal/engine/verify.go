@@ -151,12 +151,19 @@ func checkFormat(o domain.Output, data []byte) error {
 			return errors.New("텍스트(UTF-8)가 아닙니다")
 		}
 	case domain.OutDiagram:
-		if !utf8Text(data) {
-			return errors.New("텍스트(UTF-8)가 아닙니다")
-		}
-		if !strings.Contains(strings.ToLower(string(data)), "<svg") {
-			return errors.New("다이어그램은 인라인 SVG를 담은 HTML 파일이어야 합니다 (<svg>가 없음)")
-		}
+		return CheckDiagramFormat(data)
+	}
+	return nil
+}
+
+// CheckDiagramFormat is the check every diagram passes, with or without
+// the skill's self-check: UTF-8 HTML with an inline SVG.
+func CheckDiagramFormat(data []byte) error {
+	if !utf8Text(data) {
+		return errors.New("텍스트(UTF-8)가 아닙니다")
+	}
+	if !strings.Contains(strings.ToLower(string(data)), "<svg") {
+		return errors.New("다이어그램은 인라인 SVG를 담은 HTML 파일이어야 합니다 (<svg>가 없음)")
 	}
 	return nil
 }

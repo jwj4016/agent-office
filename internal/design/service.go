@@ -38,6 +38,10 @@ type Service struct {
 	Logf        func(string, ...any)
 	// Ctx bounds background designers (cancelled when the app quits).
 	Ctx context.Context
+	// DataDir holds workflow diagrams (projects/<id>/diagrams).
+	DataDir string
+	// Diagram is the bundled diagram-design skill for pipeline diagrams.
+	Diagram engine.DiagramSkill
 
 	applyMu sync.Mutex
 	wg      sync.WaitGroup
@@ -72,7 +76,7 @@ func (s *Service) Recover(ctx context.Context) error {
 			}
 		}
 	}
-	return nil
+	return s.recoverAssists(ctx)
 }
 
 // Wait blocks until running designers finish (tests, shutdown).

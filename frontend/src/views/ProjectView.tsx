@@ -15,6 +15,7 @@ import {
 } from '../ui';
 import {ArtifactViewer} from './ArtifactViewer';
 import {ExportButton} from './ExportButton';
+import {FolderInput} from './FolderInput';
 import {DeskDetail, Office, OfficeList, useOffice} from './Office';
 import {Runs} from './Runs';
 import {Team} from './Team';
@@ -236,9 +237,9 @@ function ProjectSettings({project, onSaved}: { project: Project; onSaved: () => 
                         <Field label={t.project.instructions} optional hint="이 서비스의 모든 담당자가 따를 규칙입니다. 회사 지침 다음에 적용됩니다.">
                             <textarea value={form.instructions} disabled={archived} rows={6}
                                       onChange={(e) => setForm({...form, instructions: e.target.value})}/></Field>
-                        <Field label="작업 폴더" optional hint="AI가 코드를 읽고 고치는 폴더의 절대 경로입니다. 비우면 실행마다 임시 폴더를 씁니다.">
-                            <input value={form.workspacePath} disabled={archived} placeholder="/Users/me/dev/my-game" className="mono"
-                                   onChange={(e) => setForm({...form, workspacePath: e.target.value})}/></Field>
+                        <Field label="작업 폴더" optional hint="AI가 코드를 읽고 고치는 폴더입니다. 비우면 앱 데이터 폴더 안에서 작업합니다. 바꾼 뒤 ‘저장’을 누르세요.">
+                            <FolderInput value={form.workspacePath} disabled={archived} title="작업 폴더 선택"
+                                         onChange={(workspacePath) => setForm({...form, workspacePath})}/></Field>
                     </div>
                 </Section>
 

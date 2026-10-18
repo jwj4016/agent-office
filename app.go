@@ -65,10 +65,12 @@ type App struct {
 
 	// saveDialog asks where to save a file; tests replace it.
 	saveDialog func(ctx context.Context, o runtime.SaveDialogOptions) (string, error)
+	// folderDialog asks for a folder (tests replace it).
+	folderDialog func(ctx context.Context, o runtime.OpenDialogOptions) (string, error)
 }
 
 func NewApp() *App {
-	return &App{emit: runtime.EventsEmit, deltas: map[string]*Delta{}, saveDialog: runtime.SaveFileDialog}
+	return &App{emit: runtime.EventsEmit, deltas: map[string]*Delta{}, saveDialog: runtime.SaveFileDialog, folderDialog: runtime.OpenDirectoryDialog}
 }
 
 // dataDir returns AGENT_OFFICE_DATA_DIR when set (tests, side-by-side
@@ -98,16 +100,18 @@ func (a *App) startup(ctx context.Context) {
 		return
 	}
 	a.testProvider = &providers.TestProvider{Scripts: map[string][]providers.Step{}}
+	diagram := findDiagramSkill()
 	a.eng = engine.New(engine.Config{
 		DB: a.db, DataDir: dir, Providers: a.providerFor,
 		Git:       workspace.FindGit(),
-		Diagram:   findDiagramSkill(),
+		Diagram:   diagram,
 		Ephemeral: a.addDelta,
 	})
 	a.db.Subscribe(func(evs []storage.EventRecord) { a.emit(a.ctx, EventStored, evs) })
 	ectx, cancel := context.WithCancel(context.Background())
 	a.stopEngine, a.engineDone = cancel, make(chan struct{})
-	a.design = &design.Service{DB: a.db, Engine: a.eng, Providers: a.providerFor, Connections: a.designConnections, Ctx: ectx}
+	a.design = &design.Service{DB: a.db, Engine: a.eng, Providers: a.providerFor, Connections: a.designConnections, Ctx: ectx,
+		DataDir: dir, Diagram: diagram}
 	if err := a.design.Recover(ctx); err != nil {
 		log.Printf("design recovery: %v", err)
 	}
@@ -1184,6 +1188,97 @@ func (a *App) DiscardDesign(id string) error {
 		return err
 	}
 	return uiErr(a.design.Discard(a.ctx, id))
+}
+
+// ChooseFolder asks the person for a folder (the service's work folder).
+// It returns "" when the dialog is cancelled.
+func (a *App) ChooseFolder(title, start string) (string, error) {
+	if title == "" {
+		title = "폴더 선택"
+	}
+	opts := runtime.OpenDialogOptions{Title: title, CanCreateDirectories: true}
+	if st, err := os.Stat(start); err == nil && st.IsDir() {
+		opts.DefaultDirectory = start
+	}
+	return a.folderDialog(a.ctx, opts)
+}
+
+// StartWorkflowAssist asks an AI to propose an edit of a workflow draft
+// or to draw its pipeline diagram. It uses the chosen connection's quota;
+// the UI confirms first.
+func (a *App) StartWorkflowAssist(in design.AssistInput) (storage.AssistRecord, error) {
+	if err := a.ready(); err != nil {
+		return storage.AssistRecord{}, err
+	}
+	rec, err := a.design.StartAssist(a.ctx, in)
+	return rec, uiErr(err)
+}
+
+func (a *App) ListWorkflowAssists(projectID, workflowID string) ([]storage.AssistRecord, error) {
+	if err := a.ready(); err != nil {
+		return nil, err
+	}
+	if err := a.db.CheckScope(a.ctx, projectID, storage.Ref{Kind: storage.RefWorkflow, ID: workflowID}); err != nil {
+		return nil, uiErr(err)
+	}
+	list, err := a.db.Assists(a.ctx, workflowID, 20)
+	return list, uiErr(err)
+}
+
+func (a *App) GetWorkflowAssist(id string) (storage.AssistRecord, error) {
+	if err := a.ready(); err != nil {
+		return storage.AssistRecord{}, err
+	}
+	rec, err := a.db.Assist(a.ctx, id)
+	return rec, uiErr(err)
+}
+
+// ApplyWorkflowAssist saves a proposed edit as the workflow's draft.
+func (a *App) ApplyWorkflowAssist(id string) (domain.Workflow, error) {
+	if err := a.ready(); err != nil {
+		return domain.Workflow{}, err
+	}
+	w, err := a.design.ApplyAssist(a.ctx, id)
+	return w, uiErr(err)
+}
+
+func (a *App) DiscardWorkflowAssist(id string) error {
+	if err := a.ready(); err != nil {
+		return err
+	}
+	return uiErr(a.design.DiscardAssist(a.ctx, id))
+}
+
+// WorkflowDiagram returns a pipeline diagram's HTML for the preview.
+func (a *App) WorkflowDiagram(id string) (string, error) {
+	if err := a.ready(); err != nil {
+		return "", err
+	}
+	html, err := a.design.AssistDiagram(a.ctx, id)
+	return html, uiErr(err)
+}
+
+// SaveWorkflowDiagram writes a pipeline diagram where the person chooses.
+// It returns "" when the dialog is cancelled.
+func (a *App) SaveWorkflowDiagram(id string) (string, error) {
+	if err := a.ready(); err != nil {
+		return "", err
+	}
+	html, err := a.design.AssistDiagram(a.ctx, id)
+	if err != nil {
+		return "", uiErr(err)
+	}
+	path, err := a.saveDialog(a.ctx, runtime.SaveDialogOptions{
+		Title: "다이어그램 저장", DefaultFilename: "workflow-pipeline.html",
+		Filters: []runtime.FileFilter{{DisplayName: "HTML 파일 (*.html)", Pattern: "*.html"}},
+	})
+	if err != nil || path == "" {
+		return "", err
+	}
+	if !strings.EqualFold(filepath.Ext(path), ".html") {
+		path += ".html"
+	}
+	return path, os.WriteFile(path, []byte(html), 0o644)
 }
 
 // SetAutoPolicy sets which connections auto mode may use in a project.

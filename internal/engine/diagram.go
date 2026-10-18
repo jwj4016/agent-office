@@ -10,6 +10,7 @@ import (
 
 	"agent-office/internal/domain"
 	osproc "agent-office/internal/proc"
+	"agent-office/internal/providers"
 )
 
 // DiagramSkill is the diagram-design plugin bundled with the app. Steps
@@ -64,13 +65,36 @@ func writeDiagramRules(b *strings.Builder, d DiagramSkill) {
 	}
 }
 
+// Grant gives an AI request the skill: loaded as a plugin (Claude),
+// readable without asking, and its self-check runnable without asking.
+func (d DiagramSkill) Grant(req *providers.StartRequest) {
+	if d.Plugin == "" {
+		return
+	}
+	req.Plugins = []string{d.Plugin}
+	req.ReadableDirs = []string{d.Plugin}
+	if d.Python != "" {
+		req.CheckCommand = []string{d.Python, d.selfCheckScript()}
+	}
+}
+
+// Rules is the prompt section that tells the AI to use the skill.
+func (d DiagramSkill) Rules() string {
+	var b strings.Builder
+	writeDiagramRules(&b, d)
+	return b.String()
+}
+
 // selfCheckTimeout bounds one diagram self-check.
 const selfCheckTimeout = 2 * time.Minute
 
-// checkDiagram runs the skill's self-check on a diagram file. It returns
-// nil without checking when the skill or Python is missing.
 func (e *Engine) checkDiagram(ctx context.Context, path string) error {
-	d := e.cfg.Diagram
+	return e.cfg.Diagram.Check(ctx, path)
+}
+
+// Check runs the skill's self-check on a diagram file. It returns nil
+// without checking when the skill or Python is missing.
+func (d DiagramSkill) Check(ctx context.Context, path string) error {
 	if d.SkillDir() == "" || d.Python == "" {
 		return nil
 	}
