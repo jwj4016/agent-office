@@ -29,9 +29,12 @@ const (
 	OutFile       OutputType = "file"
 	OutCodeChange OutputType = "code_change"
 	OutReport     OutputType = "report"
+	// OutDiagram is a self-contained HTML file with inline SVG made with
+	// the bundled diagram-design skill and checked by its self_check.py.
+	OutDiagram OutputType = "diagram"
 )
 
-var outputTypes = map[OutputType]bool{OutMarkdown: true, OutJSON: true, OutFile: true, OutCodeChange: true, OutReport: true}
+var outputTypes = map[OutputType]bool{OutMarkdown: true, OutJSON: true, OutFile: true, OutCodeChange: true, OutReport: true, OutDiagram: true}
 
 // WorkflowSpec is the workflow graph (spec §6). Normal progress is a DAG;
 // rework is a separate revision round, never a back edge.

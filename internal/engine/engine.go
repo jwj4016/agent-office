@@ -65,6 +65,9 @@ type Config struct {
 	// Git isolates code steps in worktrees. nil runs every step in one
 	// shared folder (code steps then run one at a time).
 	Git *workspace.Git
+	// Diagram is the bundled diagram-design skill, given to steps with a
+	// diagram output and used to check their results.
+	Diagram DiagramSkill
 	// Ephemeral receives high-volume provider events (message deltas)
 	// that are shown live but not stored. Optional.
 	Ephemeral func(projectID string, ev providers.Event)

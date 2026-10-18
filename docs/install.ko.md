@@ -21,8 +21,9 @@ Agent Office는 AI(Claude·Codex)와 사람이 같은 업무 흐름에서 일하
 | Codex 연결 | Codex CLI 설치와 로그인(`codex login`) |
 | 코드 업무를 병렬로 실행 | Git. 없으면 코드 업무를 하나씩 공유 폴더에서 실행합니다 |
 | OpenAI·Claude 모델 API 연결 | 각 API 키 |
+| 다이어그램 결과 자동 검사 | Python 3.8 이상(선택). 없으면 검사를 건너뛰고 HTML·SVG 형식만 확인 |
 
-Claude 실행 프로그램(Claude Agent SDK와 OS별 Claude 실행 파일)은 패키지에 들어 있습니다. Node.js는 포함하지 않습니다.
+Claude 실행 프로그램(Claude Agent SDK와 OS별 Claude 실행 파일)과 다이어그램 스킬(diagram-design, MIT)은 패키지에 들어 있습니다. Node.js와 Python은 포함하지 않습니다.
 
 ## 설치
 
@@ -84,6 +85,7 @@ API 키는 이 폴더가 아니라 OS 키 저장소(Windows 자격 증명 관리
 - 키 저장소
 - 포함된 Claude 실행 프로그램(SDK 로드와 Claude 실행 파일 시작)
 - Codex·Git 탐지
+- 포함된 다이어그램 스킬과 Python(없으면 경고)
 - 테스트 AI로 서비스 개발 흐름을 끝까지 실행
 - 실행 취소
 - 앱 재시작 뒤 기록 복원
@@ -101,6 +103,7 @@ API 키는 이 폴더가 아니라 OS 키 저장소(Windows 자격 증명 관리
 - **Codex 연결**: codex-cli 0.159~0.161에서 시험했습니다. CLI가 크게 바뀌면 연결 확인에서 실패로 보일 수 있습니다. 중단된 Codex 대화는 이어 가지 않고 새로 시작합니다.
 - **모델 API 연결(OpenAI·Claude API)**: 텍스트·JSON 결과만 만들 수 있고 파일·코드 변경 결과는 만들 수 없습니다. 실제 API 키로는 아직 시험하지 않았습니다.
 - **Git 작업**: 서비스 작업 폴더가 Git 저장소이면 `agent-office/…` 브랜치와 worktree가 생깁니다. 사용자 브랜치에는 직접 병합하지 않으며, 반영은 사람이 합니다. 개발자 도구가 없는 Mac에서는 `/usr/bin/git`을 쓰지 않고 Git이 없는 것으로 처리합니다.
+- **다이어그램 결과**: 업무 결과 유형을 '다이어그램(HTML)'으로 정하면 AI가 포함된 diagram-design 스킬로 그림을 만들고, 스킬의 검사(`self_check.py`)를 통과해야 완료됩니다. 모델 API 연결은 다이어그램 결과를 만들 수 없습니다. 만든 그림을 열면 Google Fonts에서 글꼴을 받습니다.
 - **사무실 화면**: 회의 탁자가 하나라서, 동시에 열린 회의가 여럿이면 나머지는 글로만 표시합니다.
 - **창 하나**: 여러 창이나 여러 데이터 폴더를 동시에 열 수 없습니다.
 - **Linux 화면**: CI의 가상 디스플레이(xvfb)에서만 실행했습니다. 실제 X11·Wayland 데스크톱과 GPU별 동작은 시험하지 않았습니다. WebKitGTK는 일부 GPU 드라이버에서 빈 창이 보이는 문제가 알려져 있으며, 그럴 때 `WEBKIT_DISABLE_DMABUF_RENDERER=1 agent-office`로 실행해 볼 수 있습니다(이 앱에서 재현해 본 것은 아님).

@@ -37,6 +37,12 @@ export type StartCommand = {
     writableDirs?: string[];
     /** When true the working folder itself is not writable; only writableDirs are. */
     readOnlyCwd?: boolean;
+    /** Folders the agent may read without asking (bundled skills); never writable. */
+    readableDirs?: string[];
+    /** Local plugin folders loaded for this session only (e.g. the diagram skill). */
+    plugins?: string[];
+    /** A self-check [interpreter, script] that runs without asking on files in the work and output folders. */
+    checkCommand?: string[];
 };
 
 type Question = { question: string; header?: string; options?: { label: string; description?: string }[]; multiSelect?: boolean };
@@ -65,6 +71,18 @@ function inside(root: string, p: string): boolean {
 }
 
 const fileWriteTools = new Set(['Write', 'Edit', 'MultiEdit', 'NotebookEdit']);
+const fileReadTools = new Set(['Read', 'Glob', 'Grep']);
+
+// readAllowed reports whether a read-only file tool stays inside the
+// granted readable folders (bundled skills): such reads need no approval.
+export function readAllowed(cwd: string, readable: string[], toolName: string, toolInput: unknown): boolean {
+    if (!fileReadTools.has(toolName) || readable.length === 0) return false;
+    const ti = (toolInput ?? {}) as Record<string, unknown>;
+    const target = ti.file_path ?? ti.path;
+    if (typeof target !== 'string') return false;
+    const real = realpathNearest(resolve(cwd, target));
+    return readable.some((r) => inside(realpathNearest(resolve(r)), real));
+}
 
 // writeTarget returns where a file-writing tool would really write, or
 // undefined for other tools.
@@ -108,6 +126,56 @@ export function writeGuard(cwd: string, writable: string[], readOnlyCwd = false)
             },
         };
     };
+}
+
+// shellWords splits a command line into words. Only plain words and
+// quoted strings are accepted: anything the shell would expand, chain or
+// redirect makes it return undefined.
+export function shellWords(line: string): string[] | undefined {
+    const words: string[] = [];
+    let cur: string | undefined;
+    for (let i = 0; i < line.length; i++) {
+        const c = line[i];
+        if (c === ' ' || c === '\t') {
+            if (cur !== undefined) words.push(cur);
+            cur = undefined;
+        } else if (c === "'" || c === '"') {
+            const end = line.indexOf(c, i + 1);
+            if (end < 0) return undefined;
+            const quoted = line.slice(i + 1, end);
+            if (c === '"' && /[$`\\!]/.test(quoted)) return undefined;
+            cur = (cur ?? '') + quoted;
+            i = end;
+        } else if (/[A-Za-z0-9/._\-+=,@:%]/.test(c)) {
+            cur = (cur ?? '') + c;
+        } else {
+            return undefined;
+        }
+    }
+    if (cur !== undefined) words.push(cur);
+    return words;
+}
+
+const bareInterpreters = new Set(['python3', 'python']);
+
+// checkCommandAllowed reports whether a Bash command is exactly the
+// granted self-check: its interpreter (or a bare python3/python), an
+// optional -I, its script, then only --offline and files inside the work
+// and output folders.
+export function checkCommandAllowed(cwd: string, writable: string[], check: string[] | undefined, toolName: string, toolInput: unknown): boolean {
+    if (toolName !== 'Bash' || !check || check.length !== 2) return false;
+    const command = (toolInput as { command?: unknown } | undefined)?.command;
+    if (typeof command !== 'string') return false;
+    const words = shellWords(command.trim());
+    if (!words || words.length < 3) return false;
+    const [exe, ...rest] = words;
+    if (exe !== check[0] && !bareInterpreters.has(exe)) return false;
+    if (rest[0] === '-I') rest.shift();
+    const script = rest.shift();
+    if (!script || realpathNearest(resolve(cwd, script)) !== realpathNearest(resolve(check[1]))) return false;
+    const roots = writeRoots(cwd, writable, false);
+    const files = rest.filter((a) => a !== '--offline');
+    return files.length > 0 && files.every((f) => !f.startsWith('-') && roots.some((r) => inside(r, realpathNearest(resolve(cwd, f)))));
 }
 
 export type QueryFn = (params: { prompt: string; options: Options }) => Query | AsyncIterable<SDKMessage>;
@@ -160,6 +228,15 @@ export function runBridge({input, output, query, log = () => {}}: BridgeIO): Pro
                 return {behavior: 'allow', updatedInput: {...toolInput, answers}};
             }
             if (allowed.has(toolName)) return {behavior: 'allow', updatedInput: toolInput};
+            // Loading a skill from the plugins this attempt was given, and
+            // reading those bundled files, is part of the task.
+            if (toolName === 'Skill' && (cmd.plugins ?? []).length > 0) return {behavior: 'allow', updatedInput: toolInput};
+            if (readAllowed(cmd.cwd ?? process.cwd(), cmd.readableDirs ?? [], toolName, toolInput)) {
+                return {behavior: 'allow', updatedInput: toolInput};
+            }
+            if (checkCommandAllowed(cmd.cwd ?? process.cwd(), cmd.writableDirs ?? [], cmd.checkCommand, toolName, toolInput)) {
+                return {behavior: 'allow', updatedInput: toolInput};
+            }
             // Writing inside the work or output folder is the task itself;
             // the PreToolUse guard still blocks every other location.
             if (writeAllowed(cmd.cwd ?? process.cwd(), cmd.writableDirs ?? [], toolName, toolInput, cmd.readOnlyCwd)) {
@@ -180,7 +257,7 @@ export function runBridge({input, output, query, log = () => {}}: BridgeIO): Pro
         const options: Options = {
             abortController: abort,
             cwd: cmd.cwd,
-            additionalDirectories: cmd.writableDirs,
+            additionalDirectories: [...(cmd.writableDirs ?? []), ...(cmd.readableDirs ?? [])],
             hooks: {PreToolUse: [{hooks: [writeGuard(cmd.cwd ?? process.cwd(), cmd.writableDirs ?? [], cmd.readOnlyCwd)]}]},
             model: cmd.model,
             canUseTool,
@@ -189,8 +266,10 @@ export function runBridge({input, output, query, log = () => {}}: BridgeIO): Pro
             maxTurns: cmd.maxTurns,
             maxBudgetUsd: cmd.maxBudgetUsd,
             // Isolation: never pick up the user's own Claude Code settings,
-            // which could silently widen tool permissions.
+            // which could silently widen tool permissions. Plugins come only
+            // from the app (cmd.plugins), never from the user's installs.
             settingSources: [],
+            plugins: (cmd.plugins ?? []).map((path) => ({type: 'local' as const, path})),
             systemPrompt: cmd.instructions
                 ? {type: 'preset', preset: 'claude_code', append: cmd.instructions}
                 : {type: 'preset', preset: 'claude_code'},

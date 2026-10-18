@@ -21,6 +21,8 @@ func outputPath(dir string, o domain.Output) string {
 		ext = ".json"
 	case domain.OutFile:
 		ext = ""
+	case domain.OutDiagram:
+		ext = ".html"
 	}
 	return filepath.Join(dir, "out", o.Key+ext)
 }
@@ -70,7 +72,7 @@ func (e *Engine) aiRequest(ctx context.Context, q querier, st *runState, n *doma
 	req := providers.StartRequest{
 		ProjectID: st.run.ProjectID, RunID: st.run.ID, StepAttemptID: a.ID, StepID: n.ID, Generation: a.Generation,
 		Instructions: domain.ComposeInstructions(instructionLayers(snap, n, feedback)),
-		Prompt:       buildPrompt(e.cfg.DataDir, st, n, manifest, notes, askable, e.cfg.MaxConsults, ws, dir),
+		Prompt:       buildPrompt(e.cfg.DataDir, st, n, manifest, notes, askable, e.cfg.MaxConsults, ws, dir, e.cfg.Diagram),
 		Workspace:    ws.Dir,
 		WritableDirs: []string{filepath.Join(dir, "out")},
 		Model:        snap.Model,
@@ -83,6 +85,13 @@ func (e *Engine) aiRequest(ctx context.Context, q querier, st *runState, n *doma
 	}
 	for _, o := range n.Outputs {
 		req.OutputSpec = append(req.OutputSpec, providers.OutputSpec{Key: o.Key, Type: string(o.Type), Required: o.IsRequired() && !(o.Type == domain.OutCodeChange && ws.Kind == WsCode), Schema: o.Schema, Path: outputPath(dir, o)})
+	}
+	if hasDiagram(n) && e.cfg.Diagram.Plugin != "" {
+		req.Plugins = []string{e.cfg.Diagram.Plugin}
+		req.ReadableDirs = []string{e.cfg.Diagram.Plugin}
+		if e.cfg.Diagram.Python != "" {
+			req.CheckCommand = []string{e.cfg.Diagram.Python, e.cfg.Diagram.selfCheckScript()}
+		}
 	}
 	if n.Limits != nil && n.Limits.Timeout != "" {
 		req.Limits.Timeout, _ = time.ParseDuration(n.Limits.Timeout)

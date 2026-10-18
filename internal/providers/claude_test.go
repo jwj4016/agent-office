@@ -58,6 +58,8 @@ func fakeClaude(mode string) {
 			key = "set:" + strings.Repeat("*", len(os.Getenv("ANTHROPIC_API_KEY")))
 		}
 		emit("completed", map[string]any{"status": "succeeded", "text": fmt.Sprint(key, " dirs=", start["writableDirs"])})
+	case "plugins-check":
+		emit("completed", map[string]any{"status": "succeeded", "text": fmt.Sprint("plugins=", start["plugins"], " readable=", start["readableDirs"], " check=", start["checkCommand"])})
 	case "orphan":
 		// Like the real SDK: a child process outlives the bridge's exit.
 		child := exec.Command("sleep", "300")
@@ -208,5 +210,22 @@ func TestClaudeAuthAndWritableDirs(t *testing.T) {
 	s, _ = p.Start(context.Background(), r)
 	if c := completed(t, drain(t, s)); c.Text != "set:*********** dirs=[/data/out]" {
 		t.Fatalf("api key: %q", c.Text)
+	}
+}
+
+// Plugins and readable folders reach the bridge only when the engine
+// sets them (diagram steps); other attempts start without them.
+func TestClaudePluginsReachBridge(t *testing.T) {
+	r := codexReq()
+	s, _ := fakeClaudeProvider(t, "plugins-check").Start(context.Background(), r)
+	if c := completed(t, drain(t, s)); c.Text != "plugins=<nil> readable=<nil> check=<nil>" {
+		t.Fatalf("plain attempt: %q", c.Text)
+	}
+	r.Plugins = []string{"/app/diagram-design"}
+	r.ReadableDirs = []string{"/app/diagram-design"}
+	r.CheckCommand = []string{"/usr/bin/python3", "/app/check.py"}
+	s, _ = fakeClaudeProvider(t, "plugins-check").Start(context.Background(), r)
+	if c := completed(t, drain(t, s)); c.Text != "plugins=[/app/diagram-design] readable=[/app/diagram-design] check=[/usr/bin/python3 /app/check.py]" {
+		t.Fatalf("diagram attempt: %q", c.Text)
 	}
 }

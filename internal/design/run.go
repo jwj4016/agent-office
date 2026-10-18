@@ -92,13 +92,14 @@ func BuildPrompt(req Request, c Context, project *domain.Project) string {
 노드: {"id": 영문 id, "title": 한국어 이름, "kind": task|review|approval, "assignmentId": assignments[].ref,
       "dependsOn": [선행 노드 id], "instructions": 이번 업무 지시,
       "inputs": [{"name": 이름, "fromStep": 선행(조상) 노드 id, "outputKey": 그 노드의 결과 key}],
-      "outputs": [{"key": 영문 key, "type": markdown|json|report|code_change}],
+      "outputs": [{"key": 영문 key, "type": markdown|json|report|code_change|diagram}],
       "reworkTargets": [반려 시 돌려보낼 선행 task·review 노드 id]}
 규칙:
 - 진행은 순환 없는 그래프다. 반려 후 되돌아가는 흐름은 연결선이 아니라 review·approval 노드의 reworkTargets로 표현한다.
 - task·review는 결과(outputs)를 하나 이상 가진다. review 결과는 type report. approval은 결과가 없고 사람만 맡는다.
 - inputs의 fromStep은 반드시 선행 조상 노드여야 한다.
 - 코드 작성은 "코드 작성 가능" 연결의 AI에게 맡기고 결과는 code_change로 둔다.
+- 아키텍처·흐름도·ER·시퀀스·타임라인 같은 그림이 필요한 결과는 type diagram으로 둔다(앱에 포함된 diagram-design 스킬로 만든 HTML+SVG). diagram은 "코드 작성 가능" 연결의 AI에게만 맡기고, 그림을 Markdown 결과 안의 Mermaid로 대신하지 않는다.
 - 법률·재무 판단은 AI가 정리하고 최종 결정은 사람의 승인으로 둔다. 실제 자료 연결이 없으면 조사했다고 꾸미지 않는다.
 - 조건 분기(condition)·합류(join)는 쓰지 않는다.
 

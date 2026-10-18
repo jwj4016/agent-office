@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -35,5 +36,83 @@ func TestUpgradeFromV2KeepsData(t *testing.T) {
 	var name, policy string
 	if err := db.Read().QueryRow(`SELECT name, auto_policy FROM projects WHERE id = 'prj-old'`).Scan(&name, &policy); err != nil || name != "예전 서비스" || policy != "{}" {
 		t.Fatalf("old project after upgrade: %q %q %v", name, policy, err)
+	}
+}
+
+// v5 rebuilds artifacts to allow the diagram type. Existing artifacts,
+// including a rework copy pointing at its source, survive with their
+// foreign keys intact, and the type check still rejects unknown types.
+func TestUpgradeToDiagramArtifactsKeepsArtifacts(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "v4.db")
+	raw, err := sql.Open("sqlite", "file:"+path+"?_pragma=foreign_keys(1)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ms, _ := loadMigrations()
+	exec := func(q string, args ...any) {
+		t.Helper()
+		if _, err := raw.Exec(q, args...); err != nil {
+			t.Fatalf("%s: %v", q, err)
+		}
+	}
+	exec(`CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at TEXT NOT NULL)`)
+	for _, m := range ms {
+		if m.version > 4 {
+			break
+		}
+		exec(m.sql)
+		exec(`INSERT INTO schema_migrations VALUES (?, ?, ?)`, m.version, m.name, Now())
+	}
+	now := Now()
+	exec(`INSERT INTO projects (id, organization_id, name, created_at, updated_at) VALUES ('prj-1', 'org-default', '서비스', ?, ?)`, now, now)
+	exec(`INSERT INTO workflows (id, project_id, title, draft_json, created_at, updated_at) VALUES ('wf-1', 'prj-1', '흐름', '{}', ?, ?)`, now, now)
+	exec(`INSERT INTO workflow_versions (id, workflow_id, project_id, number, spec_json, assignments_snapshot, policy_snapshot, created_at) VALUES ('wv-1', 'wf-1', 'prj-1', 1, '{}', '[]', '{}', ?)`, now)
+	exec(`INSERT INTO runs (id, project_id, workflow_version_id, status, started_at) VALUES ('run-1', 'prj-1', 'wv-1', 'running', ?)`, now)
+	exec(`INSERT INTO step_attempts (id, project_id, run_id, step_id, generation, status, created_at) VALUES ('att-1', 'prj-1', 'run-1', 'plan', 1, 'succeeded', ?)`, now)
+	art := `INSERT INTO artifacts (id, project_id, run_id, step_attempt_id, output_key, version, type, path, hash, size, validity, source_artifact_id, created_at) VALUES (?, 'prj-1', 'run-1', 'att-1', 'spec', ?, 'markdown', 'p', 'h', 1, ?, ?, ?)`
+	exec(art, "art-1", 1, "stale", nil, now)
+	exec(art, "art-2", 2, "valid", "art-1", now)
+	raw.Close()
+
+	db := openTemp(t, path)
+	defer db.Close()
+	ctx := context.Background()
+	if v, _ := db.SchemaVersion(ctx); v != ms[len(ms)-1].version {
+		t.Fatalf("schema version = %d", v)
+	}
+	var n int
+	var src string
+	db.Read().QueryRow(`SELECT COUNT(*) FROM artifacts`).Scan(&n)
+	db.Read().QueryRow(`SELECT source_artifact_id FROM artifacts WHERE id = 'art-2'`).Scan(&src)
+	if n != 2 || src != "art-1" {
+		t.Fatalf("artifacts after upgrade: count=%d source=%q", n, src)
+	}
+	var schema string
+	db.Read().QueryRow(`SELECT sql FROM sqlite_master WHERE name = 'artifacts'`).Scan(&schema)
+	if !strings.Contains(schema, "REFERENCES \"artifacts\"") && !strings.Contains(schema, "REFERENCES artifacts") {
+		t.Fatalf("self reference not renamed:\n%s", schema)
+	}
+	if rows, _ := db.Read().Query(`PRAGMA foreign_key_check`); rows.Next() {
+		rows.Close()
+		t.Fatal("foreign key violations after upgrade")
+	}
+	err = db.Write(ctx, func(tx *sql.Tx) error {
+		_, err := tx.Exec(strings.Replace(art, "'markdown'", "'diagram'", 1), "art-3", 3, "valid", "art-2", now)
+		return err
+	})
+	if err != nil {
+		t.Fatalf("diagram artifact rejected: %v", err)
+	}
+	err = db.Write(ctx, func(tx *sql.Tx) error {
+		_, err := tx.Exec(strings.Replace(art, "'markdown'", "'video'", 1), "art-4", 4, "valid", nil, now)
+		return err
+	})
+	if err == nil {
+		t.Fatal("unknown artifact type accepted")
+	}
+	var idx int
+	db.Read().QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = 'artifacts_run'`).Scan(&idx)
+	if idx != 1 {
+		t.Fatal("artifacts_run index missing")
 	}
 }

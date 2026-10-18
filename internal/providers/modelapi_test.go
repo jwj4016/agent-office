@@ -149,9 +149,15 @@ func TestModelAPIStartChecks(t *testing.T) {
 	if _, err := (&ModelAPI{Kind: KindClaudeAPI}).Start(context.Background(), req); err == nil {
 		t.Fatal("missing API key accepted")
 	}
-	req.OutputSpec = append(req.OutputSpec, OutputSpec{Key: "bin", Type: "file", Path: "/x"})
+	plain := req.OutputSpec
+	req.OutputSpec = append(plain, OutputSpec{Key: "bin", Type: "file", Path: "/x"})
 	if _, err := (&ModelAPI{Kind: KindClaudeAPI, APIKey: "k"}).Start(context.Background(), req); err == nil {
 		t.Fatal("file output accepted")
+	}
+	// A diagram needs the bundled skill's files, which a model API cannot read.
+	req.OutputSpec = append(plain, OutputSpec{Key: "arch", Type: "diagram", Path: "/x.html"})
+	if _, err := (&ModelAPI{Kind: KindClaudeAPI, APIKey: "k"}).Start(context.Background(), req); err == nil || !strings.Contains(err.Error(), "다이어그램") {
+		t.Fatalf("diagram output: %v", err)
 	}
 }
 

@@ -50,7 +50,7 @@ export type InstructionLayer = { source: string; name: string; text: string };
 export type InstructionPreview = { layers: InstructionLayer[]; composed: string };
 
 export type NodeKind = 'task' | 'review' | 'approval' | 'condition' | 'join';
-export type OutputType = 'markdown' | 'json' | 'file' | 'code_change' | 'report';
+export type OutputType = 'markdown' | 'json' | 'file' | 'code_change' | 'report' | 'diagram';
 
 export type WorkflowInput = { name: string; fromStep: string; outputKey: string; required?: boolean };
 export type WorkflowOutput = { key: string; type: OutputType; required?: boolean; schema?: unknown };

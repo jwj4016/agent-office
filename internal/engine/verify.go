@@ -48,6 +48,12 @@ func (e *Engine) verifyOutputs(ctx context.Context, n *domain.Node, dir, work st
 			problems = append(problems, fmt.Sprintf("결과 %q: %v", o.Key, err))
 			continue
 		}
+		if o.Type == domain.OutDiagram {
+			if err := e.checkDiagram(ctx, filepath.Join(e.cfg.DataDir, filepath.FromSlash(v.RelPath))); err != nil {
+				problems = append(problems, fmt.Sprintf("결과 %q: %v", o.Key, err))
+				continue
+			}
+		}
 		out = append(out, v)
 	}
 	if len(problems) == 0 && n.Completion != nil {
@@ -143,6 +149,13 @@ func checkFormat(o domain.Output, data []byte) error {
 	case domain.OutMarkdown:
 		if !utf8Text(data) {
 			return errors.New("텍스트(UTF-8)가 아닙니다")
+		}
+	case domain.OutDiagram:
+		if !utf8Text(data) {
+			return errors.New("텍스트(UTF-8)가 아닙니다")
+		}
+		if !strings.Contains(strings.ToLower(string(data)), "<svg") {
+			return errors.New("다이어그램은 인라인 SVG를 담은 HTML 파일이어야 합니다 (<svg>가 없음)")
 		}
 	}
 	return nil

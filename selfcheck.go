@@ -149,6 +149,7 @@ func runSelfCheck(ctx context.Context, o checkOptions) (rep CheckReport) {
 		}
 		return CheckWarn, "git이 없어 코드 업무를 하나씩 공유 폴더에서 실행합니다"
 	})
+	add("diagram", "다이어그램 스킬 (포함된 diagram-design)", func() (string, string) { return checkDiagramSkill(ctx) })
 	if !dataOK {
 		return rep
 	}
@@ -498,4 +499,26 @@ func checkRestored(a *App, projectID, runID string) (string, string) {
 		}
 	}
 	return CheckOK, "실행·결과가 그대로 남아 있음"
+}
+
+// checkDiagramSkill reports the bundled diagram skill and, when Python is
+// there, runs its self-check on one of the skill's own examples. A
+// missing Python is only a warning: diagrams are then checked for format.
+func checkDiagramSkill(ctx context.Context) (string, string) {
+	d := findDiagramSkill()
+	if d.Plugin == "" {
+		return CheckFailed, "diagram-design 스킬을 찾지 못했습니다 (앱 패키지에 포함되어야 합니다)"
+	}
+	if d.Python == "" {
+		return CheckWarn, d.Plugin + " (Python 3.8 이상이 없어 다이어그램 자동 검사는 건너뜁니다)"
+	}
+	sample := filepath.Join(d.SkillDir(), "assets", "example-architecture.html")
+	ctx, cancel := context.WithTimeout(ctx, time.Minute)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, d.Python, "-I", filepath.Join(d.SkillDir(), "scripts", "self_check.py"), sample)
+	osproc.Hide(cmd)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return CheckFailed, fmt.Sprintf("self_check.py 실행 실패 (%s): %v %s", d.Python, err, strings.TrimSpace(string(out)))
+	}
+	return CheckOK, fmt.Sprintf("%s, 검사: %s", d.Plugin, d.Python)
 }

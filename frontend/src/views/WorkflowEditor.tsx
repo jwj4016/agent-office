@@ -237,7 +237,7 @@ function settings(n: WorkflowNode): string[] {
     return out;
 }
 
-const outputTypes: OutputType[] = ['markdown', 'json', 'report', 'code_change', 'file'];
+const outputTypes: OutputType[] = ['markdown', 'json', 'report', 'code_change', 'diagram', 'file'];
 
 export function NodeForm({spec, id, people, readOnly, onChange, onRenamed, onDeleted, onClose}: {
     spec: WorkflowSpec; id: string; people: Assignment[]; readOnly: boolean;

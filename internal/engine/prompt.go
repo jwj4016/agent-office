@@ -63,6 +63,8 @@ func formatHint(t domain.OutputType) string {
 		return `JSON 객체 (예: {"summary": "...", "findings": [...]})`
 	case domain.OutCodeChange:
 		return `JSON 객체 {"baseCommit": "...", "changes": [{"path": "...", "status": "added|modified|deleted"}], "tests": {"command": "...", "passed": true}}`
+	case domain.OutDiagram:
+		return "다이어그램: 인라인 SVG를 담은 HTML 한 파일"
 	default:
 		return "파일"
 	}
@@ -70,7 +72,7 @@ func formatHint(t domain.OutputType) string {
 
 // buildPrompt describes the task, pinned inputs and exactly where each
 // output must be written.
-func buildPrompt(dataDir string, st *runState, n *domain.Node, manifest []ManifestEntry, notes []ContextNote, askable []domain.AssignmentSnapshot, maxConsults int, ws stepWorkspace, attemptDir string) string {
+func buildPrompt(dataDir string, st *runState, n *domain.Node, manifest []ManifestEntry, notes []ContextNote, askable []domain.AssignmentSnapshot, maxConsults int, ws stepWorkspace, attemptDir string, diagram DiagramSkill) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "# 업무: %s\n\n", n.Title)
 	if g := st.version.Policy.Goal; g != "" {
@@ -91,6 +93,9 @@ func buildPrompt(dataDir string, st *runState, n *domain.Node, manifest []Manife
 			req = "필수"
 		}
 		fmt.Fprintf(&b, "- %s (%s, %s): 다음 경로에 파일로 저장 → %s\n", o.Key, formatHint(o.Type), req, outputPath(attemptDir, o))
+	}
+	if hasDiagram(n) {
+		writeDiagramRules(&b, diagram)
 	}
 	b.WriteString("\n## 완료 기준\n\n- 위의 필수 결과 파일이 형식에 맞게 존재해야 합니다.\n")
 	if n.Completion != nil {

@@ -110,6 +110,16 @@ Section
         !warning "claude-runner is not staged: this installer has no Claude bridge"
     !endif
 
+    # The diagram-design skill given to diagram steps, replaced as a whole.
+    !if /FileExists "..\..\bin\diagram-design\skills\diagram-design\SKILL.md"
+        RMDir /r "$INSTDIR\diagram-design"
+        SetOutPath "$INSTDIR\diagram-design"
+        File /r "..\..\bin\diagram-design\*.*"
+        SetOutPath $INSTDIR
+    !else
+        !warning "diagram-design is not staged: diagram steps get no skill"
+    !endif
+
     CreateShortcut "$SMPROGRAMS\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"
     CreateShortCut "$DESKTOP\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"
 

@@ -101,6 +101,7 @@ func (a *App) startup(ctx context.Context) {
 	a.eng = engine.New(engine.Config{
 		DB: a.db, DataDir: dir, Providers: a.providerFor,
 		Git:       workspace.FindGit(),
+		Diagram:   findDiagramSkill(),
 		Ephemeral: a.addDelta,
 	})
 	a.db.Subscribe(func(evs []storage.EventRecord) { a.emit(a.ctx, EventStored, evs) })
@@ -1254,4 +1255,16 @@ func exportFileName(name string, now time.Time) string {
 		clean = "서비스"
 	}
 	return clean + "-내보내기-" + now.Format("20060102") + ".zip"
+}
+
+// findDiagramSkill locates the bundled diagram-design plugin and a Python
+// to run its self-check. Either may be missing; the engine then checks
+// diagrams for format only.
+func findDiagramSkill() engine.DiagramSkill {
+	plugin, ok := connect.FindDiagramPlugin()
+	if !ok {
+		log.Printf("diagram-design plugin not found: diagram results are checked for format only")
+		plugin = ""
+	}
+	return engine.DiagramSkill{Plugin: plugin, Python: connect.FindPython()}
 }

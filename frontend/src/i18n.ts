@@ -33,7 +33,7 @@ export const ko = {
         task: '작업', review: '리뷰', approval: '승인', condition: '조건 분기', join: '합류',
     } satisfies Record<NodeKind, string>,
     outputType: {
-        markdown: '문서(Markdown)', json: 'JSON', file: '파일', code_change: '코드 변경', report: '보고(JSON)',
+        markdown: '문서(Markdown)', json: 'JSON', file: '파일', code_change: '코드 변경', report: '보고(JSON)', diagram: '다이어그램(HTML)',
     } satisfies Record<OutputType, string>,
     messageKind: {
         question: '질문', answer: '답변', review_request: '검토 요청', proposal: '제안', decision: '결정',
