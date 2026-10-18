@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strconv"
 )
 
 // SettingKeys lists the app settings the UI may read and write. Anything
@@ -14,6 +15,28 @@ var SettingKeys = map[string]bool{
 	"ui.lastProjectId": true,
 	"ui.officeView":    true,
 	"ui.theme":         true,
+	SettingMaxActive:   true,
+}
+
+// SettingMaxActive is how many AI steps may run at once, app-wide and per
+// project (the engine's MaxActive and ProjectMaxActive).
+const SettingMaxActive = "engine.maxActive"
+
+// MaxActive bounds and default for SettingMaxActive. More at once uses a
+// subscription's usage limit up faster.
+const (
+	MaxActiveMin     = 1
+	MaxActiveMax     = 6
+	MaxActiveDefault = 2
+)
+
+// ParseMaxActive reads a stored SettingMaxActive value.
+func ParseMaxActive(v string) (int, error) {
+	n, err := strconv.Atoi(v)
+	if err != nil || n < MaxActiveMin || n > MaxActiveMax {
+		return 0, fmt.Errorf("동시에 실행할 AI 업무 수는 %d~%d 사이여야 합니다: %q", MaxActiveMin, MaxActiveMax, v)
+	}
+	return n, nil
 }
 
 var ErrUnknownSetting = errors.New("unknown setting key")
@@ -48,6 +71,11 @@ func (db *DB) Settings(ctx context.Context) (map[string]string, error) {
 func (db *DB) SetSetting(ctx context.Context, key, value string) error {
 	if err := checkKey(key); err != nil {
 		return err
+	}
+	if key == SettingMaxActive {
+		if _, err := ParseMaxActive(value); err != nil {
+			return err
+		}
 	}
 	return db.Write(ctx, func(tx *sql.Tx) error {
 		_, err := tx.ExecContext(ctx, `INSERT INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)

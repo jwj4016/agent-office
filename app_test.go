@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	"agent-office/internal/storage"
+
 	"github.com/zalando/go-keyring"
 )
 
@@ -49,6 +51,14 @@ func TestSettingsSurviveRestart(t *testing.T) {
 	if err := a.SetSetting("not.allowed", "x"); err == nil {
 		t.Fatal("unknown key accepted")
 	}
+	for _, bad := range []string{"0", "7", "두 개", ""} {
+		if err := a.SetSetting(storage.SettingMaxActive, bad); err == nil {
+			t.Fatalf("AI limit %q accepted", bad)
+		}
+	}
+	if err := a.SetSetting(storage.SettingMaxActive, "3"); err != nil {
+		t.Fatal(err)
+	}
 	a.shutdown(context.Background())
 
 	b := startTemp(t, dir)
@@ -56,6 +66,9 @@ func TestSettingsSurviveRestart(t *testing.T) {
 	got, err := b.GetSettings()
 	if err != nil || got["ui.reducedMotion"] != "true" {
 		t.Fatalf("settings after restart = %v, %v", got, err)
+	}
+	if n := b.maxActive(); n != 3 {
+		t.Fatalf("AI limit after restart = %d", n)
 	}
 	st := b.SystemStatus()
 	if st.SchemaVersion < 1 || st.DataDir != dir || !st.SecretsPersistent {

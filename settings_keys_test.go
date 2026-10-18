@@ -13,7 +13,7 @@ import (
 // Every setting key the UI uses must be allowed by the Go side, or the UI
 // silently fails to remember it (the frontend tests use a fake API).
 func TestFrontendSettingKeysAreAllowed(t *testing.T) {
-	key := regexp.MustCompile(`'(ui\.[A-Za-z]+)'`)
+	key := regexp.MustCompile(`'((?:ui|engine)\.[A-Za-z]+)'`)
 	seen := 0
 	filepath.WalkDir(filepath.Join("frontend", "src"), func(path string, d os.DirEntry, err error) error {
 		if err != nil || d.IsDir() || strings.Contains(path, ".test.") || !(strings.HasSuffix(path, ".ts") || strings.HasSuffix(path, ".tsx")) {

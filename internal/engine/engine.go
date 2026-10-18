@@ -257,6 +257,19 @@ func (e *Engine) attemptDir(projectID, runID, attemptID string) string {
 	return filepath.Join(e.projectDir(projectID), "runs", runID, "attempts", attemptID)
 }
 
+// SetMaxActive changes how many AI steps may run at once, app-wide and
+// per project. Running steps keep going when the limit is lowered; new
+// ones wait until fewer are running.
+func (e *Engine) SetMaxActive(n int) {
+	if n <= 0 {
+		return
+	}
+	e.mu.Lock()
+	e.cfg.MaxActive, e.cfg.ProjectMaxActive = n, n
+	e.mu.Unlock()
+	e.Wake()
+}
+
 func (e *Engine) activeCounts(projectID string) (app, project int) {
 	for _, a := range e.active {
 		app++

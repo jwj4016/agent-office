@@ -1,4 +1,4 @@
-import {Database, Info, Monitor, Moon, Package, Sun} from 'lucide-react';
+import {Cpu, Database, Info, Monitor, Moon, Package, Sun} from 'lucide-react';
 import {useState} from 'react';
 import {api} from '../api';
 import {t} from '../i18n';
@@ -11,6 +11,10 @@ const themes: { id: ThemePref; label: string; icon: typeof Sun }[] = [
     {id: 'system', label: '시스템 설정 따르기', icon: Monitor}, {id: 'light', label: '라이트', icon: Sun}, {id: 'dark', label: '다크', icon: Moon},
 ];
 
+// MAX_ACTIVE is how many AI steps may run at once (Go: storage.SettingMaxActive).
+const MAX_ACTIVE = 'engine.maxActive';
+const limits = [1, 2, 3, 4, 5, 6];
+
 export function Settings() {
     const status = useLoad(() => api.systemStatus(), []);
     const settings = useLoad(() => api.settings(), []);
@@ -19,8 +23,9 @@ export function Settings() {
     const toast = useToast();
     const reduced = settings.data?.[REDUCED_MOTION] === 'true';
     const theme = (settings.data?.[THEME] as ThemePref | undefined) ?? 'system';
-    const save = (key: string, value: string, apply: () => void) =>
-        api.setSetting(key, value).then(() => { apply(); settings.reload(); toast('화면 설정을 바꿨습니다'); }, (err) => setError(String(err)));
+    const maxActive = Number(settings.data?.[MAX_ACTIVE] ?? '2');
+    const save = (key: string, value: string, apply: () => void, done = '화면 설정을 바꿨습니다') =>
+        api.setSetting(key, value).then(() => { apply(); settings.reload(); toast(done); }, (err) => setError(String(err)));
     return (
         <div className="page narrow">
             <PageHeader title={t.nav.settings} desc="화면, AI 연결, 내보내기를 설정합니다. 설정은 이 PC에만 저장됩니다."/>
@@ -46,6 +51,26 @@ export function Settings() {
                         }}/>
                         <span>모션 줄이기 <span className="muted small">— 사무실 캐릭터 동작과 화면 전환 효과를 멈춥니다. OS 설정도 따릅니다.</span></span>
                     </label>
+                </div>
+            </Section>
+
+            <Section title={<><Icon icon={Cpu} size={18}/>AI 실행</>} label="AI 실행">
+                <div className="card stack">
+                    <fieldset className="stack tight">
+                        <legend className="field-label" style={{marginBottom: 8}}>동시에 실행할 AI 업무 수</legend>
+                        <div className="segmented" role="group" aria-label="동시에 실행할 AI 업무 수">
+                            {limits.map((n) => (
+                                <button key={n} type="button" className="btn small" aria-pressed={maxActive === n}
+                                        onClick={() => save(MAX_ACTIVE, String(n), () => {}, `AI 업무를 동시에 ${n}개까지 실행합니다`)}>
+                                    {n}개
+                                </button>
+                            ))}
+                        </div>
+                    </fieldset>
+                    <p className="muted small" style={{margin: 0}}>
+                        모든 서비스를 합친 수입니다. 사람 업무와 승인은 세지 않습니다. 늘리면 병렬 업무가 빨리 끝나지만
+                        Claude·Codex 구독의 사용 한도에 빨리 닿습니다. 줄여도 이미 실행 중인 업무는 멈추지 않습니다.
+                    </p>
                 </div>
             </Section>
 

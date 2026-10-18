@@ -100,9 +100,10 @@ func (a *App) startup(ctx context.Context) {
 		return
 	}
 	a.testProvider = &providers.TestProvider{Scripts: map[string][]providers.Step{}}
-	diagram := findDiagramSkill()
+	diagram, limit := findDiagramSkill(), a.maxActive()
 	a.eng = engine.New(engine.Config{
 		DB: a.db, DataDir: dir, Providers: a.providerFor,
+		MaxActive: limit, ProjectMaxActive: limit,
 		Git:       workspace.FindGit(),
 		Diagram:   diagram,
 		Ephemeral: a.addDelta,
@@ -333,7 +334,27 @@ func (a *App) SetSetting(key, value string) error {
 	if err := a.ready(); err != nil {
 		return err
 	}
-	return a.db.SetSetting(a.ctx, key, value)
+	if err := a.db.SetSetting(a.ctx, key, value); err != nil {
+		return err
+	}
+	if key == storage.SettingMaxActive {
+		a.eng.SetMaxActive(a.maxActive())
+	}
+	return nil
+}
+
+// maxActive is the stored limit on AI steps running at once, or the
+// default when none (or an unreadable one) is stored.
+func (a *App) maxActive() int {
+	settings, err := a.db.Settings(a.ctx)
+	if err != nil {
+		return storage.MaxActiveDefault
+	}
+	n, err := storage.ParseMaxActive(settings[storage.SettingMaxActive])
+	if err != nil {
+		return storage.MaxActiveDefault
+	}
+	return n
 }
 
 // EventsAfter returns stored events for catch-up after a reload.
