@@ -16,6 +16,9 @@ beforeEach(() => {
 describe('App shell', () => {
     it('creates a service from the empty dashboard and opens it', async () => {
         render(<App/>);
+        // An empty home offers the two ways to start; making one by hand opens the form.
+        expect(await screen.findByRole('button', {name: '새 목표로 시작'})).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', {name: '직접 만들기'}));
         const form = await screen.findByRole('form', {name: '새 서비스'});
         fireEvent.change(within(form).getByLabelText('서비스 이름'), {target: {value: '게임 서비스'}});
         fireEvent.click(within(form).getByRole('button', {name: '서비스 만들기'}));

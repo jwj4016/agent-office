@@ -13,6 +13,7 @@ var SettingKeys = map[string]bool{
 	"ui.reducedMotion": true,
 	"ui.lastProjectId": true,
 	"ui.officeView":    true,
+	"ui.theme":         true,
 }
 
 var ErrUnknownSetting = errors.New("unknown setting key")
