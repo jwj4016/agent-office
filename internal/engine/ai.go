@@ -228,7 +228,21 @@ func (e *Engine) prepareHumanWorkspace(runID string, n *domain.Node, attemptID s
 // pump relays one session's events until it completes, then retires the
 // attempt from the active set.
 func (e *Engine) pump(a *activeAttempt, n *domain.Node, session providers.Session) {
+	recorder := storage.NewOutputRecorder(func(text string) error {
+		_, err := e.db.Change(context.Background(), func(c *storage.Change) error {
+			return c.Emit(a.projectID, a.runID, a.id, "activity.output", providers.TextPayload{Text: text})
+		})
+		return err
+	})
+	defer func() {
+		if err := recorder.Close(); err != nil {
+			e.cfg.Logf("engine: output %s: %v", a.id, err)
+		}
+	}()
 	for ev := range session.Events() {
+		if err := recorder.Add(ev); err != nil {
+			e.cfg.Logf("engine: output %s: %v", a.id, err)
+		}
 		if err := e.safeEvent(a, n, ev); err != nil {
 			e.cfg.Logf("engine: attempt %s event %s: %v", a.id, ev.Kind, err)
 		}
@@ -359,6 +373,12 @@ func (e *Engine) onEvent(a *activeAttempt, n *domain.Node, ev providers.Event) e
 // stopped by the shutdown, not by the person or the provider, so the
 // attempt is left for start-up recovery to mark interrupted.
 func (e *Engine) complete(ctx context.Context, a *activeAttempt, n *domain.Node, p providers.CompletedPayload) error {
+	// Preserve the public final response even for text-only providers and failures.
+	if _, err := e.db.Change(ctx, func(c *storage.Change) error {
+		return c.Emit(a.projectID, a.runID, a.id, "provider.completed", p)
+	}); err != nil {
+		return err
+	}
 	if e.ctx.Err() != nil && p.Status != providers.StatusSucceeded {
 		return nil
 	}

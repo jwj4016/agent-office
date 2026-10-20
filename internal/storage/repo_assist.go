@@ -24,15 +24,19 @@ type AssistRecord struct {
 	Error        string          `json:"error"`
 	CreatedAt    string          `json:"createdAt"`
 	UpdatedAt    string          `json:"updatedAt"`
+	BaseWorkflow json.RawMessage `json:"baseWorkflow"`
+	ParentID     string          `json:"parentId,omitempty"`
+	ScopeNodeID  string          `json:"scopeNodeId,omitempty"`
 }
 
-const assistCols = `id, project_id, workflow_id, kind, request, base_revision, COALESCE(connection_id, ''), model, status, result, error, created_at, updated_at`
+const assistCols = `id, project_id, workflow_id, kind, request, base_revision, COALESCE(connection_id, ''), model, status, result, error, created_at, updated_at, base_workflow, COALESCE(parent_id, ''), scope_node_id`
 
 func scanAssist(r interface{ Scan(...any) error }) (AssistRecord, error) {
 	var a AssistRecord
-	var result string
-	err := r.Scan(&a.ID, &a.ProjectID, &a.WorkflowID, &a.Kind, &a.Request, &a.BaseRevision, &a.ConnectionID, &a.Model, &a.Status, &result, &a.Error, &a.CreatedAt, &a.UpdatedAt)
+	var result, base string
+	err := r.Scan(&a.ID, &a.ProjectID, &a.WorkflowID, &a.Kind, &a.Request, &a.BaseRevision, &a.ConnectionID, &a.Model, &a.Status, &result, &a.Error, &a.CreatedAt, &a.UpdatedAt, &base, &a.ParentID, &a.ScopeNodeID)
 	a.Result = json.RawMessage(result)
+	a.BaseWorkflow = json.RawMessage(base)
 	return a, err
 }
 
@@ -44,9 +48,12 @@ func (db *DB) CreateAssist(ctx context.Context, a AssistRecord) (AssistRecord, e
 		if err := CheckScopeTx(ctx, tx, a.ProjectID, Ref{RefWorkflow, a.WorkflowID}); err != nil {
 			return err
 		}
-		_, err := tx.ExecContext(ctx, `INSERT INTO workflow_assists (id, project_id, workflow_id, kind, request, base_revision, connection_id, model, status, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?, NULLIF(?, ''), ?, 'working', ?, ?)`,
-			a.ID, a.ProjectID, a.WorkflowID, a.Kind, a.Request, a.BaseRevision, a.ConnectionID, a.Model, now, now)
+		if len(a.BaseWorkflow) == 0 {
+			a.BaseWorkflow = json.RawMessage(`{}`)
+		}
+		_, err := tx.ExecContext(ctx, `INSERT INTO workflow_assists (id, project_id, workflow_id, kind, request, base_revision, connection_id, model, status, created_at, updated_at, base_workflow, parent_id, scope_node_id)
+			VALUES (?, ?, ?, ?, ?, ?, NULLIF(?, ''), ?, 'working', ?, ?, ?, NULLIF(?, ''), ?)`,
+			a.ID, a.ProjectID, a.WorkflowID, a.Kind, a.Request, a.BaseRevision, a.ConnectionID, a.Model, now, now, string(a.BaseWorkflow), a.ParentID, a.ScopeNodeID)
 		return err
 	})
 	if err != nil {

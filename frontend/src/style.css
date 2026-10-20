@@ -618,6 +618,29 @@ button.stat:hover { border-color: var(--border-strong); }
 .row-button:hover { background: var(--surface-2); }
 .row-button[aria-current="true"] { background: var(--primary-soft); }
 .attention > li:last-child > .row-button { border-bottom: none; }
+
+.activity-entries { list-style: none; padding: 0; margin: 0; }
+.activity-feed, .activity-entries > li { min-width: 0; }
+.activity-text { overflow-wrap: anywhere; }
+
+.tutorial {
+    width: min(620px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow-y: auto;
+    margin: auto; padding: var(--s-8); color: var(--text); background: var(--surface);
+    border: 1px solid var(--border-strong); border-radius: var(--r-lg); box-shadow: var(--shadow-lg);
+}
+.tutorial::backdrop { background: rgba(20, 18, 23, 0.5); }
+.tutorial h2 { font-size: var(--fs-2xl); line-height: 1.4; outline: none; }
+.tutorial-progress { width: 100%; height: 6px; accent-color: var(--primary); }
+.tutorial-icon { width: 56px; height: 56px; display: grid; place-items: center; border-radius: var(--r-lg); color: var(--primary-text); background: var(--primary-soft); }
+.tutorial-path { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+.tutorial-tasks { margin: 0; padding: var(--s-5) var(--s-5) var(--s-5) var(--s-10); line-height: 1.7; }
+.tutorial-actions { gap: var(--s-3); flex-wrap: wrap; }
+@media (max-width: 600px) { .tutorial { padding: var(--s-5); } }
+.activity-updates { position: sticky; top: 0; z-index: 1; background: var(--surface); padding-block: var(--s-2); }
+.workflow-diff { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--s-2); }
+.workflow-diff > * { min-width: 0; overflow-wrap: anywhere; }
+.workflow-diff .pre { font-size: var(--fs-sm); }
+@media (max-width: 600px) { .workflow-diff { grid-template-columns: minmax(0, 1fr); } }
 .row-button .body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .row-button .title { font-weight: 600; }
 .row-button .meta { font-size: var(--fs-sm); color: var(--text-2); }

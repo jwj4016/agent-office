@@ -154,6 +154,7 @@ export type ActionResult = { outcome: Outcome; problem: string };
 export type StoredEvent = {
     sequence: number; id: string; projectId: string; runId?: string; stepAttemptId?: string;
     kind: string; payload: unknown; createdAt: string;
+    stepId?: string; assignmentId?: string; attempt?: number;
 };
 
 export type Delta = { projectId: string; runId: string; stepAttemptId: string; text: string };
@@ -209,9 +210,10 @@ export type AssistRecord = {
     id: string; projectId: string; workflowId: string; kind: AssistKind; request: string; baseRevision: number;
     connectionId: string; model: string; status: AssistStatus; result: EditResult | DiagramResult | Record<string, never>;
     error: string; createdAt: string; updatedAt: string;
+    baseWorkflow?: WorkflowSpec; parentId?: string; scopeNodeId?: string;
 };
 export type EditResult = {
-    workflow: WorkflowSpec; notes: string; issues: Issue[]; canVersion: boolean;
+    workflow: WorkflowSpec; notes: string; issues: Issue[] | null; canVersion: boolean;
     changes: { added: string[]; removed: string[]; changed: string[] };
 };
 export type DiagramResult = { path: string; checked: boolean };

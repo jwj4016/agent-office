@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"time"
 
@@ -37,6 +38,8 @@ type AssistInput struct {
 	Request      string `json:"request"`
 	ConnectionID string `json:"connectionId"`
 	Model        string `json:"model"`
+	ParentID     string `json:"parentId"`
+	ScopeNodeID  string `json:"scopeNodeId"`
 }
 
 // EditResult is a proposed draft with its check and what it changes.
@@ -89,6 +92,46 @@ func (s *Service) StartAssist(ctx context.Context, in AssistInput) (storage.Assi
 	if err != nil {
 		return storage.AssistRecord{}, err
 	}
+	base := w.Draft
+	if in.ParentID != "" {
+		parent, err := s.DB.Assist(ctx, in.ParentID)
+		if err != nil {
+			return storage.AssistRecord{}, err
+		}
+		if parent.ProjectID != in.ProjectID || parent.WorkflowID != in.WorkflowID {
+			return storage.AssistRecord{}, storage.ErrNotInProject
+		}
+		if in.Kind != AssistEdit || parent.Kind != AssistEdit || parent.Status != AssistReady {
+			return storage.AssistRecord{}, ErrNotReady
+		}
+		if parent.BaseRevision != w.Revision {
+			return storage.AssistRecord{}, ErrAssistConflict
+		}
+		var proposal EditResult
+		if err := json.Unmarshal(parent.Result, &proposal); err != nil {
+			return storage.AssistRecord{}, err
+		}
+		w.Draft = proposal.Workflow
+		if len(parent.BaseWorkflow) > 2 {
+			base = parent.BaseWorkflow
+		}
+		in.ScopeNodeID = parent.ScopeNodeID
+	}
+	if in.ScopeNodeID != "" {
+		spec, err := domain.ParseWorkflow(w.Draft)
+		if err != nil {
+			return storage.AssistRecord{}, err
+		}
+		found := false
+		for _, n := range spec.Nodes {
+			if n.ID == in.ScopeNodeID {
+				found = true
+			}
+		}
+		if in.Kind != AssistEdit || !found {
+			return storage.AssistRecord{}, fmt.Errorf("%w: 수정할 업무를 찾을 수 없습니다", ErrInvalid)
+		}
+	}
 	conn, err := s.DB.Connection(ctx, in.ConnectionID)
 	if err != nil {
 		return storage.AssistRecord{}, err
@@ -100,18 +143,20 @@ func (s *Service) StartAssist(ctx context.Context, in AssistInput) (storage.Assi
 		return storage.AssistRecord{}, fmt.Errorf("%w: 다이어그램은 스킬 파일을 읽을 수 있는 Claude·Codex 연결로만 만들 수 있습니다", ErrInvalid)
 	}
 	rec, err := s.DB.CreateAssist(ctx, storage.AssistRecord{ProjectID: in.ProjectID, WorkflowID: in.WorkflowID, Kind: in.Kind,
-		Request: in.Request, BaseRevision: w.Revision, ConnectionID: in.ConnectionID, Model: in.Model})
+		Request: in.Request, BaseRevision: w.Revision, ConnectionID: in.ConnectionID, Model: in.Model,
+		BaseWorkflow: base, ParentID: in.ParentID, ScopeNodeID: in.ScopeNodeID})
 	if err != nil {
 		return rec, err
 	}
-	base := s.Ctx
-	if base == nil {
-		base = context.Background()
+	s.assistEvent(rec, "assist.request", map[string]any{"text": in.Request})
+	workCtx := s.Ctx
+	if workCtx == nil {
+		workCtx = context.Background()
 	}
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
-		s.assist(base, rec, p, w, conn)
+		s.assist(workCtx, rec, p, w, conn)
 	}()
 	return rec, nil
 }
@@ -121,6 +166,7 @@ func (s *Service) assist(ctx context.Context, rec storage.AssistRecord, p domain
 		if _, uerr := s.DB.UpdateAssist(context.Background(), rec.ID, AssistFailed, nil, err.Error(), AssistWorking); uerr != nil {
 			s.logf("assist %s: %v", rec.ID, uerr)
 		}
+		s.assistEvent(rec, "assist.failed", map[string]any{"text": err.Error()})
 	}
 	prov, err := s.Providers(conn)
 	if err != nil {
@@ -150,6 +196,31 @@ func (s *Service) assist(ctx context.Context, rec storage.AssistRecord, p domain
 	raw, _ := json.Marshal(result)
 	if _, err := s.DB.UpdateAssist(context.Background(), rec.ID, AssistReady, raw, "", AssistWorking); err != nil {
 		s.logf("assist %s: %v", rec.ID, err)
+	}
+	s.assistEvent(rec, "assist.ready", map[string]any{"text": "결과가 준비되었습니다. 검토 후 적용하세요."})
+}
+
+func (s *Service) assistEvent(rec storage.AssistRecord, kind string, payload map[string]any) error {
+	payload["assistId"] = rec.ID
+	_, err := s.DB.Change(context.Background(), func(c *storage.Change) error { return c.Emit(rec.ProjectID, "", "", kind, payload) })
+	return err
+}
+
+func (s *Service) assistRecorder(rec storage.AssistRecord) (*storage.OutputRecorder, func(providers.Event) error) {
+	r := storage.NewOutputRecorder(func(text string) error { return s.assistEvent(rec, "activity.output", map[string]any{"text": text}) })
+	return r, func(ev providers.Event) error {
+		if err := r.Add(ev); err != nil {
+			return err
+		}
+		switch ev.Kind {
+		case providers.KindMessage, providers.KindTool, providers.KindError, providers.KindCompleted, providers.KindQuestion, providers.KindApprovalRequest:
+			var p map[string]any
+			if err := json.Unmarshal(ev.Payload, &p); err != nil {
+				return err
+			}
+			return s.assistEvent(rec, "provider."+ev.Kind, p)
+		}
+		return nil
 	}
 }
 
@@ -193,6 +264,16 @@ func (s *Service) proposeEdit(ctx context.Context, prov providers.Provider, rec 
 	pretty, _ := json.MarshalIndent(current, "", "  ")
 	var b strings.Builder
 	fmt.Fprintf(&b, "# 요청\n%s\n\n# 지금 업무 흐름 (수정 %d)\n```json\n%s\n```\n\n", rec.Request, w.Revision, pretty)
+	if rec.ParentID != "" {
+		parent, err := s.DB.Assist(ctx, rec.ParentID)
+		if err != nil {
+			return EditResult{}, err
+		}
+		fmt.Fprintf(&b, "# 이전 요청과 제안\n이전 요청: %s\n위 흐름은 이전 제안이다. 이번 요청으로 그 제안을 추가 수정한다.\n", parent.Request)
+	}
+	if rec.ScopeNodeID != "" {
+		fmt.Fprintf(&b, "# 수정 범위\nid=%s 업무만 수정한다. 다른 업무의 필드·순서와 흐름 제목은 그대로 유지한다. 업무 추가·삭제는 하지 않는다.\n", rec.ScopeNodeID)
+	}
 	b.WriteString("# 이 서비스의 담당자 (assignmentId는 여기 있는 id만 쓴다)\n" + teamList(team, conns) + "\n")
 	b.WriteString(workflowFormat("위 담당자 id") + workflowRules)
 	b.WriteString(`- 요청과 관계없는 업무는 id·내용을 그대로 둔다. 바꾸지 않은 업무의 id를 바꾸지 않는다.
@@ -203,8 +284,11 @@ func (s *Service) proposeEdit(ctx context.Context, prov providers.Provider, rec 
 결과 파일에 {"workflow": 고친 업무 흐름 전체, "notes": 바꾼 내용 요약} 하나만 쓴다.
 `)
 	schema, _ := json.Marshal(editSchema())
+	recorder, onEvent := s.assistRecorder(rec)
+	defer recorder.Close()
 	raw, err := runJSON(ctx, prov, agentJob{
-		What: "흐름 수정 AI", Instructions: assistInstructions, Prompt: b.String(), Model: rec.Model,
+		OnEvent: onEvent,
+		What:    "흐름 수정 AI", Instructions: assistInstructions, Prompt: b.String(), Model: rec.Model,
 		Key: "edit", Type: "json", File: "edit.json", Schema: schema, Timeout: 10 * time.Minute,
 		Answer: "질문하지 말고 합리적인 가정을 정해 notes에 적어 주세요.",
 	}, "필요한 정보는 모두 위에 있으므로 다른 파일을 읽거나 명령을 실행하지 않는다. ", "수정안")
@@ -213,22 +297,39 @@ func (s *Service) proposeEdit(ctx context.Context, prov providers.Provider, rec 
 	}
 	var out struct {
 		Workflow json.RawMessage `json:"workflow"`
-		Notes    string          `json:"notes"`
+		Notes    Text            `json:"notes"`
 	}
-	if err := json.Unmarshal(raw, &out); err != nil || len(out.Workflow) == 0 || out.Workflow[0] != '{' {
-		return EditResult{}, errors.New("수정안에 workflow 객체가 없습니다")
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return EditResult{}, fmt.Errorf("수정안을 읽을 수 없습니다: %v (받은 내용 앞부분: %q)", err, clip(string(raw), 200))
+	}
+	if len(out.Workflow) == 0 || out.Workflow[0] != '{' {
+		return EditResult{}, fmt.Errorf("수정안에 workflow 객체가 없습니다 (받은 내용 앞부분: %q)", clip(string(raw), 200))
 	}
 	spec, err := domain.ParseWorkflow(out.Workflow)
 	if err != nil {
 		return EditResult{}, fmt.Errorf("수정안의 업무 흐름을 읽을 수 없습니다: %v", err)
+	}
+	if rec.ScopeNodeID != "" {
+		old, err := domain.ParseWorkflow(w.Draft)
+		if err != nil {
+			return EditResult{}, err
+		}
+		if len(old.Nodes) != len(spec.Nodes) || old.Title != spec.Title {
+			return EditResult{}, fmt.Errorf("%w: 선택한 업무 밖의 변경이 있어 적용할 수 없습니다. 전체 흐름으로 다시 요청하세요", ErrInvalid)
+		}
+		for i, n := range old.Nodes {
+			if spec.Nodes[i].ID != n.ID || (n.ID != rec.ScopeNodeID && !reflect.DeepEqual(n, spec.Nodes[i])) {
+				return EditResult{}, fmt.Errorf("%w: 선택한 업무 밖의 변경이 있습니다: %s", ErrInvalid, n.Title)
+			}
+		}
 	}
 	draft, _ := json.Marshal(spec)
 	check, err := s.DB.ValidateDraft(ctx, rec.ProjectID, draft)
 	if err != nil {
 		return EditResult{}, err
 	}
-	old, _ := domain.ParseWorkflow(w.Draft)
-	return EditResult{Workflow: draft, Notes: out.Notes, Issues: check.Issues, CanVersion: check.CanVersion, Changes: diffSteps(old, spec)}, nil
+	old, _ := domain.ParseWorkflow(rec.BaseWorkflow)
+	return EditResult{Workflow: draft, Notes: string(out.Notes), Issues: check.Issues, CanVersion: check.CanVersion, Changes: diffSteps(old, spec)}, nil
 }
 
 // diffSteps compares two drafts step by step.
@@ -316,8 +417,11 @@ func (s *Service) drawPipeline(ctx context.Context, prov providers.Provider, rec
 `)
 	b.WriteString(s.Diagram.Rules())
 	path := ""
+	recorder, onEvent := s.assistRecorder(rec)
+	defer recorder.Close()
 	data, _, err := runAgent(ctx, prov, agentJob{
-		What: "다이어그램 AI", Instructions: assistInstructions, Prompt: b.String(), Model: rec.Model,
+		OnEvent: onEvent,
+		What:    "다이어그램 AI", Instructions: assistInstructions, Prompt: b.String(), Model: rec.Model,
 		Key: "pipeline", Type: string(domain.OutDiagram), File: "pipeline.html", Timeout: 15 * time.Minute,
 		Answer:  "질문하지 말고 스킬의 기본 스타일로 진행하세요.",
 		Prepare: s.Diagram.Grant,

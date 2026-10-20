@@ -178,3 +178,32 @@ func TestProjectWorkspacePath(t *testing.T) {
 		}
 	}
 }
+
+// On Windows Wails runs startup alongside the page load, so the first
+// binding calls can arrive early; they wait instead of failing.
+func TestBindingsCalledBeforeStartupWait(t *testing.T) {
+	keyring.MockInit()
+	t.Setenv("AGENT_OFFICE_DATA_DIR", t.TempDir())
+	a := NewApp()
+	a.emit = func(context.Context, string, ...interface{}) {}
+	type result struct {
+		err    error
+		status SystemStatus
+	}
+	done := make(chan result, 1)
+	go func() {
+		_, err := a.Dashboard(false)
+		done <- result{err, a.SystemStatus()}
+	}()
+	select {
+	case r := <-done:
+		t.Fatalf("Dashboard returned before startup: %v", r.err)
+	case <-time.After(100 * time.Millisecond):
+	}
+	a.startup(context.Background())
+	t.Cleanup(func() { a.shutdown(context.Background()) })
+	r := <-done
+	if r.err != nil || r.status.SchemaVersion == 0 {
+		t.Fatalf("after startup: err=%v status=%+v", r.err, r.status)
+	}
+}

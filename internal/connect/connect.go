@@ -168,15 +168,23 @@ func runQuiet(ctx context.Context, exe string, args ...string) (string, error) {
 }
 
 // withPath makes sure the executable's own dir (e.g. Homebrew's node for
-// an npm-installed CLI) is on PATH for the child.
+// an npm-installed CLI) is on PATH for the child. Windows names it "Path",
+// and a second "PATH=" entry would replace it (exec keeps the last one).
 func withPath(env []string, dir string) []string {
 	for i, kv := range env {
-		if strings.HasPrefix(kv, "PATH=") {
+		if k, _, ok := strings.Cut(kv, "="); ok && isPathKey(k) {
 			env[i] = kv + string(os.PathListSeparator) + dir
 			return env
 		}
 	}
 	return append(env, "PATH="+dir)
+}
+
+func isPathKey(k string) bool {
+	if runtime.GOOS == "windows" {
+		return strings.EqualFold(k, "PATH")
+	}
+	return k == "PATH"
 }
 
 func firstLine(s string) string {

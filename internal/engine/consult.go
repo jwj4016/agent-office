@@ -208,16 +208,31 @@ const sideAnswer = "지금은 질문할 수 없습니다. 주어진 자료와 �
 // answer to another AI): tool requests are declined, questions get a
 // fixed reply, usage is recorded under the attempt with phase as key.
 func (e *Engine) runSide(ctx context.Context, a *activeAttempt, s providers.Session, phase string) (providers.CompletedPayload, error) {
+	recorder := storage.NewOutputRecorder(func(text string) error {
+		_, err := e.db.Change(context.Background(), func(c *storage.Change) error {
+			return c.Emit(a.projectID, a.runID, a.id, "activity.output", map[string]any{"text": text, "phase": phase})
+		})
+		return err
+	})
+	defer func() {
+		if err := recorder.Close(); err != nil {
+			e.cfg.Logf("engine: side output: %v", err)
+		}
+	}()
 	for {
 		select {
 		case ev, ok := <-s.Events():
 			if !ok {
 				return providers.CompletedPayload{Status: providers.StatusFailed, Error: "세션이 결과 없이 끝났습니다"}, nil
 			}
+			if err := recorder.Add(ev); err != nil {
+				return providers.CompletedPayload{}, err
+			}
 			switch ev.Kind {
 			case providers.KindCompleted:
 				var p providers.CompletedPayload
 				json.Unmarshal(ev.Payload, &p)
+				e.sideEvent(a, "side.completed", map[string]any{"phase": phase, "text": p.Text, "status": p.Status, "error": p.Error})
 				return p, nil
 			case providers.KindApprovalRequest:
 				var p providers.RequestPayload

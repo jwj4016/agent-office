@@ -55,6 +55,9 @@ type App struct {
 	design  *design.Service
 	secrets secrets.Store
 	initErr error
+	// started is closed when startup ends. On Windows Wails runs startup
+	// alongside the page load, so early binding calls wait on it.
+	started chan struct{}
 
 	testProvider *providers.TestProvider
 	stopEngine   context.CancelFunc
@@ -70,7 +73,16 @@ type App struct {
 }
 
 func NewApp() *App {
-	return &App{emit: runtime.EventsEmit, deltas: map[string]*Delta{}, saveDialog: runtime.SaveFileDialog, folderDialog: runtime.OpenDirectoryDialog}
+	return &App{emit: runtime.EventsEmit, deltas: map[string]*Delta{}, saveDialog: runtime.SaveFileDialog, folderDialog: runtime.OpenDirectoryDialog,
+		started: make(chan struct{})}
+}
+
+// waitStarted blocks until startup has finished (Apps built without
+// NewApp, as in some tests, do not wait).
+func (a *App) waitStarted() {
+	if a.started != nil {
+		<-a.started
+	}
 }
 
 // dataDir returns AGENT_OFFICE_DATA_DIR when set (tests, side-by-side
@@ -87,6 +99,9 @@ func dataDir() (string, error) {
 }
 
 func (a *App) startup(ctx context.Context) {
+	if a.started != nil {
+		defer close(a.started)
+	}
 	a.ctx = ctx
 	a.secrets = secrets.Open()
 	dir, err := dataDir()
@@ -270,6 +285,7 @@ func uiErr(err error) error {
 }
 
 func (a *App) ready() error {
+	a.waitStarted()
 	if a.db == nil || a.eng == nil {
 		if a.initErr != nil {
 			return fmt.Errorf("%w: %v", errNotReady, a.initErr)
@@ -309,6 +325,7 @@ type SystemStatus struct {
 }
 
 func (a *App) SystemStatus() SystemStatus {
+	a.waitStarted()
 	st := SystemStatus{DataDir: a.dataDir, Version: appVersion, Perf: perfEnabled()}
 	if a.secrets != nil {
 		st.SecretsPersistent = a.secrets.Persistent()
@@ -1242,7 +1259,7 @@ func (a *App) ListWorkflowAssists(projectID, workflowID string) ([]storage.Assis
 	if err := a.db.CheckScope(a.ctx, projectID, storage.Ref{Kind: storage.RefWorkflow, ID: workflowID}); err != nil {
 		return nil, uiErr(err)
 	}
-	list, err := a.db.Assists(a.ctx, workflowID, 20)
+	list, err := a.db.Assists(a.ctx, workflowID, 200)
 	return list, uiErr(err)
 }
 
@@ -1252,6 +1269,31 @@ func (a *App) GetWorkflowAssist(id string) (storage.AssistRecord, error) {
 	}
 	rec, err := a.db.Assist(a.ctx, id)
 	return rec, uiErr(err)
+}
+
+// AIActivity reads one scoped source, with sequence pagination for older logs.
+func (a *App) AIActivity(projectID, runID, assistID string, before int64) (storage.ActivityPage, error) {
+	if err := a.ready(); err != nil {
+		return storage.ActivityPage{}, err
+	}
+	if (runID == "") == (assistID == "") {
+		return storage.ActivityPage{}, uiErr(engine.ErrInvalid)
+	}
+	if runID != "" {
+		if err := a.db.CheckScope(a.ctx, projectID, storage.Ref{Kind: storage.RefRun, ID: runID}); err != nil {
+			return storage.ActivityPage{}, uiErr(err)
+		}
+	} else {
+		rec, err := a.db.Assist(a.ctx, assistID)
+		if err != nil {
+			return storage.ActivityPage{}, uiErr(err)
+		}
+		if rec.ProjectID != projectID {
+			return storage.ActivityPage{}, uiErr(storage.ErrNotInProject)
+		}
+	}
+	page, err := a.db.Activity(a.ctx, projectID, runID, assistID, before)
+	return page, uiErr(err)
 }
 
 // ApplyWorkflowAssist saves a proposed edit as the workflow's draft.

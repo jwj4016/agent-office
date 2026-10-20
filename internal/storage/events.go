@@ -19,6 +19,9 @@ type EventRecord struct {
 	Kind          string          `json:"kind"`
 	Payload       json.RawMessage `json:"payload"`
 	CreatedAt     string          `json:"createdAt"`
+	StepID        string          `json:"stepId,omitempty"`
+	AssignmentID  string          `json:"assignmentId,omitempty"`
+	Attempt       int             `json:"attempt,omitempty"`
 }
 
 // Change is one write transaction plus the events it produces. Events

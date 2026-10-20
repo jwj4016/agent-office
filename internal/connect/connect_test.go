@@ -102,3 +102,17 @@ func TestFindBridgeOverride(t *testing.T) {
 		t.Fatalf("FindBridge = %q %v", got, ok)
 	}
 }
+
+func TestWithPathKeepsWindowsPath(t *testing.T) {
+	env := withPath([]string{"Path=C:\nodejs", "HOME=x"}, "C:\npm")
+	if runtime.GOOS == "windows" {
+		want := []string{"Path=C:\nodejs" + string(os.PathListSeparator) + "C:\npm", "HOME=x"}
+		if strings.Join(env, "|") != strings.Join(want, "|") {
+			t.Fatalf("env = %q, want %q", env, want)
+		}
+		return
+	}
+	if env[len(env)-1] != "PATH=C:\npm" {
+		t.Fatalf("env = %q, want a separate PATH entry off Windows", env)
+	}
+}

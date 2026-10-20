@@ -2,13 +2,13 @@ import {
     Background, Controls, type Edge, Handle, type Node, type NodeProps, Position, ReactFlow, type Connection as FlowConnection,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import {useEffect, useMemo, useState} from 'react';
+import {useEffect, useMemo, useRef, useState} from 'react';
 import {api} from '../api';
 import {t} from '../i18n';
 import {useLoad} from '../live';
 import type {Assignment, Branch, Issue, NodeKind, OutputType, Project, Routing, WorkflowNode, WorkflowSpec} from '../types';
 import {
-    AlertCircle, ArrowLeft, Check, CircleDot, HelpCircle, Play, Plus, ShieldCheck, Stamp, Trash2, Unlink, Wrench,
+    AlertCircle, ArrowLeft, Check, CircleDot, HelpCircle, Play, Plus, ShieldCheck, Sparkles, Stamp, Trash2, Unlink, Wrench,
 } from 'lucide-react';
 import {
     ActorBadge, Banner, Button, ConfirmButton, DetailHeader, ErrorBox, Icon, Loading, nodeKindIcon, Section, StatusBadge, Stepper, useAction, useDetail,
@@ -52,6 +52,8 @@ export function WorkflowEditor({project, workflowId, onStarted, onClose}: {
     const [revision, setRevision] = useState(0);
     const [dirty, setDirty] = useState(false);
     const [selected, setSelected] = useState<string | null>(null);
+    const [preview, setPreview] = useState<WorkflowSpec | null>(null);
+    const editor = useRef<{dirty: boolean; revision: number; persist: () => Promise<unknown>} | null>(null);
     const [issues, setIssues] = useState<Issue[]>([]);
     const [checked, setChecked] = useState(false);
     const [version, setVersion] = useState<{ id: string; number: number } | null>(null);
@@ -82,26 +84,27 @@ export function WorkflowEditor({project, workflowId, onStarted, onClose}: {
     const errorNodes = new Set(issues.filter((i) => i.nodeId).map((i) => i.nodeId!));
 
     const flow = useMemo(() => {
-        if (!draft) return {nodes: [], edges: []};
-        const pos = layout(draft);
-        const nodes: Node<StepData>[] = draft.nodes.map((n) => ({
+        const spec = preview ?? draft;
+        if (!spec) return {nodes: [], edges: []};
+        const pos = layout(spec);
+        const nodes: Node<StepData>[] = spec.nodes.map((n) => ({
             id: n.id, type: 'step', position: pos[n.id],
             data: {node: n, assignee: assignee(n.assignmentId), hasError: errorNodes.has(n.id), selected: n.id === selected},
         }));
-        const map = byId(draft);
-        const edges: Edge[] = draft.nodes.flatMap((n) => n.dependsOn.map((d) => {
+        const map = byId(spec);
+        const edges: Edge[] = spec.nodes.flatMap((n) => n.dependsOn.map((d) => {
             const label = map.get(d)?.kind === 'condition' ? branchLabel(map.get(d)!.routing, n.id) : undefined;
             return {id: `${d}->${n.id}`, source: d, target: n.id, ...(label ? {label} : {})};
         }));
         // Rework targets are not edges of the graph; they are drawn dashed
         // for reference and cannot be selected or deleted as connections.
-        const rework: Edge[] = draft.nodes.flatMap((n) => (n.reworkTargets ?? []).filter((r) => map.has(r)).map((r) => ({
+        const rework: Edge[] = spec.nodes.flatMap((n) => (n.reworkTargets ?? []).filter((r) => map.has(r)).map((r) => ({
             id: `rework:${n.id}->${r}`, source: n.id, target: r, label: '수정 요청', selectable: false, deletable: false, focusable: false,
             style: {strokeDasharray: '5 4', stroke: 'var(--danger-text)'}, labelStyle: {fill: 'var(--danger-text)'},
         })));
         return {nodes, edges: [...edges, ...rework]};
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [draft, people, issues, selected]);
+    }, [draft, preview, people, issues, selected]);
 
     // The selected node's form lives in the detail pane.
     useEffect(() => {
@@ -136,6 +139,13 @@ export function WorkflowEditor({project, workflowId, onStarted, onClose}: {
         toast('저장하고 검증했습니다');
     });
 
+    editor.current = {dirty, revision, persist};
+    const applied = () => { setPreview(null); setDirty(false); setVersion(null); setChecked(false); setIssues([]); loaded.reload(); };
+    const openAssistant = () => setDetail(<WorkflowAssist project={project} workflowId={workflowId} workflowTitle={draft.title}
+        selectedNode={selected ? byId(draft).get(selected) : undefined} dirty={dirty}
+        getEditorState={() => editor.current!} saveFirst={() => editor.current!.persist()} onApplied={applied}
+        onPreview={setPreview} onClose={() => { setPreview(null); setDetail(null); }}/>);
+
     const confirm = () => action.run(async () => {
         if (dirty) await persist();
         const w = await api.workflow(project.id, workflowId);
@@ -168,15 +178,16 @@ export function WorkflowEditor({project, workflowId, onStarted, onClose}: {
                 <Stepper steps={['편집', '저장·검증', '버전 확정', '실행']} current={stage}/>
             </div>
             <div className="toolbar" role="toolbar" aria-label="업무 흐름 도구">
-                <input aria-label="흐름 이름" value={draft.title} disabled={archived} style={{minWidth: 220, fontWeight: 600}}
+                <input aria-label="흐름 이름" value={draft.title} disabled={archived || !!preview} style={{minWidth: 220, fontWeight: 600}}
                        onChange={(e) => edit({...draft, title: e.target.value})}/>
                 <span className={`save-state ${dirty ? 'dirty' : ''}`}>
                     <Icon icon={dirty ? CircleDot : Check} size={14}/>수정 {revision}{dirty ? ' · 저장 안 됨' : ' · 저장됨'}
                 </span>
                 <span className="spacer"/>
+                <Button icon={Sparkles} onClick={openAssistant}>AI로 수정</Button>
                 <label className="row nowrap small">
                     <Icon icon={Plus} size={14}/><span className="muted">업무 추가</span>
-                    <select aria-label="추가할 업무 종류" value="" disabled={archived} onChange={(e) => {
+                    <select aria-label="추가할 업무 종류" value="" disabled={archived || !!preview} onChange={(e) => {
                         if (!e.target.value) return;
                         const {spec, id} = addNode(draft, e.target.value as NodeKind, selected ?? undefined);
                         edit(spec);
@@ -188,9 +199,9 @@ export function WorkflowEditor({project, workflowId, onStarted, onClose}: {
                     </select>
                 </label>
                 <span className="sep" aria-hidden/>
-                <Button icon={ShieldCheck} disabled={archived || action.busy} onClick={save}>저장·검증</Button>
-                <Button variant={version ? 'secondary' : 'primary'} icon={Stamp} disabled={archived} busy={action.busy && !version} onClick={confirm}>버전 확정</Button>
-                {version ? <Button variant="primary" icon={Play} busy={action.busy} onClick={start}>버전 {version.number} 실행</Button> : null}
+                <Button icon={ShieldCheck} disabled={archived || !!preview || action.busy} onClick={save}>저장·검증</Button>
+                <Button variant={version ? 'secondary' : 'primary'} icon={Stamp} disabled={archived || !!preview} busy={action.busy && !version} onClick={confirm}>버전 확정</Button>
+                {version ? <Button variant="primary" icon={Play} disabled={!!preview} busy={action.busy} onClick={start}>버전 {version.number} 실행</Button> : null}
             </div>
             <ErrorBox error={action.error}/>
             {checked && !issues.length && !dirty ? (
@@ -212,28 +223,27 @@ export function WorkflowEditor({project, workflowId, onStarted, onClose}: {
                     </ul>
                 </Banner>
             ) : null}
-            <div className="flow-wrap" aria-label="업무 흐름 편집기">
+            {preview ? <Banner title="AI 수정안 미리보기 · 초안에는 아직 적용되지 않았습니다" actions={<Button size="sm" onClick={() => setPreview(null)}>원래 초안 보기</Button>}/> : null}
+            <div className="flow-wrap" aria-label={preview ? 'AI 수정안 미리보기' : '업무 흐름 편집기'}>
                 <ReactFlow
                     nodes={flow.nodes} edges={flow.edges} nodeTypes={nodeTypes} fitView fitViewOptions={{minZoom: 0.65, maxZoom: 1}} minZoom={0.3}
                     colorMode={theme}
-                    nodesDraggable={false} nodesConnectable={!archived} elementsSelectable
-                    onNodeClick={(_, n) => setSelected(n.id)}
-                    onPaneClick={() => setSelected(null)}
+                    nodesDraggable={false} nodesConnectable={!archived && !preview} elementsSelectable
+                    onNodeClick={(_, n) => { if (!preview) setSelected(n.id); }}
+                    onPaneClick={() => { if (!preview) setSelected(null); }}
                     onConnect={(c: FlowConnection) => {
                         if (!c.source || !c.target) return;
                         const res = connect(draft, c.source, c.target);
                         if (res.error) action.setError(res.error); else edit(res.spec);
                     }}
-                    onEdgesDelete={(es) => !archived && edit(es.filter((e) => !e.id.startsWith('rework:')).reduce((s, e) => disconnect(s, e.source, e.target), draft))}
-                    onNodesDelete={(ns) => !archived && edit(ns.reduce((s, n) => removeNode(s, n.id), draft))}
-                    deleteKeyCode={archived ? null : ['Backspace', 'Delete']}
+                    onEdgesDelete={(es) => !archived && !preview && edit(es.filter((e) => !e.id.startsWith('rework:')).reduce((s, e) => disconnect(s, e.source, e.target), draft))}
+                    onNodesDelete={(ns) => !archived && !preview && edit(ns.reduce((s, n) => removeNode(s, n.id), draft))}
+                    deleteKeyCode={archived || preview ? null : ['Backspace', 'Delete']}
                 >
                     <Background/>
                     <Controls showInteractive={false}/>
                 </ReactFlow>
             </div>
-            <WorkflowAssist project={project} workflowId={workflowId} dirty={dirty} saveFirst={persist}
-                            onApplied={() => { setDirty(false); setVersion(null); setChecked(false); setIssues([]); loaded.reload(); }}/>
             <details className="card subtle tight small">
                 <summary><Icon icon={HelpCircle} size={14}/> 편집 방법</summary>
                 <ul style={{margin: '8px 0 0', paddingLeft: 18}} className="stack tight">
@@ -244,16 +254,16 @@ export function WorkflowEditor({project, workflowId, onStarted, onClose}: {
                     <li>조건 분기 뒤 연결선에는 그 경로를 고르는 규칙이 표시됩니다.</li>
                 </ul>
             </details>
-            <Section title="업무 목록" count={draft.nodes.length}>
-                <StepList spec={draft} people={people} issues={issues} selected={selected} onSelect={setSelected}/>
+            <Section title={preview ? '수정안 업무 목록' : '업무 목록'} count={(preview ?? draft).nodes.length}>
+                <StepList spec={preview ?? draft} people={people} issues={preview ? [] : issues} selected={preview ? null : selected} onSelect={setSelected} readOnly={!!preview}/>
             </Section>
         </div>
     );
 }
 
 // StepList is the keyboard- and screen-reader-friendly view of the graph.
-function StepList({spec, people, issues, selected, onSelect}: {
-    spec: WorkflowSpec; people: Assignment[]; issues: Issue[]; selected: string | null; onSelect: (id: string) => void;
+function StepList({spec, people, issues, selected, onSelect, readOnly}: {
+    spec: WorkflowSpec; people: Assignment[]; issues: Issue[]; selected: string | null; onSelect: (id: string) => void; readOnly?: boolean;
 }) {
     return (
         <div className="table-wrap">
@@ -265,7 +275,7 @@ function StepList({spec, people, issues, selected, onSelect}: {
                     const mine = issues.filter((i) => i.nodeId === n.id);
                     return (
                         <tr key={n.id} aria-selected={selected === n.id}>
-                            <td><Button size="sm" variant={selected === n.id ? 'primary' : 'secondary'} onClick={() => onSelect(n.id)}>{n.title || n.id}</Button></td>
+                            <td>{readOnly ? <strong>{n.title || n.id}</strong> : <Button size="sm" variant={selected === n.id ? 'primary' : 'secondary'} onClick={() => onSelect(n.id)}>{n.title || n.id}</Button>}</td>
                             <td><span className="row nowrap small"><Icon icon={nodeKindIcon[n.kind] ?? Wrench} size={14}/>{t.nodeKind[n.kind] ?? n.kind}</span></td>
                             <td>{a ? <span className="row nowrap">{a.displayName} <ActorBadge kind={a.actorKind}/></span>
                                 : n.kind === 'condition' || n.kind === 'join' ? <span className="muted">—</span> : <StatusBadge tone="bad">없음</StatusBadge>}</td>

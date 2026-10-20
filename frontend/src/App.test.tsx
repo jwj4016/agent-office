@@ -9,11 +9,73 @@ import App from './App';
 beforeEach(() => {
     state.summaries = [];
     state.inbox = [];
-    state.settings = {};
+    state.settings = {'ui.tutorialSeen': 'true'};
     vi.clearAllMocks();
 });
 
 describe('App shell', () => {
+    it('automatically opens the tutorial once and can reopen it without losing work', async () => {
+        state.settings = {};
+        const {unmount} = render(<App/>);
+        const tutorial = await screen.findByRole('dialog');
+        expect(within(tutorial).getByRole('heading', {name: 'AI와 함께 일하는 사무실입니다'})).toBeInTheDocument();
+        fireEvent.click(within(tutorial).getByRole('button', {name: '건너뛰기'}));
+        await waitFor(() => expect(fakeApi.setSetting).toHaveBeenCalledWith('ui.tutorialSeen', 'true'));
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+        unmount();
+        render(<App/>);
+        await screen.findByRole('button', {name: '새 목표로 시작'});
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', {name: '직접 만들기'}));
+        fireEvent.change(screen.getByLabelText('서비스 이름'), {target: {value: '작성 중인 서비스'}});
+        const open = screen.getByRole('button', {name: '튜토리얼 다시 보기'});
+        open.focus(); fireEvent.click(open);
+        fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', {name: '다음'}));
+        fireEvent.click(screen.getByRole('button', {name: '튜토리얼 닫기'}));
+        expect(screen.getByLabelText('서비스 이름')).toHaveValue('작성 중인 서비스');
+        expect(open).toHaveFocus();
+        fireEvent.click(open);
+        expect(within(await screen.findByRole('dialog')).getByRole('heading', {name: 'AI와 함께 일하는 사무실입니다'})).toBeInTheDocument();
+        expect(fakeApi.startDesign).not.toHaveBeenCalled();
+        expect(fakeApi.startRun).not.toHaveBeenCalled();
+    });
+
+    it('keeps the app usable when persisting tutorial dismissal fails', async () => {
+        state.settings = {};
+        fakeApi.setSetting.mockRejectedValueOnce('저장 실패');
+        render(<App/>);
+        const tutorial = await screen.findByRole('dialog');
+        fireEvent.click(within(tutorial).getByRole('button', {name: '건너뛰기'}));
+        expect(await screen.findByText(/튜토리얼 확인 상태를 저장하지 못했습니다/)).toBeInTheDocument();
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+        expect(screen.getByRole('button', {name: '튜토리얼 다시 보기'})).toBeEnabled();
+    });
+
+    it('does not reopen a dismissed guide when the initial settings arrive late', async () => {
+        let resolveSettings!: (settings: Record<string, string>) => void;
+        fakeApi.settings.mockImplementationOnce(() => new Promise((resolve) => { resolveSettings = resolve; }));
+        render(<App/>);
+        await waitFor(() => expect(fakeApi.settings).toHaveBeenCalled());
+        fireEvent.click(screen.getByRole('button', {name: '튜토리얼 다시 보기'}));
+        fireEvent.click(screen.getByRole('button', {name: '튜토리얼 닫기'}));
+        resolveSettings({'ui.theme': 'dark'});
+        await waitFor(() => expect(document.documentElement.dataset.theme).toBe('dark'));
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+
+    it('waits for startup status and skips automatic guidance in performance runs', async () => {
+        state.settings = {};
+        let resolveStatus!: (status: Awaited<ReturnType<typeof fakeApi.systemStatus>> & {perf: boolean}) => void;
+        fakeApi.systemStatus.mockImplementationOnce(() => new Promise((resolve) => { resolveStatus = resolve; }));
+        render(<App/>);
+        expect(fakeApi.settings).not.toHaveBeenCalled();
+        resolveStatus({dataDir: '/data', schemaVersion: 2, secretsPersistent: true, version: 'test', error: '', perf: true});
+        await waitFor(() => expect(fakeApi.settings).toHaveBeenCalled());
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', {name: '튜토리얼 다시 보기'}));
+        expect(await screen.findByRole('dialog')).toBeInTheDocument();
+    });
+
     it('creates a service from the empty dashboard and opens it', async () => {
         render(<App/>);
         // An empty home offers the two ways to start; making one by hand opens the form.

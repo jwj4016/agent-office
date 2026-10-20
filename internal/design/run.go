@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"agent-office/internal/domain"
 	"agent-office/internal/providers"
@@ -135,6 +136,7 @@ func Run(ctx context.Context, prov providers.Provider, model, prompt string) ([]
 // agentJob is one AI call outside a run: a single output file in a
 // fresh temporary folder, no person to ask.
 type agentJob struct {
+	OnEvent                           func(providers.Event) error
 	What, Instructions, Prompt, Model string
 	// Key, Type and File describe the one output.
 	Key, Type, File string
@@ -156,17 +158,29 @@ func runJSON(ctx context.Context, prov providers.Provider, job agentJob, promptR
 	if err != nil {
 		return nil, err
 	}
-	if data != nil {
+	if data != nil && json.Valid(data) {
 		return data, nil
 	}
 	if text, ok := jsonFromReply(final.Text); ok {
 		return []byte(text), nil
 	}
-	snippet := strings.TrimSpace(final.Text)
-	if len(snippet) > 200 {
-		snippet = snippet[:200] + "…"
+	if data != nil {
+		// e.g. the agent's file write was interrupted halfway.
+		return nil, fmt.Errorf("%s가 쓴 %s 파일이 올바른 JSON이 아닙니다. 비어 있거나 중간에 끊겼을 수 있으니 다시 요청하세요 (파일 앞부분: %q)", job.What, label, clip(string(data), 200))
 	}
-	return nil, fmt.Errorf("%s가 %s 파일을 만들지 않았습니다 (마지막 응답: %q)", job.What, label, snippet)
+	return nil, fmt.Errorf("%s가 %s 파일을 만들지 않았습니다 (마지막 응답: %q)", job.What, label, clip(final.Text, 200))
+}
+
+// clip trims s to at most n bytes without splitting a character.
+func clip(s string, n int) string {
+	s = strings.TrimSpace(s)
+	if len(s) <= n {
+		return s
+	}
+	for n > 0 && !utf8.RuneStart(s[n]) {
+		n--
+	}
+	return s[:n] + "…"
 }
 
 // runAgent runs job and returns the output file's content (nil when the
@@ -209,6 +223,12 @@ func runAgent(ctx context.Context, prov providers.Provider, job agentJob, prompt
 			if !ok {
 				done = true
 				break
+			}
+			if job.OnEvent != nil {
+				if err := job.OnEvent(ev); err != nil {
+					s.Cancel(context.Background())
+					return nil, final, err
+				}
 			}
 			switch ev.Kind {
 			case providers.KindApprovalRequest, providers.KindQuestion:
