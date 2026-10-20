@@ -3,7 +3,6 @@ package design
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -33,6 +32,29 @@ type AutoPolicy struct {
 
 const instructions = `너는 Agent Office의 설계 담당이다. 사용자의 목표를 이루기 위한 회사 역할, 담당자, 업무 흐름을 JSON 설계안으로 제안한다.
 설계안은 제안일 뿐이며 사람이 검토한다. 도구 권한, API 키, 연결을 새로 만들거나 요구하는 필드를 넣지 않는다.`
+
+// workflowFormat describes the workflow JSON; assignee says what goes in
+// assignmentId.
+func workflowFormat(assignee string) string {
+	return `# 업무 흐름 형식 (workflow)
+{"schemaVersion": 1, "title": "...", "nodes": [노드...]}
+노드: {"id": 영문 id, "title": 한국어 이름, "kind": task|review|approval, "assignmentId": ` + assignee + `,
+      "dependsOn": [선행 노드 id], "instructions": 이번 업무 지시,
+      "inputs": [{"name": 이름, "fromStep": 선행(조상) 노드 id, "outputKey": 그 노드의 결과 key}],
+      "outputs": [{"key": 영문 key, "type": markdown|json|report|code_change|diagram}],
+      "reworkTargets": [반려 시 돌려보낼 선행 task·review 노드 id]}
+`
+}
+
+// workflowRules apply to every workflow the AI writes.
+const workflowRules = `규칙:
+- 진행은 순환 없는 그래프다. 반려 후 되돌아가는 흐름은 연결선이 아니라 review·approval 노드의 reworkTargets로 표현한다.
+- task·review는 결과(outputs)를 하나 이상 가진다. review 결과는 type report. approval은 결과가 없고 사람만 맡는다.
+- inputs의 fromStep은 반드시 선행 조상 노드여야 한다.
+- 코드 작성은 "코드 작성 가능" 연결의 AI에게 맡기고 결과는 code_change로 둔다.
+- 아키텍처·흐름도·ER·시퀀스·타임라인 같은 그림이 필요한 결과는 type diagram으로 둔다(앱에 포함된 diagram-design 스킬로 만든 HTML+SVG). diagram은 "코드 작성 가능" 연결의 AI에게만 맡기고, 그림을 Markdown 결과 안의 Mermaid로 대신하지 않는다.
+- 법률·재무 판단은 AI가 정리하고 최종 결정은 사람의 승인으로 둔다. 실제 자료 연결이 없으면 조사했다고 꾸미지 않는다.
+`
 
 // BuildPrompt describes the goal, the real organization and connections
 // and the exact output format.
@@ -86,21 +108,7 @@ func BuildPrompt(req Request, c Context, project *domain.Project) string {
 			fmt.Fprintf(&b, "- %s (%s)\n", a.DisplayName, a.ActorKind)
 		}
 	}
-	b.WriteString(`
-# 업무 흐름 형식 (workflow)
-{"schemaVersion": 1, "title": "...", "nodes": [노드...]}
-노드: {"id": 영문 id, "title": 한국어 이름, "kind": task|review|approval, "assignmentId": assignments[].ref,
-      "dependsOn": [선행 노드 id], "instructions": 이번 업무 지시,
-      "inputs": [{"name": 이름, "fromStep": 선행(조상) 노드 id, "outputKey": 그 노드의 결과 key}],
-      "outputs": [{"key": 영문 key, "type": markdown|json|report|code_change}],
-      "reworkTargets": [반려 시 돌려보낼 선행 task·review 노드 id]}
-규칙:
-- 진행은 순환 없는 그래프다. 반려 후 되돌아가는 흐름은 연결선이 아니라 review·approval 노드의 reworkTargets로 표현한다.
-- task·review는 결과(outputs)를 하나 이상 가진다. review 결과는 type report. approval은 결과가 없고 사람만 맡는다.
-- inputs의 fromStep은 반드시 선행 조상 노드여야 한다.
-- 코드 작성은 "코드 작성 가능" 연결의 AI에게 맡기고 결과는 code_change로 둔다.
-- 법률·재무 판단은 AI가 정리하고 최종 결정은 사람의 승인으로 둔다. 실제 자료 연결이 없으면 조사했다고 꾸미지 않는다.
-- 조건 분기(condition)·합류(join)는 쓰지 않는다.
+	b.WriteString("\n" + workflowFormat("assignments[].ref") + workflowRules + `- 조건 분기(condition)·합류(join)는 쓰지 않는다.
 
 # 출력
 지정한 결과 파일(design)에 아래 키만 가진 JSON 객체 하나를 쓴다:
@@ -116,35 +124,87 @@ missing[{kind: connection|material|scope, detail}], roleChanges[{roleId,instruct
 // requests are declined (designing needs no tools) and questions get a
 // fixed answer so the run never waits for a person.
 func Run(ctx context.Context, prov providers.Provider, model, prompt string) ([]byte, error) {
-	dir, err := os.MkdirTemp("", "agent-office-design-")
+	schema, _ := json.Marshal(Schema())
+	return runJSON(ctx, prov, agentJob{
+		What: "설계 AI", Instructions: instructions, Prompt: prompt, Model: model,
+		Key: "design", Type: "json", File: "design.json", Schema: schema, Timeout: 10 * time.Minute,
+		Answer: "질문하지 말고 합리적인 가정을 정해 notes에 적어 주세요.",
+	}, "설계에 필요한 정보는 모두 위에 있으므로 다른 파일을 읽거나 명령을 실행하지 않는다. ", "설계안")
+}
+
+// agentJob is one AI call outside a run: a single output file in a
+// fresh temporary folder, no person to ask.
+type agentJob struct {
+	What, Instructions, Prompt, Model string
+	// Key, Type and File describe the one output.
+	Key, Type, File string
+	Schema          json.RawMessage
+	Timeout         time.Duration
+	// Answer is given to any question; tool requests outside what the
+	// request grants are declined.
+	Answer string
+	// Prepare adjusts the request (e.g. grants a bundled skill).
+	Prepare func(*providers.StartRequest)
+	// Verify checks the output file before the folder is removed.
+	Verify func(path string) error
+}
+
+// runJSON runs a job whose output is one JSON object and returns it,
+// accepting a JSON reply when the agent answered inline instead.
+func runJSON(ctx context.Context, prov providers.Provider, job agentJob, promptRule, label string) ([]byte, error) {
+	data, final, err := runAgent(ctx, prov, job, promptRule+"다른 파일은 만들지 않는다.")
 	if err != nil {
 		return nil, err
 	}
-	defer os.RemoveAll(dir)
-	out := filepath.Join(dir, "out", "design.json")
-	os.MkdirAll(filepath.Dir(out), 0o700)
-	schema, _ := json.Marshal(Schema())
-	// CLI agents only see the prompt, so it must name the exact file.
-	prompt += "\n결과 파일 경로: " + out + "\n이 경로에 JSON 객체 하나만 담은 파일을 저장한 뒤 작업을 마친다. " +
-		"설계에 필요한 정보는 모두 위에 있으므로 다른 파일을 읽거나 명령을 실행하지 않는다. 다른 파일은 만들지 않는다.\n"
-	req := providers.StartRequest{
-		ProjectID: "design", RunID: "design", StepAttemptID: "design-" + time.Now().Format("150405.000"), StepID: "design",
-		Instructions: instructions, Prompt: prompt, Workspace: dir, WritableDirs: []string{filepath.Dir(out)}, Model: model,
-		Policy:     providers.Policy{Sandbox: "workspace-write"},
-		OutputSpec: []providers.OutputSpec{{Key: "design", Type: "json", Required: true, Schema: schema, Path: out}},
+	if data != nil {
+		return data, nil
 	}
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
+	if text, ok := jsonFromReply(final.Text); ok {
+		return []byte(text), nil
+	}
+	snippet := strings.TrimSpace(final.Text)
+	if len(snippet) > 200 {
+		snippet = snippet[:200] + "…"
+	}
+	return nil, fmt.Errorf("%s가 %s 파일을 만들지 않았습니다 (마지막 응답: %q)", job.What, label, snippet)
+}
+
+// runAgent runs job and returns the output file's content (nil when the
+// agent wrote none) and the final event.
+func runAgent(ctx context.Context, prov providers.Provider, job agentJob, promptRule string) ([]byte, providers.CompletedPayload, error) {
+	var final providers.CompletedPayload
+	dir, err := os.MkdirTemp("", "agent-office-design-")
+	if err != nil {
+		return nil, final, err
+	}
+	defer os.RemoveAll(dir)
+	out := filepath.Join(dir, "out", job.File)
+	os.MkdirAll(filepath.Dir(out), 0o700)
+	// CLI agents only see the prompt, so it must name the exact file.
+	prompt := job.Prompt + "\n결과 파일 경로: " + out + "\n이 경로에 결과 파일 하나를 저장한 뒤 작업을 마친다. " + promptRule + "\n"
+	if job.Type == "json" {
+		prompt = job.Prompt + "\n결과 파일 경로: " + out + "\n이 경로에 JSON 객체 하나만 담은 파일을 저장한 뒤 작업을 마친다. " + promptRule + "\n"
+	}
+	req := providers.StartRequest{
+		ProjectID: "design", RunID: "design", StepAttemptID: "design-" + time.Now().Format("150405.000"), StepID: job.Key,
+		Instructions: job.Instructions, Prompt: prompt, Workspace: dir, WritableDirs: []string{filepath.Dir(out)}, Model: job.Model,
+		Policy:     providers.Policy{Sandbox: "workspace-write"},
+		OutputSpec: []providers.OutputSpec{{Key: job.Key, Type: job.Type, Required: true, Schema: job.Schema, Path: out}},
+	}
+	if job.Prepare != nil {
+		job.Prepare(&req)
+	}
+	ctx, cancel := context.WithTimeout(ctx, job.Timeout)
 	defer cancel()
 	s, err := prov.Start(ctx, req)
 	if err != nil {
-		return nil, err
+		return nil, final, err
 	}
-	var final providers.CompletedPayload
 	for done := false; !done; {
 		select {
 		case <-ctx.Done():
 			s.Cancel(context.Background())
-			return nil, errors.New("설계 AI가 10분 안에 끝나지 않았습니다")
+			return nil, final, fmt.Errorf("%s가 %d분 안에 끝나지 않았습니다", job.What, int(job.Timeout.Minutes()))
 		case ev, ok := <-s.Events():
 			if !ok {
 				done = true
@@ -154,27 +214,25 @@ func Run(ctx context.Context, prov providers.Provider, model, prompt string) ([]
 			case providers.KindApprovalRequest, providers.KindQuestion:
 				var p providers.RequestPayload
 				json.Unmarshal(ev.Payload, &p)
-				s.Respond(context.Background(), providers.Response{RequestID: p.RequestID, Decision: providers.DecisionDecline,
-					Answer: "질문하지 말고 합리적인 가정을 정해 notes에 적어 주세요."})
+				s.Respond(context.Background(), providers.Response{RequestID: p.RequestID, Decision: providers.DecisionDecline, Answer: job.Answer})
 			case providers.KindCompleted:
 				json.Unmarshal(ev.Payload, &final)
 			}
 		}
 	}
 	if final.Status != providers.StatusSucceeded {
-		return nil, fmt.Errorf("설계 AI 실패: %s", firstNonEmpty(final.Error, final.Status))
+		return nil, final, fmt.Errorf("%s 실패: %s", job.What, firstNonEmpty(final.Error, final.Status))
 	}
-	if data, err := os.ReadFile(out); err == nil {
-		return data, nil
+	data, err := os.ReadFile(out)
+	if err != nil {
+		return nil, final, nil
 	}
-	if text, ok := jsonFromReply(final.Text); ok {
-		return []byte(text), nil // the agent answered inline instead
+	if job.Verify != nil {
+		if err := job.Verify(out); err != nil {
+			return nil, final, err
+		}
 	}
-	snippet := strings.TrimSpace(final.Text)
-	if len(snippet) > 200 {
-		snippet = snippet[:200] + "…"
-	}
-	return nil, fmt.Errorf("설계 AI가 설계안 파일을 만들지 않았습니다 (마지막 응답: %q)", snippet)
+	return data, final, nil
 }
 
 // jsonFromReply accepts a reply that is JSON, or that contains one JSON

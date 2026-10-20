@@ -122,6 +122,13 @@ func FindBridge() (string, bool) {
 	if p := os.Getenv("AGENT_OFFICE_CLAUDE_BRIDGE"); p != "" {
 		return p, fileExists(p)
 	}
+	return findBundled(filepath.Join("runners", "claude", "dist", "main.js"), filepath.Join("claude-runner", "dist", "main.js"))
+}
+
+// findBundled returns the first of rels found next to the executable, in
+// the macOS bundle's Resources, or in a parent of either or of the
+// working folder (a development checkout).
+func findBundled(rels ...string) (string, bool) {
 	var starts []string
 	if exe, err := os.Executable(); err == nil {
 		starts = append(starts, filepath.Dir(exe), filepath.Join(filepath.Dir(exe), "..", "Resources"))
@@ -131,7 +138,7 @@ func FindBridge() (string, bool) {
 	}
 	for _, s := range starts {
 		for dir, i := s, 0; i < 8; i, dir = i+1, filepath.Dir(dir) {
-			for _, rel := range []string{filepath.Join("runners", "claude", "dist", "main.js"), filepath.Join("claude-runner", "dist", "main.js")} {
+			for _, rel := range rels {
 				p := filepath.Join(dir, rel)
 				if fileExists(p) {
 					abs, _ := filepath.Abs(p)

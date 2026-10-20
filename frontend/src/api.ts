@@ -6,7 +6,7 @@ import type {
     ActionResult, ArtifactContent, Assignment, CheckReport, ConfirmResult, Connection, ConnectionKind, ConnectionSettings, Delta,
     DesignView, ApplyResult, DetectedPaths, ExportResult, Usage, InboxItem, InstructionPreview, MessageView,
     Organization, Project, ProjectSummary, Role, RunDetail, StartResult, StoredEvent, SystemStatus, Template,
-    Validation, Workflow, WorkflowSpec,
+    Validation, Workflow, WorkflowSpec, AssistKind, AssistRecord,
 } from './types';
 
 // The generated d.ts types differ from the real JSON for raw fields, so
@@ -84,6 +84,16 @@ export const api = {
     discardDesign: (id: string) => call<void>(Go.DiscardDesign(id)),
     reparseDesign: (id: string) => call<DesignView>(Go.ReparseDesign(id)),
     setAutoPolicy: (projectId: string, ids: string[]) => call<void>(Go.SetAutoPolicy(projectId, ids)),
+    chooseFolder: (title: string, start: string) => call<string>(Go.ChooseFolder(title, start)),
+
+    startAssist: (a: { projectId: string; workflowId: string; kind: AssistKind; request: string; connectionId: string; model: string }) =>
+        call<AssistRecord>(Go.StartWorkflowAssist(a as never)),
+    assists: (projectId: string, workflowId: string) => call<AssistRecord[]>(Go.ListWorkflowAssists(projectId, workflowId)),
+    assist: (id: string) => call<AssistRecord>(Go.GetWorkflowAssist(id)),
+    applyAssist: (id: string) => call<Workflow>(Go.ApplyWorkflowAssist(id)),
+    discardAssist: (id: string) => call<void>(Go.DiscardWorkflowAssist(id)),
+    workflowDiagram: (id: string) => call<string>(Go.WorkflowDiagram(id)),
+    saveWorkflowDiagram: (id: string) => call<string>(Go.SaveWorkflowDiagram(id)),
 
     inbox: () => call<InboxItem[]>(Go.Inbox()),
     submitHuman: (projectId: string, attemptId: string, generation: number, outputs: Record<string, string>) =>

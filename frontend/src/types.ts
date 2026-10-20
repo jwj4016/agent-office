@@ -50,7 +50,7 @@ export type InstructionLayer = { source: string; name: string; text: string };
 export type InstructionPreview = { layers: InstructionLayer[]; composed: string };
 
 export type NodeKind = 'task' | 'review' | 'approval' | 'condition' | 'join';
-export type OutputType = 'markdown' | 'json' | 'file' | 'code_change' | 'report';
+export type OutputType = 'markdown' | 'json' | 'file' | 'code_change' | 'report' | 'diagram';
 
 export type WorkflowInput = { name: string; fromStep: string; outputKey: string; required?: boolean };
 export type WorkflowOutput = { key: string; type: OutputType; required?: boolean; schema?: unknown };
@@ -201,3 +201,17 @@ export type ExportResult = {
     path: string; projectName: string; tables: number; rows: number; artifacts: number; missing: string[]; masked: number;
 };
 
+
+// AI help on one workflow: an edit proposal or a pipeline diagram.
+export type AssistKind = 'edit' | 'diagram';
+export type AssistStatus = 'working' | 'ready' | 'failed' | 'applied' | 'discarded';
+export type AssistRecord = {
+    id: string; projectId: string; workflowId: string; kind: AssistKind; request: string; baseRevision: number;
+    connectionId: string; model: string; status: AssistStatus; result: EditResult | DiagramResult | Record<string, never>;
+    error: string; createdAt: string; updatedAt: string;
+};
+export type EditResult = {
+    workflow: WorkflowSpec; notes: string; issues: Issue[]; canVersion: boolean;
+    changes: { added: string[]; removed: string[]; changed: string[] };
+};
+export type DiagramResult = { path: string; checked: boolean };

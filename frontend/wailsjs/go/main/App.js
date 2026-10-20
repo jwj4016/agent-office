@@ -10,12 +10,20 @@ export function ApplyDesign(arg1, arg2) {
   return window['go']['main']['App']['ApplyDesign'](arg1, arg2);
 }
 
+export function ApplyWorkflowAssist(arg1) {
+  return window['go']['main']['App']['ApplyWorkflowAssist'](arg1);
+}
+
 export function CancelRun(arg1, arg2) {
   return window['go']['main']['App']['CancelRun'](arg1, arg2);
 }
 
 export function CheckConnection(arg1) {
   return window['go']['main']['App']['CheckConnection'](arg1);
+}
+
+export function ChooseFolder(arg1, arg2) {
+  return window['go']['main']['App']['ChooseFolder'](arg1, arg2);
 }
 
 export function ClearConnectionKey(arg1) {
@@ -58,6 +66,10 @@ export function DiscardDesign(arg1) {
   return window['go']['main']['App']['DiscardDesign'](arg1);
 }
 
+export function DiscardWorkflowAssist(arg1) {
+  return window['go']['main']['App']['DiscardWorkflowAssist'](arg1);
+}
+
 export function EnsureTestConnection() {
   return window['go']['main']['App']['EnsureTestConnection']();
 }
@@ -90,6 +102,10 @@ export function GetWorkflow(arg1, arg2) {
   return window['go']['main']['App']['GetWorkflow'](arg1, arg2);
 }
 
+export function GetWorkflowAssist(arg1) {
+  return window['go']['main']['App']['GetWorkflowAssist'](arg1);
+}
+
 export function Inbox() {
   return window['go']['main']['App']['Inbox']();
 }
@@ -116,6 +132,10 @@ export function ListRoles() {
 
 export function ListRuns(arg1) {
   return window['go']['main']['App']['ListRuns'](arg1);
+}
+
+export function ListWorkflowAssists(arg1, arg2) {
+  return window['go']['main']['App']['ListWorkflowAssists'](arg1, arg2);
 }
 
 export function ListWorkflows(arg1) {
@@ -174,6 +194,10 @@ export function SaveRole(arg1) {
   return window['go']['main']['App']['SaveRole'](arg1);
 }
 
+export function SaveWorkflowDiagram(arg1) {
+  return window['go']['main']['App']['SaveWorkflowDiagram'](arg1);
+}
+
 export function SaveWorkflowDraft(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['SaveWorkflowDraft'](arg1, arg2, arg3, arg4);
 }
@@ -202,6 +226,10 @@ export function StartRun(arg1, arg2) {
   return window['go']['main']['App']['StartRun'](arg1, arg2);
 }
 
+export function StartWorkflowAssist(arg1) {
+  return window['go']['main']['App']['StartWorkflowAssist'](arg1);
+}
+
 export function SubmitHumanResult(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['SubmitHumanResult'](arg1, arg2, arg3, arg4);
 }
@@ -228,6 +256,10 @@ export function UpdateProject(arg1) {
 
 export function ValidateWorkflow(arg1, arg2) {
   return window['go']['main']['App']['ValidateWorkflow'](arg1, arg2);
+}
+
+export function WorkflowDiagram(arg1) {
+  return window['go']['main']['App']['WorkflowDiagram'](arg1);
 }
 
 export function WorkflowTemplates() {

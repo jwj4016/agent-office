@@ -145,6 +145,28 @@ export namespace design {
 	        this.connected = source["connected"];
 	    }
 	}
+	export class AssistInput {
+	    projectId: string;
+	    workflowId: string;
+	    kind: string;
+	    request: string;
+	    connectionId: string;
+	    model: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AssistInput(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.projectId = source["projectId"];
+	        this.workflowId = source["workflowId"];
+	        this.kind = source["kind"];
+	        this.request = source["request"];
+	        this.connectionId = source["connectionId"];
+	        this.model = source["model"];
+	    }
+	}
 	export class MissingItem {
 	    kind: string;
 	    detail: string;
@@ -2130,6 +2152,42 @@ export namespace main {
 
 export namespace storage {
 	
+	export class AssistRecord {
+	    id: string;
+	    projectId: string;
+	    workflowId: string;
+	    kind: string;
+	    request: string;
+	    baseRevision: number;
+	    connectionId: string;
+	    model: string;
+	    status: string;
+	    result: number[];
+	    error: string;
+	    createdAt: string;
+	    updatedAt: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AssistRecord(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.projectId = source["projectId"];
+	        this.workflowId = source["workflowId"];
+	        this.kind = source["kind"];
+	        this.request = source["request"];
+	        this.baseRevision = source["baseRevision"];
+	        this.connectionId = source["connectionId"];
+	        this.model = source["model"];
+	        this.status = source["status"];
+	        this.result = source["result"];
+	        this.error = source["error"];
+	        this.createdAt = source["createdAt"];
+	        this.updatedAt = source["updatedAt"];
+	    }
+	}
 	export class DesignApplied {
 	    projectId: string;
 	    roleIds: Record<string, string>;

@@ -5,11 +5,11 @@ import type {InboxKind, MessageKind, NodeKind, OutputType, RunStatus, StepStatus
 export const ko = {
     app: {name: 'Agent Office'},
     nav: {
-        dashboard: '전체 서비스', inbox: '내 할 일', design: '목표 요청', organization: '회사 조직', settings: '설정',
+        dashboard: '홈', inbox: '내 할 일', design: '새 목표', organization: '회사 조직', settings: '설정',
         services: '서비스', newService: '새 서비스', archived: '보관된 서비스 보기',
     },
     project: {
-        tabs: {office: '사무실', overview: '개요', team: '담당자', workflows: '업무 흐름', runs: '실행 기록'},
+        tabs: {status: '현황', office: '사무실', runs: '실행', workflows: '업무 흐름', team: '담당자', settings: '설정'},
         name: '서비스 이름', goal: '목표', instructions: '서비스 지침', mode: '실행 모드',
         modeReview: '검토 후 실행', modeAuto: '자동 구성·실행',
         create: '서비스 만들기', save: '저장', archive: '보관', restore: '보관 해제',
@@ -33,7 +33,7 @@ export const ko = {
         task: '작업', review: '리뷰', approval: '승인', condition: '조건 분기', join: '합류',
     } satisfies Record<NodeKind, string>,
     outputType: {
-        markdown: '문서(Markdown)', json: 'JSON', file: '파일', code_change: '코드 변경', report: '보고(JSON)',
+        markdown: '문서(Markdown)', json: 'JSON', file: '파일', code_change: '코드 변경', report: '보고(JSON)', diagram: '다이어그램(HTML)',
     } satisfies Record<OutputType, string>,
     messageKind: {
         question: '질문', answer: '답변', review_request: '검토 요청', proposal: '제안', decision: '결정',

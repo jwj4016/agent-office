@@ -68,6 +68,18 @@ func autoContent(req StartRequest, o OutputSpec) string {
 			"tests": map[string]any{"command": "", "passed": true},
 		})
 		return string(b)
+	case "diagram":
+		// Passes the diagram-design skill's self_check.py.
+		return `<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><title>` + o.Key + `</title></head>
+<body>
+<svg viewBox="0 0 200 80" role="img" aria-labelledby="diagram-title diagram-desc" xmlns="http://www.w3.org/2000/svg">
+<title id="diagram-title">` + req.StepID + `</title><desc id="diagram-desc">자동 생성된 ` + o.Key + ` 다이어그램</desc>
+<rect x="10" y="10" width="180" height="60" fill="none" stroke="#2d3142"/>
+<text x="100" y="45" text-anchor="middle">` + req.StepID + `</text>
+</svg>
+</body></html>
+`
 	default:
 		return "# " + req.StepID + "\n\n자동 생성된 " + o.Key + " 결과\n"
 	}

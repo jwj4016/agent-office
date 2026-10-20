@@ -2,7 +2,7 @@ import type {Options, SDKMessage} from '@anthropic-ai/claude-agent-sdk';
 import assert from 'node:assert/strict';
 import {PassThrough} from 'node:stream';
 import {test} from 'node:test';
-import {type QueryFn, runBridge, writeAllowed, writeGuard} from './bridge.js';
+import {checkCommandAllowed, type QueryFn, readAllowed, runBridge, shellWords, writeAllowed, writeGuard} from './bridge.js';
 import {mkdirSync, mkdtempSync, symlinkSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
@@ -210,4 +210,104 @@ test('a read-only working folder leaves only the granted folders writable', asyn
     const guard = writeGuard(work, [out], true);
     const r: any = await guard({hook_event_name: 'PreToolUse', tool_name: 'Write', tool_input: {file_path: 'src/x.ts'}} as any, 'id', {signal: new AbortController().signal});
     assert.equal(r.hookSpecificOutput?.permissionDecision, 'deny');
+});
+
+test('app-provided plugins load for the session; the skill tool and bundled files need no approval', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'plugin-'));
+    const work = join(root, 'work'), out = join(root, 'out'), plugin = join(root, 'diagram-design');
+    for (const d of [work, out, plugin]) mkdirSync(d);
+    let seen: Options | undefined;
+    const decisions: string[] = [];
+    const h = harness(async function* ({options}) {
+        seen = options;
+        const sig = {signal: new AbortController().signal} as any;
+        for (const [tool, input] of [
+            ['Skill', {skill: 'diagram-design'}],
+            ['Read', {file_path: join(plugin, 'skills', 'diagram-design', 'SKILL.md')}],
+            ['Grep', {pattern: 'x', path: plugin}],
+        ] as const) {
+            decisions.push((await options.canUseTool!(tool, input, sig))!.behavior);
+        }
+        yield result('ok');
+    });
+    h.send({type: 'start', prompt: 'x', cwd: work, writableDirs: [out], readableDirs: [plugin], plugins: [plugin], askApproval: true});
+    await h.done;
+    assert.deepEqual(seen!.plugins, [{type: 'local', path: plugin}]);
+    assert.deepEqual(seen!.settingSources, []);
+    assert.deepEqual(seen!.additionalDirectories, [out, plugin]);
+    assert.deepEqual(decisions, ['allow', 'allow', 'allow']);
+    assert.ok(!h.events.some((e) => e.kind === 'approval_request'));
+    // Readable is not writable: the guard still denies writes there.
+    const guard = writeGuard(work, [out]);
+    const r: any = await guard({hook_event_name: 'PreToolUse', tool_name: 'Write', tool_input: {file_path: join(plugin, 'SKILL.md')}} as any, 'id', {signal: new AbortController().signal});
+    assert.equal(r.hookSpecificOutput?.permissionDecision, 'deny');
+});
+
+test('without plugins the skill tool and outside reads still ask', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'noplugin-'));
+    const work = join(root, 'work'), other = join(root, 'other');
+    mkdirSync(work); mkdirSync(other);
+    assert.equal(readAllowed(work, [], 'Read', {file_path: join(other, 'x.md')}), false);
+    assert.equal(readAllowed(work, [other], 'Read', {file_path: join(root, 'x.md')}), false);
+    assert.equal(readAllowed(work, [other], 'Bash', {command: `cat ${join(other, 'x.md')}`}), false);
+    let seen: Options | undefined;
+    const h = harness(async function* ({options}) {
+        seen = options;
+        await options.canUseTool!('Skill', {skill: 'diagram-design'}, {signal: new AbortController().signal} as any);
+        yield result('ok');
+    });
+    h.send({type: 'start', prompt: 'x', cwd: work, askApproval: true});
+    const req = await h.waitFor('approval_request');
+    assert.equal(req.payload.action, 'Skill');
+    h.send({type: 'respond', requestId: req.payload.requestId, decision: 'decline'});
+    await h.done;
+    assert.deepEqual(seen!.plugins, []);
+});
+
+test('shell words accept plain and quoted words only', () => {
+    assert.deepEqual(shellWords(`python3 -I '/a b/self_check.py' "/x y/out.html"`), ['python3', '-I', '/a b/self_check.py', '/x y/out.html']);
+    for (const bad of ['a; rm -rf /', 'a && b', 'a | b', 'a > f', 'a $(b)', 'a `b`', '"a $HOME"', 'a\nb', "a 'unterminated", 'a *.html', 'cd /x']) {
+        if (bad === 'cd /x') continue; // plain words; rejected later by the matcher
+        assert.equal(shellWords(bad), undefined, bad);
+    }
+});
+
+test('only the granted self-check on work or output files runs without asking', () => {
+    const root = mkdtempSync(join(tmpdir(), 'check-'));
+    const work = join(root, 'work'), out = join(root, 'out w'), skill = join(root, 'skill'), other = join(root, 'other');
+    for (const d of [work, out, skill, other]) mkdirSync(d);
+    const script = join(skill, 'self_check.py');
+    const check = ['/opt/py/python3', script];
+    const ok = (command: string, granted: string[] | undefined = check) => checkCommandAllowed(work, [out], granted, 'Bash', {command});
+    assert.equal(ok(`/opt/py/python3 '${script}' '${join(out, 'arch.html')}'`), true);
+    assert.equal(ok(`python3 -I ${script} --offline '${join(out, 'arch.html')}'`), true);
+    assert.equal(ok(`python ${script} diagrams/arch.html`), true);                         // relative, inside work
+    assert.equal(ok(`python3 ${script} '${join(other, 'x.html')}'`), false);              // file outside
+    assert.equal(ok(`python3 ${script} ../other/x.html`), false);                          // relative escape
+    assert.equal(ok(`python3 ${script}`), false);                                          // no file
+    assert.equal(ok(`python3 ${join(other, 'self_check.py')} '${join(out, 'a.html')}'`), false); // another script
+    assert.equal(ok(`'${join(out, 'w', 'python3')}' ${script} '${join(out, 'a.html')}'`), false); // planted interpreter
+    assert.equal(ok(`cd ${skill}; python3 ${script} '${join(out, 'a.html')}'`), false);    // chained
+    assert.equal(ok(`PATH=${out} python3 ${script} '${join(out, 'a.html')}'`), false);     // env prefix
+    assert.equal(ok(`python3 -c 'import os' ${script} '${join(out, 'a.html')}'`), false);  // extra code
+    assert.equal(ok(`python3 ${script} '${join(out, 'a.html')}'`, []), false);             // nothing granted
+    assert.equal(checkCommandAllowed(work, [out], undefined, 'Bash', {command: `python3 ${script} '${join(out, 'a.html')}'`}), false);
+    assert.equal(checkCommandAllowed(work, [out], check, 'Write', {command: `python3 ${script} x`}), false);
+});
+
+test('the granted self-check is allowed through canUseTool without an approval request', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'checkrun-'));
+    const work = join(root, 'work'), out = join(root, 'out'), skill = join(root, 'skill');
+    for (const d of [work, out, skill]) mkdirSync(d);
+    const script = join(skill, 'self_check.py');
+    let decision: string | undefined;
+    const h = harness(async function* ({options}) {
+        const r = await options.canUseTool!('Bash', {command: `python3 ${script} ${join(out, 'arch.html')}`}, {signal: new AbortController().signal} as any);
+        decision = r?.behavior;
+        yield result('ok');
+    });
+    h.send({type: 'start', prompt: 'x', cwd: work, writableDirs: [out], checkCommand: ['/usr/bin/python3', script], askApproval: true});
+    await h.done;
+    assert.equal(decision, 'allow');
+    assert.ok(!h.events.some((e) => e.kind === 'approval_request'));
 });

@@ -6,7 +6,7 @@ vi.mock('../api', () => ({api: fakeApi, errorText: (e: unknown) => String(e)}));
 
 import {LiveProvider} from '../live';
 import type {MessageView, Project, RunDetail} from '../types';
-import {Conversation} from './Runs';
+import {Conversation, Runs} from './Runs';
 
 const project: Project = {
     id: 'prj-1', organizationId: 'org-default', name: '게임', goal: '', instructions: '', workspacePath: '', budget: {},
@@ -49,5 +49,24 @@ describe('Conversation', () => {
         render(<LiveProvider><Conversation project={project} run={{...run, status: 'succeeded'}} finished/></LiveProvider>);
         expect(await screen.findByText('아직 기록된 대화가 없습니다.')).toBeInTheDocument();
         expect(screen.queryByRole('button', {name: '메모 남기기'})).not.toBeInTheDocument();
+    });
+});
+
+describe('RunView', () => {
+    it('explains why a failed run stopped, offers retry and no pause', async () => {
+        const failed: RunDetail = {...run, status: 'failed', steps: [
+            {...run.steps[0], status: 'cancelled'},
+            {...run.steps[2]},
+        ]};
+        fakeApi.run.mockResolvedValue(failed);
+        fakeApi.runMessages.mockResolvedValue([]);
+        render(<LiveProvider><Runs project={project} runId="run-1" onOpen={() => {}}/></LiveProvider>);
+        const why = await screen.findByRole('region', {name: '실행이 멈춘 이유'});
+        expect(why).toHaveTextContent('기획');
+        expect(why).toHaveTextContent('취소 사유는 기록되지 않았습니다');
+        expect(screen.queryByRole('button', {name: '일시 정지'})).not.toBeInTheDocument();
+        expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuetext', '2개 중 0개 완료');
+        fireEvent.click(screen.getAllByRole('button', {name: '다시 시도'})[0]);
+        await waitFor(() => expect(fakeApi.retryStep).toHaveBeenCalledWith('prj-1', 'run-1', 'plan'));
     });
 });

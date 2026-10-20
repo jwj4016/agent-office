@@ -65,6 +65,9 @@ type Config struct {
 	// Git isolates code steps in worktrees. nil runs every step in one
 	// shared folder (code steps then run one at a time).
 	Git *workspace.Git
+	// Diagram is the bundled diagram-design skill, given to steps with a
+	// diagram output and used to check their results.
+	Diagram DiagramSkill
 	// Ephemeral receives high-volume provider events (message deltas)
 	// that are shown live but not stored. Optional.
 	Ephemeral func(projectID string, ev providers.Event)
@@ -252,6 +255,19 @@ func (e *Engine) projectDir(projectID string) string {
 
 func (e *Engine) attemptDir(projectID, runID, attemptID string) string {
 	return filepath.Join(e.projectDir(projectID), "runs", runID, "attempts", attemptID)
+}
+
+// SetMaxActive changes how many AI steps may run at once, app-wide and
+// per project. Running steps keep going when the limit is lowered; new
+// ones wait until fewer are running.
+func (e *Engine) SetMaxActive(n int) {
+	if n <= 0 {
+		return
+	}
+	e.mu.Lock()
+	e.cfg.MaxActive, e.cfg.ProjectMaxActive = n, n
+	e.mu.Unlock()
+	e.Wake()
 }
 
 func (e *Engine) activeCounts(projectID string) (app, project int) {

@@ -2,27 +2,28 @@ import {api} from '../api';
 import {t} from '../i18n';
 import {useLoad} from '../live';
 import type {CodeChange} from '../types';
-import {ErrorBox} from '../ui';
+import {CheckCircle2, History, ShieldAlert, ShieldCheck} from 'lucide-react';
+import {DetailHeader, ErrorBox, Loading, StatusBadge} from '../ui';
 
 export function ArtifactViewer({projectId, artifactId, onClose}: { projectId: string; artifactId: string; onClose: () => void }) {
     const {data, error} = useLoad(() => api.readArtifact(projectId, artifactId), [projectId, artifactId]);
     return (
         <div className="stack">
-            <div className="row between"><h2>결과 보기</h2><button className="btn small" onClick={onClose}>{t.common.close}</button></div>
+            <DetailHeader title="결과 보기" onClose={onClose}>
+                {data ? <span className="small"><strong>{data.stepId}.{data.outputKey}</strong> · 버전 {data.version} · {t.outputType[data.type] ?? data.type}</span> : null}
+            </DetailHeader>
             <ErrorBox error={error}/>
-            {!data ? <p className="muted">{t.common.loading}</p> : (
+            {!data ? <Loading rows={2}/> : (
                 <>
-                    <div className="small">
-                        <div><strong>{data.stepId}.{data.outputKey}</strong> · 버전 {data.version} · {t.outputType[data.type] ?? data.type}</div>
-                        <div className="mono muted">sha256 {data.hash.slice(0, 16)}…</div>
-                        <div className="row" style={{marginTop: 4}}>
-                            {data.validity === 'valid' ? <span className="badge ok">최신 결과</span> : <span className="badge warn">이전 결과(재작업 전)</span>}
-                            {data.hashOk ? <span className="badge ok">파일 확인됨</span> : <span className="badge bad">파일이 기록과 다릅니다</span>}
-                        </div>
+                    <div className="row">
+                        {data.validity === 'valid' ? <StatusBadge tone="ok" icon={CheckCircle2}>최신 결과</StatusBadge> : <StatusBadge tone="warn" icon={History}>이전 결과(재작업 전)</StatusBadge>}
+                        {data.hashOk ? <StatusBadge tone="ok" icon={ShieldCheck}>파일 확인됨</StatusBadge> : <StatusBadge tone="bad" icon={ShieldAlert}>파일이 기록과 다릅니다</StatusBadge>}
+                        <span className="mono muted" title={data.hash}>sha256 {data.hash.slice(0, 12)}…</span>
                     </div>
                     {data.binary ? <p className="muted">텍스트가 아닌 파일입니다.</p>
                         : data.type === 'code_change' ? <CodeChangeView content={data.content}/>
-                            : <pre className="content">{pretty(data.content, data.type)}</pre>}
+                            : data.type === 'diagram' && !data.truncated ? <DiagramView content={data.content} title={`${data.stepId}.${data.outputKey}`}/>
+                                : <pre className="content">{pretty(data.content, data.type)}</pre>}
                     {data.truncated ? <p className="muted small">앞부분 1MB만 표시합니다.</p> : null}
                 </>
             )}
@@ -67,6 +68,20 @@ export function CodeChangeView({content}: { content: string }) {
                 <pre className="content">{cc.patch || '(변경 없음)'}</pre>
             </details>
             <p className="muted">저장소에 반영하려면 이 브랜치를 검토한 뒤 직접 병합하세요 (예: git merge {cc.branch}).</p>
+        </div>
+    );
+}
+
+// DiagramView previews a diagram result. The frame is sandboxed with no
+// permissions: no scripts, no same-origin access to the app.
+export function DiagramView({content, title}: { content: string; title: string }) {
+    return (
+        <div className="stack small">
+            <iframe className="diagram-frame" sandbox="" srcDoc={content} title={`다이어그램 ${title}`}/>
+            <details>
+                <summary>HTML 원본</summary>
+                <pre className="content">{content}</pre>
+            </details>
         </div>
     );
 }

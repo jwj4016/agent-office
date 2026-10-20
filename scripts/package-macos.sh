@@ -29,6 +29,8 @@ built=$(find build/bin -maxdepth 1 -name '*.app' | head -1)
 app="build/bin/Agent Office.app"
 [ "$built" = "$app" ] || mv "$built" "$app"
 node scripts/stage-runner.mjs "$app/Contents/Resources/claude-runner" --os darwin --cpu "$cpu"
+# The diagram-design skill given to diagram steps (third_party/diagram-design).
+ditto third_party/diagram-design "$app/Contents/Resources/diagram-design"
 
 if [ -n "${MACOS_SIGN_IDENTITY:-}" ]; then
   codesign --force --options runtime --timestamp --entitlements build/darwin/entitlements.plist \

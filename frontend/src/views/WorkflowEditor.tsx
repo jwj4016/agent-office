@@ -7,24 +7,35 @@ import {api} from '../api';
 import {t} from '../i18n';
 import {useLoad} from '../live';
 import type {Assignment, Branch, Issue, NodeKind, OutputType, Project, Routing, WorkflowNode, WorkflowSpec} from '../types';
-import {ActorBadge, ConfirmButton, ErrorBox, IssueList, useAction, useDetail} from '../ui';
+import {
+    AlertCircle, ArrowLeft, Check, CircleDot, HelpCircle, Play, Plus, ShieldCheck, Stamp, Trash2, Unlink, Wrench,
+} from 'lucide-react';
+import {
+    ActorBadge, Banner, Button, ConfirmButton, DetailHeader, ErrorBox, Icon, Loading, nodeKindIcon, Section, StatusBadge, Stepper, useAction, useDetail,
+    useTheme, useToast,
+} from '../ui';
 import {
     addNode, ancestors, availableInputs, branchLabel, branchStarts, byId, connect, descendants, describeBranch, disconnect, formatBranchValue,
     joinCandidates, layout, parseBranchValue, removeNode, renameNode, routingSources, scaffoldBranch, updateNode,
 } from '../workflowModel';
+import {WorkflowAssist} from './WorkflowAssist';
 
 type StepData = { node: WorkflowNode; assignee?: Assignment; hasError: boolean; selected: boolean };
 
 function StepNode({data}: NodeProps<Node<StepData>>) {
     const {node, assignee, hasError, selected} = data;
     return (
-        <div className={`flow-node ${selected ? 'selected' : ''} ${hasError ? 'has-error' : ''}`}>
+        <div className={`flow-node kind-${node.kind} ${selected ? 'selected' : ''} ${hasError ? 'has-error' : ''}`}>
             <Handle type="target" position={Position.Left}/>
-            <div className="kind">{t.nodeKind[node.kind] ?? node.kind} · {node.id}</div>
-            <div><strong>{node.title || '(이름 없음)'}</strong></div>
+            <div className="kind">
+                <Icon icon={nodeKindIcon[node.kind] ?? Wrench} size={12}/>{t.nodeKind[node.kind] ?? node.kind}
+                <span className="mono" style={{marginLeft: 'auto'}}>{node.id}</span>
+                {hasError ? <Icon icon={AlertCircle} size={12} label="문제 있음"/> : null}
+            </div>
+            <div className="title">{node.title || '(이름 없음)'}</div>
             {node.kind === 'condition' || node.kind === 'join' ? null : assignee
-                ? <div className="row small"><ActorBadge kind={assignee.actorKind}/> {assignee.displayName}</div>
-                : <div className="small" style={{color: 'var(--danger)'}}>담당자 없음</div>}
+                ? <div className="who"><ActorBadge kind={assignee.actorKind}/><span className="truncate">{assignee.displayName}</span></div>
+                : <div className="who" style={{color: 'var(--danger-text)', fontWeight: 600}}>담당자 없음</div>}
             <Handle type="source" position={Position.Right}/>
         </div>
     );
@@ -42,10 +53,12 @@ export function WorkflowEditor({project, workflowId, onStarted, onClose}: {
     const [dirty, setDirty] = useState(false);
     const [selected, setSelected] = useState<string | null>(null);
     const [issues, setIssues] = useState<Issue[]>([]);
-    const [notice, setNotice] = useState<string | null>(null);
+    const [checked, setChecked] = useState(false);
     const [version, setVersion] = useState<{ id: string; number: number } | null>(null);
     const action = useAction();
+    const toast = useToast();
     const setDetail = useDetail();
+    const theme = useTheme();
     const archived = project.status === 'archived';
 
     useEffect(() => {
@@ -61,7 +74,7 @@ export function WorkflowEditor({project, workflowId, onStarted, onClose}: {
         setDraft(next);
         setDirty(true);
         setVersion(null);
-        setNotice(null);
+        setChecked(false);
     };
 
     const people = team.data ?? [];
@@ -84,7 +97,7 @@ export function WorkflowEditor({project, workflowId, onStarted, onClose}: {
         // for reference and cannot be selected or deleted as connections.
         const rework: Edge[] = draft.nodes.flatMap((n) => (n.reworkTargets ?? []).filter((r) => map.has(r)).map((r) => ({
             id: `rework:${n.id}->${r}`, source: n.id, target: r, label: '수정 요청', selectable: false, deletable: false, focusable: false,
-            style: {strokeDasharray: '5 4', stroke: 'var(--danger)'}, labelStyle: {fill: 'var(--danger)'},
+            style: {strokeDasharray: '5 4', stroke: 'var(--danger-text)'}, labelStyle: {fill: 'var(--danger-text)'},
         })));
         return {nodes, edges: [...edges, ...rework]};
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -104,7 +117,7 @@ export function WorkflowEditor({project, workflowId, onStarted, onClose}: {
     useEffect(() => () => setDetail(null), [setDetail]);
 
     if (loaded.error) return <ErrorBox error={loaded.error}/>;
-    if (!draft) return <p className="muted">{t.common.loading}</p>;
+    if (!draft) return <Loading/>;
 
     // persist saves the draft and re-validates. It throws on failure so a
     // caller (confirm) stops instead of versioning stale content.
@@ -114,24 +127,24 @@ export function WorkflowEditor({project, workflowId, onStarted, onClose}: {
         setDirty(false);
         const v = await api.validate(project.id, workflowId);
         setIssues(v.issues);
-        setNotice(v.issues.length ? null : '저장했습니다. 문제가 없습니다.');
+        setChecked(true);
         return w;
     };
 
-    const save = () => action.run(persist);
+    const save = () => action.run(async () => {
+        await persist();
+        toast('저장하고 검증했습니다');
+    });
 
     const confirm = () => action.run(async () => {
         if (dirty) await persist();
         const w = await api.workflow(project.id, workflowId);
         const res = await api.confirmVersion(project.id, workflowId, w.revision);
         setIssues(res.validation.issues);
+        setChecked(true);
         if (res.version) {
             setVersion({id: res.version.id, number: res.version.number});
-            setNotice(res.validation.canRun
-                ? `버전 ${res.version.number}을 확정했습니다. 실행 중인 기록은 이전 버전을 계속 사용합니다.`
-                : `버전 ${res.version.number}을 확정했지만 실행 전에 해결할 항목이 있습니다.`);
-        } else {
-            setNotice(null);
+            toast(`버전 ${res.version.number}을 확정했습니다`);
         }
     });
 
@@ -142,39 +155,67 @@ export function WorkflowEditor({project, workflowId, onStarted, onClose}: {
         else setIssues(res.issues);
     });
 
+    const errors = issues.filter((i) => i.severity === 'error');
+    // Where the person is in edit → check → version → run: unsaved edits
+    // or problems to fix mean editing; a clean, unchecked draft is next
+    // saved and checked.
+    const stage = version ? 3 : dirty || errors.length ? 0 : !checked ? 1 : 2;
+
     return (
         <div className="stack">
             <div className="row between">
-                <div className="row">
-                    <button className="btn small" onClick={onClose}>← 목록</button>
-                    <input aria-label="흐름 이름" value={draft.title} disabled={archived} onChange={(e) => edit({...draft, title: e.target.value})}/>
-                    <span className="muted small">수정 {revision}{dirty ? ' · 저장 안 됨' : ''}</span>
-                </div>
-                <div className="row">
-                    <label className="row small">
-                        <span className="muted">업무 추가</span>
-                        <select aria-label="추가할 업무 종류" value="" disabled={archived} onChange={(e) => {
-                            if (!e.target.value) return;
-                            const {spec, id} = addNode(draft, e.target.value as NodeKind, selected ?? undefined);
-                            edit(spec);
-                            setSelected(id);
-                        }}>
-                            <option value="">종류 선택…</option>
-                            {(['task', 'review', 'approval', 'join', 'condition'] as NodeKind[]).map((k) =>
-                                <option key={k} value={k}>{t.nodeKind[k]}</option>)}
-                        </select>
-                    </label>
-                    <button className="btn" disabled={archived || action.busy} onClick={save}>저장·검증</button>
-                    <button className="btn primary" disabled={archived || action.busy} onClick={confirm}>버전 확정</button>
-                    {version ? <button className="btn primary" disabled={action.busy} onClick={start}>버전 {version.number} 실행</button> : null}
-                </div>
+                <Button variant="ghost" size="sm" icon={ArrowLeft} onClick={onClose}>업무 흐름 목록</Button>
+                <Stepper steps={['편집', '저장·검증', '버전 확정', '실행']} current={stage}/>
+            </div>
+            <div className="toolbar" role="toolbar" aria-label="업무 흐름 도구">
+                <input aria-label="흐름 이름" value={draft.title} disabled={archived} style={{minWidth: 220, fontWeight: 600}}
+                       onChange={(e) => edit({...draft, title: e.target.value})}/>
+                <span className={`save-state ${dirty ? 'dirty' : ''}`}>
+                    <Icon icon={dirty ? CircleDot : Check} size={14}/>수정 {revision}{dirty ? ' · 저장 안 됨' : ' · 저장됨'}
+                </span>
+                <span className="spacer"/>
+                <label className="row nowrap small">
+                    <Icon icon={Plus} size={14}/><span className="muted">업무 추가</span>
+                    <select aria-label="추가할 업무 종류" value="" disabled={archived} onChange={(e) => {
+                        if (!e.target.value) return;
+                        const {spec, id} = addNode(draft, e.target.value as NodeKind, selected ?? undefined);
+                        edit(spec);
+                        setSelected(id);
+                    }}>
+                        <option value="">종류 선택…</option>
+                        {(['task', 'review', 'approval', 'join', 'condition'] as NodeKind[]).map((k) =>
+                            <option key={k} value={k}>{t.nodeKind[k]}</option>)}
+                    </select>
+                </label>
+                <span className="sep" aria-hidden/>
+                <Button icon={ShieldCheck} disabled={archived || action.busy} onClick={save}>저장·검증</Button>
+                <Button variant={version ? 'secondary' : 'primary'} icon={Stamp} disabled={archived} busy={action.busy && !version} onClick={confirm}>버전 확정</Button>
+                {version ? <Button variant="primary" icon={Play} busy={action.busy} onClick={start}>버전 {version.number} 실행</Button> : null}
             </div>
             <ErrorBox error={action.error}/>
-            {notice ? <div className="notice">{notice}</div> : null}
-            <IssueList issues={issues}/>
+            {checked && !issues.length && !dirty ? (
+                <Banner tone="ok">{version
+                    ? `버전 ${version.number}을 확정했습니다. ‘버전 ${version.number} 실행’으로 시작하세요. 실행 중인 기록은 이전 버전을 계속 사용합니다.`
+                    : '문제가 없습니다. ‘버전 확정’으로 실행할 수 있는 버전을 만드세요.'}</Banner>
+            ) : null}
+            {issues.length ? (
+                <Banner tone={errors.length ? 'bad' : 'warn'} title={errors.length ? `고쳐야 할 문제 ${errors.length}건` : `실행 전에 해결할 항목 ${issues.length}건`}>
+                    <ul className="issue-list" aria-label="검증 결과" style={{marginTop: 4}}>
+                        {issues.map((i, n) => (
+                            <li key={n} className={i.severity}>
+                                {i.nodeId && byId(draft).has(i.nodeId)
+                                    ? <button type="button" className="btn ghost small" onClick={() => setSelected(i.nodeId!)}>{byId(draft).get(i.nodeId)!.title || i.nodeId}</button>
+                                    : i.nodeId ? <strong>{i.nodeId}:</strong> : null}
+                                <span>{i.message}{i.severity === 'run' ? ' (실행 전 해결 필요)' : ''}</span>
+                            </li>
+                        ))}
+                    </ul>
+                </Banner>
+            ) : null}
             <div className="flow-wrap" aria-label="업무 흐름 편집기">
                 <ReactFlow
-                    nodes={flow.nodes} edges={flow.edges} nodeTypes={nodeTypes} fitView
+                    nodes={flow.nodes} edges={flow.edges} nodeTypes={nodeTypes} fitView fitViewOptions={{minZoom: 0.65, maxZoom: 1}} minZoom={0.3}
+                    colorMode={theme}
                     nodesDraggable={false} nodesConnectable={!archived} elementsSelectable
                     onNodeClick={(_, n) => setSelected(n.id)}
                     onPaneClick={() => setSelected(null)}
@@ -191,38 +232,52 @@ export function WorkflowEditor({project, workflowId, onStarted, onClose}: {
                     <Controls showInteractive={false}/>
                 </ReactFlow>
             </div>
-            <p className="muted small">노드 오른쪽 점에서 다음 업무의 왼쪽 점으로 끌어 연결합니다. 연결선이나 업무를 선택하고 Delete 키로 지웁니다.
-                반려 후 되돌아가는 흐름은 연결선이 아니라 리뷰·승인 업무의 ‘수정 요청 대상’으로 지정하며, 점선으로 표시됩니다.
-                조건 분기 뒤 연결선에는 그 경로를 고르는 규칙이 표시됩니다.</p>
-            <StepList spec={draft} people={people} issues={issues} onSelect={setSelected}/>
+            <WorkflowAssist project={project} workflowId={workflowId} dirty={dirty} saveFirst={persist}
+                            onApplied={() => { setDirty(false); setVersion(null); setChecked(false); setIssues([]); loaded.reload(); }}/>
+            <details className="card subtle tight small">
+                <summary><Icon icon={HelpCircle} size={14}/> 편집 방법</summary>
+                <ul style={{margin: '8px 0 0', paddingLeft: 18}} className="stack tight">
+                    <li>업무를 누르면 오른쪽에서 편집합니다. 아래 ‘업무 목록’에서도 고를 수 있습니다.</li>
+                    <li>업무 오른쪽 점을 다음 업무의 왼쪽 점으로 끌어 연결합니다. 끌지 않고 연결하려면 편집 패널의 ‘선행 업무 추가’를 쓰세요.</li>
+                    <li>연결선이나 업무를 선택하고 <span className="kbd">Delete</span> 키로 지웁니다.</li>
+                    <li>반려 후 되돌아가는 흐름은 리뷰·승인 업무의 ‘수정 요청 대상’으로 지정하며, 빨간 점선으로 표시됩니다.</li>
+                    <li>조건 분기 뒤 연결선에는 그 경로를 고르는 규칙이 표시됩니다.</li>
+                </ul>
+            </details>
+            <Section title="업무 목록" count={draft.nodes.length}>
+                <StepList spec={draft} people={people} issues={issues} selected={selected} onSelect={setSelected}/>
+            </Section>
         </div>
     );
 }
 
 // StepList is the keyboard- and screen-reader-friendly view of the graph.
-function StepList({spec, people, issues, onSelect}: {
-    spec: WorkflowSpec; people: Assignment[]; issues: Issue[]; onSelect: (id: string) => void;
+function StepList({spec, people, issues, selected, onSelect}: {
+    spec: WorkflowSpec; people: Assignment[]; issues: Issue[]; selected: string | null; onSelect: (id: string) => void;
 }) {
     return (
-        <table className="list" aria-label="업무 목록">
-            <thead><tr><th>업무</th><th>종류</th><th>담당자</th><th>선행 업무</th><th>설정</th><th>문제</th></tr></thead>
-            <tbody>
-            {spec.nodes.map((n) => {
-                const a = people.find((p) => p.id === n.assignmentId);
-                const mine = issues.filter((i) => i.nodeId === n.id);
-                return (
-                    <tr key={n.id}>
-                        <td><button className="btn small" onClick={() => onSelect(n.id)}>{n.title || n.id}</button></td>
-                        <td>{t.nodeKind[n.kind] ?? n.kind}</td>
-                        <td>{a ? <>{a.displayName} <ActorBadge kind={a.actorKind}/></> : n.kind === 'condition' || n.kind === 'join' ? '—' : <span className="badge bad">없음</span>}</td>
-                        <td className="small">{n.dependsOn.join(', ') || '시작'}</td>
-                        <td className="small">{settings(n).join(' · ')}</td>
-                        <td className="small">{mine.length ? <span className="badge bad">{mine.length}</span> : ''}</td>
-                    </tr>
-                );
-            })}
-            </tbody>
-        </table>
+        <div className="table-wrap">
+            <table className="list" aria-label="업무 목록">
+                <thead><tr><th>업무</th><th>종류</th><th>담당자</th><th>선행 업무</th><th>설정</th><th>문제</th></tr></thead>
+                <tbody>
+                {spec.nodes.map((n) => {
+                    const a = people.find((p) => p.id === n.assignmentId);
+                    const mine = issues.filter((i) => i.nodeId === n.id);
+                    return (
+                        <tr key={n.id} aria-selected={selected === n.id}>
+                            <td><Button size="sm" variant={selected === n.id ? 'primary' : 'secondary'} onClick={() => onSelect(n.id)}>{n.title || n.id}</Button></td>
+                            <td><span className="row nowrap small"><Icon icon={nodeKindIcon[n.kind] ?? Wrench} size={14}/>{t.nodeKind[n.kind] ?? n.kind}</span></td>
+                            <td>{a ? <span className="row nowrap">{a.displayName} <ActorBadge kind={a.actorKind}/></span>
+                                : n.kind === 'condition' || n.kind === 'join' ? <span className="muted">—</span> : <StatusBadge tone="bad">없음</StatusBadge>}</td>
+                            <td className="small">{n.dependsOn.join(', ') || <span className="muted">시작</span>}</td>
+                            <td className="small">{settings(n).join(' · ')}</td>
+                            <td className="small">{mine.length ? <StatusBadge tone="bad" icon={AlertCircle}>{mine.length}</StatusBadge> : ''}</td>
+                        </tr>
+                    );
+                })}
+                </tbody>
+            </table>
+        </div>
     );
 }
 
@@ -237,7 +292,7 @@ function settings(n: WorkflowNode): string[] {
     return out;
 }
 
-const outputTypes: OutputType[] = ['markdown', 'json', 'report', 'code_change', 'file'];
+const outputTypes: OutputType[] = ['markdown', 'json', 'report', 'code_change', 'diagram', 'file'];
 
 export function NodeForm({spec, id, people, readOnly, onChange, onRenamed, onDeleted, onClose}: {
     spec: WorkflowSpec; id: string; people: Assignment[]; readOnly: boolean;
@@ -254,50 +309,60 @@ export function NodeForm({spec, id, people, readOnly, onChange, onRenamed, onDel
     const inputs = availableInputs(spec, id);
     const needsAssignee = n.kind !== 'condition' && n.kind !== 'join';
     const candidates = n.kind === 'approval' ? people.filter((p) => p.actorKind === 'human') : people;
+    const advanced = n.kind === 'task' || n.kind === 'review';
+    const advancedSet = !!n.meeting || !!n.completion?.commands?.length || (!!n.limits && Object.keys(n.limits).length > 0);
 
     return (
-        <fieldset className="stack" disabled={readOnly} style={{border: 'none', padding: 0, margin: 0}} aria-label="업무 편집">
-            <div className="row between"><h2>업무 편집</h2><button type="button" className="btn small" onClick={onClose}>{t.common.close}</button></div>
-            <label className="field"><span>이름</span><input value={n.title} onChange={(e) => set({title: e.target.value})}/></label>
-            <label className="field"><span>ID</span>
-                <input value={idText} onChange={(e) => setIdText(e.target.value)} onBlur={() => {
-                    if (idText === id) return;
-                    const res = renameNode(spec, id, idText);
-                    if (res.error) { setError(res.error); setIdText(id); } else { setError(null); onChange(res.spec); onRenamed(idText); }
-                }}/></label>
-            <label className="field"><span>종류</span>
-                <select value={n.kind} onChange={(e) => set({kind: e.target.value as NodeKind})}>
-                    {(['task', 'review', 'approval', 'condition', 'join'] as NodeKind[]).map((k) => <option key={k} value={k}>{t.nodeKind[k]}</option>)}
-                </select></label>
-            {needsAssignee ? (
-                <label className="field"><span>담당자{n.kind === 'approval' ? ' (승인은 사람만)' : ''}</span>
-                    <select value={n.assignmentId ?? ''} onChange={(e) => set({assignmentId: e.target.value})}>
-                        <option value="">선택하세요</option>
-                        {candidates.map((p) => <option key={p.id} value={p.id}>{p.displayName} ({p.actorKind === 'ai' ? 'AI' : '나'})</option>)}
-                    </select></label>
-            ) : null}
-            {needsAssignee ? (
-                <label className="field"><span>이번 업무 지시</span>
-                    <textarea value={n.instructions ?? ''} onChange={(e) => set({instructions: e.target.value})}/></label>
-            ) : null}
+        <fieldset className="stack loose" disabled={readOnly} aria-label="업무 편집">
+            <DetailHeader title="업무 편집" onClose={onClose}>
+                <span className="row small muted"><Icon icon={nodeKindIcon[n.kind] ?? Wrench} size={14}/>{t.nodeKind[n.kind]} · <span className="mono">{n.id}</span></span>
+            </DetailHeader>
+
+            <div className="stack">
+                <label className="field"><span>이름</span><input value={n.title} onChange={(e) => set({title: e.target.value})}/></label>
+                <div className="grid-2">
+                    <label className="field"><span>종류</span>
+                        <select value={n.kind} onChange={(e) => set({kind: e.target.value as NodeKind})}>
+                            {(['task', 'review', 'approval', 'condition', 'join'] as NodeKind[]).map((k) => <option key={k} value={k}>{t.nodeKind[k]}</option>)}
+                        </select></label>
+                    <label className="field"><span>ID</span>
+                        <input value={idText} className="mono" onChange={(e) => setIdText(e.target.value)} onBlur={() => {
+                            if (idText === id) return;
+                            const res = renameNode(spec, id, idText);
+                            if (res.error) { setError(res.error); setIdText(id); } else { setError(null); onChange(res.spec); onRenamed(idText); }
+                        }}/></label>
+                </div>
+                {needsAssignee ? (
+                    <label className="field"><span>담당자{n.kind === 'approval' ? ' (승인은 사람만)' : ''}</span>
+                        <select value={n.assignmentId ?? ''} onChange={(e) => set({assignmentId: e.target.value})}>
+                            <option value="">선택하세요</option>
+                            {candidates.map((p) => <option key={p.id} value={p.id}>{p.displayName} ({p.actorKind === 'ai' ? 'AI' : '나'})</option>)}
+                        </select></label>
+                ) : null}
+                {needsAssignee ? (
+                    <label className="field"><span>이번 업무 지시</span>
+                        <textarea value={n.instructions ?? ''} rows={5} onChange={(e) => set({instructions: e.target.value})}/></label>
+                ) : null}
+            </div>
 
             {n.kind === 'task' || n.kind === 'review' ? (
                 <div className="stack">
                     <h3>결과</h3>
                     {(n.outputs ?? []).map((o, i) => (
-                        <div key={i} className="row">
-                            <input aria-label="결과 키" style={{width: 100}} value={o.key}
+                        <div key={i} className="row nowrap">
+                            <input aria-label="결과 키" style={{width: 110}} className="mono" value={o.key}
                                    onChange={(e) => set({outputs: n.outputs!.map((x, j) => j === i ? {...x, key: e.target.value} : x)})}/>
-                            <select aria-label="결과 형식" value={o.type}
+                            <select aria-label="결과 형식" value={o.type} style={{flex: 1, minWidth: 0}}
                                     onChange={(e) => set({outputs: n.outputs!.map((x, j) => j === i ? {...x, type: e.target.value as OutputType} : x)})}>
                                 {outputTypes.map((ty) => <option key={ty} value={ty}>{t.outputType[ty]}</option>)}
                             </select>
                             <label className="check small"><input type="checkbox" checked={o.required !== false}
                                 onChange={(e) => set({outputs: n.outputs!.map((x, j) => j === i ? {...x, required: e.target.checked ? undefined : false} : x)})}/>{t.common.required}</label>
-                            <button type="button" className="btn small danger" onClick={() => set({outputs: n.outputs!.filter((_, j) => j !== i)})}>삭제</button>
+                            <Button size="sm" variant="ghost" iconOnly icon={Trash2} aria-label="삭제" title="결과 삭제"
+                                    onClick={() => set({outputs: n.outputs!.filter((_, j) => j !== i)})}/>
                         </div>
                     ))}
-                    <button type="button" className="btn small" onClick={() => set({outputs: [...(n.outputs ?? []), {key: `out${(n.outputs?.length ?? 0) + 1}`, type: 'markdown'}]})}>결과 추가</button>
+                    <div><Button size="sm" icon={Plus} onClick={() => set({outputs: [...(n.outputs ?? []), {key: `out${(n.outputs?.length ?? 0) + 1}`, type: 'markdown'}]})}>결과 추가</Button></div>
                 </div>
             ) : null}
 
@@ -305,11 +370,12 @@ export function NodeForm({spec, id, people, readOnly, onChange, onRenamed, onDel
                 <div className="stack">
                     <h3>입력 자료</h3>
                     {(n.inputs ?? []).map((inp, i) => (
-                        <div key={i} className="row small">
-                            <span>{inp.name} ← {map.get(inp.fromStep)?.title ?? inp.fromStep}.{inp.outputKey}</span>
+                        <div key={i} className="row nowrap small">
+                            <span style={{flex: 1, minWidth: 0}}>{inp.name} <span className="muted">← {map.get(inp.fromStep)?.title ?? inp.fromStep}.{inp.outputKey}</span></span>
                             <label className="check"><input type="checkbox" checked={inp.required !== false}
                                 onChange={(e) => set({inputs: n.inputs!.map((x, j) => j === i ? {...x, required: e.target.checked ? undefined : false} : x)})}/>{t.common.required}</label>
-                            <button type="button" className="btn small danger" onClick={() => set({inputs: n.inputs!.filter((_, j) => j !== i)})}>삭제</button>
+                            <Button size="sm" variant="ghost" iconOnly icon={Trash2} aria-label="삭제" title="입력 삭제"
+                                    onClick={() => set({inputs: n.inputs!.filter((_, j) => j !== i)})}/>
                         </div>
                     ))}
                     {inputs.length ? (
@@ -340,15 +406,12 @@ export function NodeForm({spec, id, people, readOnly, onChange, onRenamed, onDel
             ) : null}
 
             {n.kind === 'condition' ? <RoutingForm spec={spec} node={n} onChange={onChange}/> : null}
-            {n.kind === 'task' ? <MeetingForm node={n} people={people} set={set}/> : null}
-            {n.kind === 'task' || n.kind === 'review' ? <CompletionForm node={n} set={set}/> : null}
-            {n.kind === 'task' || n.kind === 'review' ? <LimitsForm node={n} set={set}/> : null}
 
             <div className="stack">
                 <h3>선행 업무</h3>
                 {n.dependsOn.length === 0 ? <p className="muted small">없음 (시작 업무)</p> : n.dependsOn.map((d) => (
-                    <div key={d} className="row small">{map.get(d)?.title ?? d}
-                        <button type="button" className="btn small" onClick={() => onChange(disconnect(spec, d, id))}>연결 끊기</button></div>
+                    <div key={d} className="row between small">{map.get(d)?.title ?? d}
+                        <Button size="sm" variant="ghost" icon={Unlink} onClick={() => onChange(disconnect(spec, d, id))}>연결 끊기</Button></div>
                 ))}
                 {/* Keyboard alternative to dragging a connection in the graph. */}
                 <label className="field"><span>선행 업무 추가</span>
@@ -364,9 +427,21 @@ export function NodeForm({spec, id, people, readOnly, onChange, onRenamed, onDel
                     </select>
                 </label>
             </div>
+
+            {advanced ? (
+                <details className="card subtle tight" open={advancedSet}>
+                    <summary>고급 설정 <span className="muted small">(회의 · 검증 명령 · 제한)</span></summary>
+                    <div className="stack loose" style={{marginTop: 'var(--s-3)'}}>
+                        {n.kind === 'task' ? <MeetingForm node={n} people={people} set={set}/> : null}
+                        <CompletionForm node={n} set={set}/>
+                        <LimitsForm node={n} set={set}/>
+                    </div>
+                </details>
+            ) : null}
             {error ? <ErrorBox error={error}/> : null}
-            <ConfirmButton label="업무 삭제" confirmLabel="삭제하기" className="btn danger"
-                           onConfirm={() => { onChange(removeNode(spec, id)); onDeleted(); }}/>
+            <hr className="divider"/>
+            <div><ConfirmButton label="업무 삭제" confirmLabel="삭제하기" className="btn danger" icon={Trash2}
+                                onConfirm={() => { onChange(removeNode(spec, id)); onDeleted(); }}/></div>
         </fieldset>
     );
 }

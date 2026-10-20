@@ -22,9 +22,12 @@ sign() {
 ldflags="-X main.appVersion=$version"
 wails build -clean -platform windows/amd64 -ldflags "$ldflags"
 node scripts/stage-runner.mjs build/bin/claude-runner --os win32 --cpu x64
+rm -rf build/bin/diagram-design
+cp -R third_party/diagram-design build/bin/diagram-design
 sign build/bin/agent-office.exe
 # Second pass only wraps the existing build into the installer: -s skips
-# the frontend, and project.nsi picks up build/bin/claude-runner.
+# the frontend, and project.nsi picks up build/bin/claude-runner and
+# build/bin/diagram-design.
 wails build -s -nsis -platform windows/amd64 -ldflags "$ldflags"
 sign build/bin/agent-office.exe
 

@@ -96,6 +96,9 @@ func (m *ModelAPI) Start(ctx context.Context, req StartRequest) (Session, error)
 		if o.Type == "file" {
 			return nil, fmt.Errorf("모델 API는 파일 결과(%q)를 만들 수 없습니다", o.Key)
 		}
+		if o.Type == "diagram" {
+			return nil, fmt.Errorf("모델 API는 다이어그램 결과(%q)를 만들 수 없습니다: diagram-design 스킬 파일을 읽을 수 없습니다. Claude·Codex 연결에 맡기세요", o.Key)
+		}
 	}
 	model := req.Model
 	switch m.Kind {

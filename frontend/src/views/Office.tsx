@@ -6,7 +6,12 @@ import {useLoad} from '../live';
 import {buildOffice, describe, type Desk, type DeskState, type Office as OfficeModel} from '../office/model';
 import {draw, hit, layout, SCENE_W} from '../office/scene';
 import type {Project} from '../types';
-import {ActorBadge, ErrorBox, REDUCED_MOTION, StepBadge, useAction, useDetail} from '../ui';
+import {
+    AlertTriangle, CheckCircle2, ChevronRight, CircleDashed, FileText, Hand, LayoutGrid, List, Loader2, type LucideIcon, RotateCcw, ShieldCheck, Users,
+} from 'lucide-react';
+import {
+    ActorBadge, Banner, Button, DetailHeader, EmptyState, ErrorBox, Icon, Loading, REDUCED_MOTION, StatusBadge, StepBadge, type Tone, useAction, useDetail,
+} from '../ui';
 import {ArtifactViewer} from './ArtifactViewer';
 
 const VIEW = 'ui.officeView';
@@ -59,23 +64,41 @@ export function Office({project, onRoute}: { project: Project; onRoute: (r: Rout
     const open = (d: Desk) => setDetail(<DeskDetail project={project} assignmentId={d.assignment.id} onRoute={onRoute}/>);
 
     if (error) return <ErrorBox error={error}/>;
-    if (!office) return <p className="muted">{t.common.loading}</p>;
+    if (!office) return <Loading/>;
     if (office.desks.length === 0) {
-        return <p className="muted">아직 담당자가 없습니다. ‘담당자’ 탭에서 역할과 담당자를 배정하면 사무실에 자리가 생깁니다.</p>;
+        return (
+            <EmptyState icon={Users} title="아직 담당자가 없습니다">
+                ‘담당자’ 탭에서 역할과 담당자를 배정하면 사무실에 자리가 생깁니다.
+            </EmptyState>
+        );
     }
+    const problems = office.desks.filter((d) => d.state === 'problem');
+    const mine = office.desks.filter((d) => d.state === 'waiting' && d.assignment.actorKind === 'human');
     return (
         <div className="stack" ref={box}>
+            {problems.length ? (
+                <Banner tone="bad" title={`문제가 생긴 담당자 ${problems.length}명`}
+                        actions={<Button size="sm" variant="primary" onClick={() => open(problems[0])}>{problems[0].assignment.displayName} 보기</Button>}>
+                    {problems.map((d) => `${d.assignment.displayName}: ${d.summary || d.label}`).join(' · ')}
+                </Banner>
+            ) : null}
+            {mine.length ? (
+                <Banner tone="warn" title="나를 기다리는 일이 있습니다"
+                        actions={<Button size="sm" onClick={() => onRoute({view: 'inbox'})}>내 할 일 열기</Button>}>
+                    {mine.map((d) => d.summary).filter(Boolean).join(' · ')}
+                </Banner>
+            ) : null}
             <div className="row between">
-                <p className="muted small" style={{margin: 0}}>실제 실행 상태를 보여 줍니다. 캐릭터 동작은 표시일 뿐 상태를 정하지 않습니다.</p>
+                <p className="muted small">담당자마다 실제 업무 상태를 그림으로 보여 줍니다. 자리를 누르거나 화살표 키로 고른 뒤 Enter로 상세를 엽니다.</p>
                 <div className="segmented" role="group" aria-label="보기 방식">
-                    <button className="btn small" aria-pressed={shown === 'office'} onClick={() => choose('office')}>사무실</button>
-                    <button className="btn small" aria-pressed={shown === 'list'} onClick={() => choose('list')}>목록</button>
+                    <button className="btn small" aria-pressed={shown === 'office'} onClick={() => choose('office')}><Icon icon={LayoutGrid} size={14}/>사무실</button>
+                    <button className="btn small" aria-pressed={shown === 'list'} onClick={() => choose('list')}><Icon icon={List} size={14}/>목록</button>
                 </div>
             </div>
-            {shown === 'office' && narrow ? <p className="notice small">창이 좁아 목록으로 보여 줍니다.</p> : null}
+            {shown === 'office' && narrow ? <Banner tone="info">창이 좁아 목록으로 보여 줍니다.</Banner> : null}
             {shown === 'office' && !narrow ? <OfficeCanvas office={office} onOpen={open}/> : <OfficeList office={office} onOpen={open}/>}
             {office.meetings.length > 1 ? (
-                <p className="small">진행 중인 회의: {office.meetings.map((m) => m.title).join(', ')}</p>
+                <p className="small"><Icon icon={Users} size={14}/> 진행 중인 회의: {office.meetings.map((m) => m.title).join(', ')}</p>
             ) : null}
             <Legend/>
         </div>
@@ -94,11 +117,15 @@ function OfficeCanvas({office, onOpen}: { office: OfficeModel; onOpen: (d: Desk)
     const l = useMemo(() => layout(office.desks.length), [office.desks.length]);
     const sel = Math.min(selected, office.desks.length - 1);
 
-    // Whole-number scale that fits the available width.
+    // Scale in half steps that fits the available width: on a 2x display
+    // every half step is still a whole number of device pixels, so pixels
+    // stay sharp, and the office does not drop to 1x as soon as the detail
+    // pane opens.
     useEffect(() => {
         const el = wrap.current;
         if (!el || typeof ResizeObserver === 'undefined') return;
-        const ro = new ResizeObserver(() => setScale(Math.max(1, Math.min(4, Math.floor(el.clientWidth / SCENE_W)))));
+        const step = (window.devicePixelRatio || 1) >= 2 ? 2 : 1;
+        const ro = new ResizeObserver(() => setScale(Math.max(1, Math.min(4, Math.floor((el.clientWidth / SCENE_W) * step) / step))));
         ro.observe(el);
         return () => ro.disconnect();
     }, []);
@@ -190,28 +217,39 @@ function useJoy(office: OfficeModel, reduced: boolean) {
     return joy;
 }
 
-const tone: Record<DeskState, string> = {idle: '', working: 'info', meeting: 'info', waiting: 'warn', checking: 'info', done: 'ok', problem: 'bad'};
+const tone: Record<DeskState, Tone> = {idle: '', working: 'info', meeting: 'info', waiting: 'warn', checking: 'info', done: 'ok', problem: 'bad'};
+const deskIcon: Record<DeskState, LucideIcon> = {
+    idle: CircleDashed, working: Loader2, meeting: Users, waiting: Hand, checking: ShieldCheck, done: CheckCircle2, problem: AlertTriangle,
+};
+
+export function DeskBadge({d}: { d: Desk }) {
+    return <StatusBadge tone={tone[d.state]} icon={deskIcon[d.state]}>{d.label}</StatusBadge>;
+}
 
 // OfficeList is the plain alternative: every desk, its state in words and
 // the same detail (and actions) as the office.
 export function OfficeList({office, onOpen}: { office: OfficeModel; onOpen: (d: Desk) => void }) {
     return (
-        <table className="list" aria-label="담당자 상태">
-            <thead><tr><th>담당자</th><th>상태</th><th>지금 업무</th><th/></tr></thead>
-            <tbody>
-            {office.desks.map((d) => (
-                <tr key={d.assignment.id}>
-                    <td>{d.assignment.displayName} <ActorBadge kind={d.assignment.actorKind}/>
-                        {d.roleName ? <div className="muted small">{d.roleName}</div> : null}</td>
-                    <td><span className={`badge ${tone[d.state]}`}>{d.label}</span></td>
-                    <td className="small">{d.summary || <span className="muted">없음</span>}
-                        {d.work.length > 1 ? <span className="muted"> 외 {d.work.length - 1}건</span> : null}</td>
-                    <td><button className="btn small" onClick={() => onOpen(d)}
-                                aria-label={`${d.assignment.displayName} 상세`}>상세</button></td>
-                </tr>
-            ))}
-            </tbody>
-        </table>
+        <div className="table-wrap">
+            <table className="list" aria-label="담당자 상태">
+                <thead><tr><th>담당자</th><th>상태</th><th>지금 업무</th><th/></tr></thead>
+                <tbody>
+                {office.desks.map((d) => (
+                    <tr key={d.assignment.id}>
+                        <td>
+                            <div className="row nowrap"><strong>{d.assignment.displayName}</strong><ActorBadge kind={d.assignment.actorKind}/></div>
+                            {d.roleName ? <div className="muted xsmall">{d.roleName}</div> : null}
+                        </td>
+                        <td><DeskBadge d={d}/></td>
+                        <td className="small">{d.summary || <span className="muted">없음</span>}
+                            {d.work.length > 1 ? <span className="muted"> 외 {d.work.length - 1}건</span> : null}</td>
+                        <td className="actions"><Button size="sm" variant="ghost" onClick={() => onOpen(d)}
+                                                        aria-label={`${d.assignment.displayName} 상세`}>상세<Icon icon={ChevronRight} size={14}/></Button></td>
+                    </tr>
+                ))}
+                </tbody>
+            </table>
+        </div>
     );
 }
 
@@ -221,10 +259,10 @@ function Legend() {
         ['체크리스트', '결과 확인 중'], ['초록 체크·책상 위 문서', '완료·결과 있음'], ['빨간 표시', '문제 발생 (상세에서 다시 시도)'],
     ];
     return (
-        <details className="small">
+        <details className="card subtle tight small">
             <summary>그림 설명</summary>
-            <ul>{items.map(([k, v]) => <li key={k}>{k}: {v}</li>)}</ul>
-            <p className="muted">가슴의 보라 표시는 AI, 주황 표시는 사람입니다. 사람은 앱에서 남긴 기록만 보여 주며 자리 밖 행동은 추정하지 않습니다.</p>
+            <ul className="legend" style={{marginTop: 8}}>{items.map(([k, v]) => <li key={k}><strong>{k}</strong> {v}</li>)}</ul>
+            <p className="muted" style={{marginTop: 8}}>가슴의 보라 표시는 AI, 주황 표시는 사람입니다. 사람은 앱에서 남긴 기록만 보여 주며 자리 밖 행동은 추정하지 않습니다.</p>
         </details>
     );
 }
@@ -238,26 +276,24 @@ export function DeskDetail({project, assignmentId, onRoute}: { project: Project;
     const action = useAction();
     if (error) return <ErrorBox error={error}/>;
     const d = office?.desks.find((x) => x.assignment.id === assignmentId);
-    if (!office) return <p className="muted">{t.common.loading}</p>;
+    if (!office) return <Loading/>;
     if (!d) return <p className="muted">이 담당자는 더 이상 없습니다.</p>;
     const a = d.assignment;
     const conn = (conns.data ?? []).find((c) => c.id === a.connectionId);
     const back = () => setDetail(<DeskDetail project={project} assignmentId={assignmentId} onRoute={onRoute}/>);
     return (
-        <div className="stack">
-            <div className="row between">
-                <h2 style={{margin: 0}}>{a.displayName}</h2>
-                <button className="btn small" onClick={() => setDetail(null)}>{t.common.close}</button>
-            </div>
-            <div className="row"><ActorBadge kind={a.actorKind}/><span className={`badge ${tone[d.state]}`}>{d.label}</span></div>
-            <div className="small">
-                {d.roleName ? <div>역할: {d.roleName}</div> : null}
+        <>
+            <DetailHeader title={a.displayName} onClose={() => setDetail(null)}>
+                <div className="row"><ActorBadge kind={a.actorKind}/><DeskBadge d={d}/></div>
+            </DetailHeader>
+            <dl className="kv">
+                {d.roleName ? <><dt>역할</dt><dd>{d.roleName}</dd></> : null}
                 {a.actorKind === 'ai'
-                    ? <div>연결: {conn ? `${conn.name}${conn.usable ? '' : ' (확인 필요)'}` : '없음'}{a.model ? ` · ${a.model}` : ''}</div>
-                    : <div>앱에서 처리한 일만 표시합니다.</div>}
-            </div>
+                    ? <><dt>AI 연결</dt><dd>{conn ? `${conn.name}${conn.usable ? '' : ' (확인 필요)'}` : '없음'}{a.model ? ` · ${a.model}` : ''}</dd></>
+                    : <><dt>기록</dt><dd>앱에서 처리한 일만 표시합니다.</dd></>}
+            </dl>
             <ErrorBox error={action.error}/>
-            {d.work.length === 0 ? <p className="muted small">지금 맡은 업무가 없습니다.</p> : null}
+            {d.work.length === 0 ? <EmptyState compact title="지금 맡은 업무가 없습니다"/> : null}
             {d.work.map((w) => (
                 <section key={`${w.runId}/${w.stepId}/${w.participant}`} className="card stack" aria-label={w.stepTitle}>
                     <div className="row between">
@@ -265,23 +301,23 @@ export function DeskDetail({project, assignmentId, onRoute}: { project: Project;
                         <StepBadge status={w.status}/>
                     </div>
                     <div className="muted small">{w.runTitle} · v{w.versionNumber}{w.participant ? ' · 회의 참여' : ''}</div>
-                    {w.error ? <div className="small" style={{color: 'var(--danger)'}}>{w.error}</div> : null}
+                    {w.error ? <Banner tone="bad">{w.error}</Banner> : null}
                     {w.inbox.length ? <div className="small">기다리는 일: {w.inbox.map((k) => t.inboxKind[k]).join(', ')}</div> : null}
                     <div className="row">
-                        <button className="btn small" onClick={() => onRoute({view: 'project', projectId: project.id, tab: 'runs', runId: w.runId})}>실행 보기</button>
-                        {w.inbox.length ? <button className="btn small primary" onClick={() => onRoute({view: 'inbox'})}>내 할 일에서 처리</button> : null}
+                        {w.inbox.length ? <Button size="sm" variant="primary" onClick={() => onRoute({view: 'inbox'})}>내 할 일에서 처리</Button> : null}
                         {w.canRetry ? (
-                            <button className="btn small" disabled={action.busy}
-                                    onClick={() => action.run(async () => { await api.retryStep(project.id, w.runId, w.stepId); reload(); })}>다시 시도</button>
+                            <Button size="sm" icon={RotateCcw} busy={action.busy}
+                                    onClick={() => action.run(async () => { await api.retryStep(project.id, w.runId, w.stepId); reload(); })}>다시 시도</Button>
                         ) : null}
+                        <Button size="sm" variant="ghost" onClick={() => onRoute({view: 'project', projectId: project.id, tab: 'runs', runId: w.runId})}>실행 보기</Button>
                         {w.artifacts.map((art) => (
-                            <button key={art.id} className="btn small"
+                            <Button key={art.id} size="sm" icon={FileText}
                                     onClick={() => setDetail(<ArtifactViewer projectId={project.id} artifactId={art.id} onClose={back}/>)}>
-                                {art.outputKey} v{art.version}</button>
+                                {art.outputKey} v{art.version}</Button>
                         ))}
                     </div>
                 </section>
             ))}
-        </div>
+        </>
     );
 }

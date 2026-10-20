@@ -21,6 +21,8 @@ func outputPath(dir string, o domain.Output) string {
 		ext = ".json"
 	case domain.OutFile:
 		ext = ""
+	case domain.OutDiagram:
+		ext = ".html"
 	}
 	return filepath.Join(dir, "out", o.Key+ext)
 }
@@ -70,7 +72,7 @@ func (e *Engine) aiRequest(ctx context.Context, q querier, st *runState, n *doma
 	req := providers.StartRequest{
 		ProjectID: st.run.ProjectID, RunID: st.run.ID, StepAttemptID: a.ID, StepID: n.ID, Generation: a.Generation,
 		Instructions: domain.ComposeInstructions(instructionLayers(snap, n, feedback)),
-		Prompt:       buildPrompt(e.cfg.DataDir, st, n, manifest, notes, askable, e.cfg.MaxConsults, ws, dir),
+		Prompt:       buildPrompt(e.cfg.DataDir, st, n, manifest, notes, askable, e.cfg.MaxConsults, ws, dir, e.cfg.Diagram),
 		Workspace:    ws.Dir,
 		WritableDirs: []string{filepath.Join(dir, "out")},
 		Model:        snap.Model,
@@ -83,6 +85,9 @@ func (e *Engine) aiRequest(ctx context.Context, q querier, st *runState, n *doma
 	}
 	for _, o := range n.Outputs {
 		req.OutputSpec = append(req.OutputSpec, providers.OutputSpec{Key: o.Key, Type: string(o.Type), Required: o.IsRequired() && !(o.Type == domain.OutCodeChange && ws.Kind == WsCode), Schema: o.Schema, Path: outputPath(dir, o)})
+	}
+	if hasDiagram(n) {
+		e.cfg.Diagram.Grant(&req)
 	}
 	if n.Limits != nil && n.Limits.Timeout != "" {
 		req.Limits.Timeout, _ = time.ParseDuration(n.Limits.Timeout)
@@ -145,6 +150,10 @@ func (e *Engine) startAI(ctx context.Context, seen *runState, n *domain.Node, sn
 func (e *Engine) launchAI(a *activeAttempt, n *domain.Node, snap domain.AssignmentSnapshot, prov providers.Provider) {
 	ctx := context.Background()
 	fail := func(err error) {
+		if e.ctx.Err() != nil { // shutting down: start-up recovery marks it interrupted
+			e.retire(a)
+			return
+		}
 		if err := e.failStart(ctx, a.runID, n.ID, err); err != nil {
 			e.cfg.Logf("engine: attempt %s: %v", a.id, err)
 		}
@@ -346,7 +355,13 @@ func (e *Engine) onEvent(a *activeAttempt, n *domain.Node, ev providers.Event) e
 
 // complete records a provider's end. A provider "success" only starts
 // verification; the step succeeds only if its outputs check out (T15).
+// A session that ends without success while the app is shutting down was
+// stopped by the shutdown, not by the person or the provider, so the
+// attempt is left for start-up recovery to mark interrupted.
 func (e *Engine) complete(ctx context.Context, a *activeAttempt, n *domain.Node, p providers.CompletedPayload) error {
+	if e.ctx.Err() != nil && p.Status != providers.StatusSucceeded {
+		return nil
+	}
 	dir := e.attemptDir(a.projectID, a.runID, a.id)
 	current := false
 	_, err := e.db.Change(ctx, func(c *storage.Change) error {

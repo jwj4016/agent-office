@@ -64,6 +64,13 @@ type bridgeStart struct {
 	// ReadOnlyCwd keeps file-writing tools out of the working folder;
 	// only WritableDirs stay writable (Policy.Sandbox "read-only").
 	ReadOnlyCwd bool `json:"readOnlyCwd,omitempty"`
+	// ReadableDirs may be read without asking, never written.
+	ReadableDirs []string `json:"readableDirs,omitempty"`
+	// Plugins are local plugin folders loaded for this session only.
+	Plugins []string `json:"plugins,omitempty"`
+	// CheckCommand (interpreter, script) runs without asking on files in
+	// the work and output folders.
+	CheckCommand []string `json:"checkCommand,omitempty"`
 }
 
 type bridgeLine struct {
@@ -99,7 +106,7 @@ func (c *ClaudeBridge) Start(ctx context.Context, req StartRequest) (Session, er
 	if err := p.send(bridgeStart{
 		Type: "start", Prompt: req.Prompt, Instructions: req.Instructions, Cwd: req.Workspace,
 		Model: req.Model, AllowedTools: c.AllowedTools, AskApproval: req.Policy.AskApproval, WritableDirs: req.WritableDirs,
-		ReadOnlyCwd: req.Policy.Sandbox == "read-only",
+		ReadOnlyCwd: req.Policy.Sandbox == "read-only", ReadableDirs: req.ReadableDirs, Plugins: req.Plugins, CheckCommand: req.CheckCommand,
 	}); err != nil {
 		p.stop(time.Second)
 		return nil, fmt.Errorf("claude: send start: %w", err)

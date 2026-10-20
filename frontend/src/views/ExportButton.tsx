@@ -1,7 +1,8 @@
 import {useState} from 'react';
 import {api} from '../api';
 import type {ExportResult} from '../types';
-import {ErrorBox, useAction} from '../ui';
+import {Download} from 'lucide-react';
+import {Button, ErrorBox, useAction} from '../ui';
 
 // ExportButton saves one service as a zip without keys or login data.
 export function ExportButton({projectId}: { projectId: string }) {
@@ -14,15 +15,15 @@ export function ExportButton({projectId}: { projectId: string }) {
     return (
         <div className="stack">
             <div className="row">
-                <button className="btn" disabled={action.busy} onClick={run}>{action.busy ? '내보내는 중…' : '내보내기 (키 제외)'}</button>
+                <Button icon={Download} busy={action.busy} onClick={run}>{action.busy ? '내보내는 중…' : '내보내기 (키 제외)'}</Button>
             </div>
             <ErrorBox error={action.error}/>
             {done ? (
-                <div className="small" role="status">
+                <div className="small banner ok" role="status" style={{flexDirection: 'column', gap: 2}}>
                     <div>저장했습니다: <span className="mono">{done.path}</span></div>
                     <div>기록 {done.rows.toLocaleString()}건 · 결과 파일 {done.artifacts}개
                         {done.masked > 0 ? ` · 키로 보이는 값 ${done.masked}곳을 가렸습니다` : ''}</div>
-                    {done.missing.length ? <div style={{color: 'var(--danger)'}}>찾지 못한 결과 파일 {done.missing.length}개는 목록에만 남겼습니다.</div> : null}
+                    {done.missing.length ? <div style={{color: 'var(--danger-text)'}}>찾지 못한 결과 파일 {done.missing.length}개는 목록에만 남겼습니다.</div> : null}
                 </div>
             ) : null}
         </div>

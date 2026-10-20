@@ -101,6 +101,7 @@ jobs:
         run: |
           sudo apt-get install -y "./$(ls dist/*.deb)"
           dpkg -L agent-office | grep -E 'claude-runner/dist/main.js|bin/agent-office|desktop'
+          dpkg -L agent-office | grep -q 'diagram-design/skills/diagram-design/SKILL.md'
           mkdir -p "$RUNNER_TEMP/작업 공간 시험" && cd "$RUNNER_TEMP/작업 공간 시험"
           agent-office --self-check -out "$GITHUB_WORKSPACE/dist/self-check-${{ matrix.name }}.json"
           sudo apt-get remove -y agent-office
@@ -136,6 +137,11 @@ jobs:
             const b = r.checks.find((c) => c.id === "bridge");
             console.log(r.version, r.os, r.arch, b.status, b.detail);
             if (!r.ok || b.status !== "ok" || !/claude-runner/.test(b.detail)) process.exit(1);
+            // The diagram skill must come from the package, not a checkout;
+            // a missing Python is only a warning.
+            const d = r.checks.find((c) => c.id === "diagram");
+            console.log(d && d.status, d && d.detail);
+            if (!d || d.status === "failed" || /third_party/.test(d.detail)) process.exit(1);
           ' "$PWD/dist/self-check-${{ matrix.name }}.json"
 
       - uses: actions/upload-artifact@v4
@@ -168,6 +174,7 @@ jobs:
           if ($p.ExitCode -ne 0) { throw "installer exit $($p.ExitCode)" }
           Get-ChildItem $dir | Format-Table Name, Length
           if (-not (Test-Path "$dir\claude-runner\dist\main.js")) { throw "claude-runner missing" }
+          if (-not (Test-Path "$dir\diagram-design\skills\diagram-design\SKILL.md")) { throw "diagram-design missing" }
           $report = "$env:GITHUB_WORKSPACE\dist\self-check-windows-x64.json"
           Set-Location $env:RUNNER_TEMP
           $c = Start-Process "$dir\agent-office.exe" -ArgumentList '--self-check', '-out', "`"$report`"" -Wait -PassThru
@@ -196,6 +203,11 @@ jobs:
             const b = r.checks.find((c) => c.id === "bridge");
             console.log(r.version, r.os, r.arch, b.status, b.detail);
             if (!r.ok || b.status !== "ok" || !/claude-runner/.test(b.detail)) process.exit(1);
+            // The diagram skill must come from the package, not a checkout;
+            // a missing Python is only a warning.
+            const d = r.checks.find((c) => c.id === "diagram");
+            console.log(d && d.status, d && d.detail);
+            if (!d || d.status === "failed" || /third_party/.test(d.detail)) process.exit(1);
           ' "$PWD/dist/self-check-windows-x64.json"
 
       - uses: actions/upload-artifact@v4

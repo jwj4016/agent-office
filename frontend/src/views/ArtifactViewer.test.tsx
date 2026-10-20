@@ -1,6 +1,6 @@
 import {render, screen} from '@testing-library/react';
 import {describe, expect, it} from 'vitest';
-import {CodeChangeView} from './ArtifactViewer';
+import {CodeChangeView, DiagramView} from './ArtifactViewer';
 
 describe('CodeChangeView', () => {
     it('lists changed files and the diff recorded from Git', () => {
@@ -20,5 +20,16 @@ describe('CodeChangeView', () => {
     it('falls back to raw JSON for results written without Git', () => {
         render(<CodeChangeView content={'{"changes": []}'}/>);
         expect(screen.getByText(/"changes"/)).toBeInTheDocument();
+    });
+});
+
+describe('DiagramView', () => {
+    it('previews the diagram in a frame with no permissions and keeps the source', () => {
+        const html = '<html><body><svg role="img"><title>아키텍처</title></svg></body></html>';
+        render(<DiagramView content={html} title="arch.arch"/>);
+        const frame = screen.getByTitle('다이어그램 arch.arch');
+        expect(frame.getAttribute('sandbox')).toBe('');
+        expect(frame.getAttribute('srcdoc')).toBe(html);
+        expect(screen.getByText('HTML 원본')).toBeInTheDocument();
     });
 });

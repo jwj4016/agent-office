@@ -80,7 +80,17 @@ type StartRequest struct {
 	Workspace     string       `json:"workspace"`
 	// WritableDirs are extra directories the provider may write besides
 	// Workspace (the attempt's output folder). Nothing else is granted.
-	WritableDirs  []string `json:"writableDirs"`
+	WritableDirs []string `json:"writableDirs"`
+	// ReadableDirs are extra directories the provider may read without
+	// asking (bundled skills). They are never writable.
+	ReadableDirs []string `json:"readableDirs,omitempty"`
+	// Plugins are local Claude Code plugin folders to load for this
+	// attempt. Providers without plugin support get the same skill
+	// through the prompt instead.
+	Plugins []string `json:"plugins,omitempty"`
+	// CheckCommand is a self-check (interpreter, script) the provider may
+	// run without asking on files in the work and output folders.
+	CheckCommand  []string `json:"checkCommand,omitempty"`
 	Limits        Limits   `json:"limits"`
 	Policy        Policy   `json:"policy"`
 	ConnectionRef string   `json:"connectionRef"`

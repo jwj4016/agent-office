@@ -4,7 +4,7 @@
 #
 #   scripts/package-linux.sh [version] [out-dir]
 #
-# Layout: /usr/lib/agent-office/{agent-office,claude-runner/},
+# Layout: /usr/lib/agent-office/{agent-office,claude-runner/,diagram-design/},
 # /usr/bin/agent-office (link), a desktop entry and an icon.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -18,6 +18,8 @@ trap 'rm -rf "$work"' EXIT
 root="$work/agent-office"
 install -Dm755 build/bin/agent-office "$root/usr/lib/agent-office/agent-office"
 node scripts/stage-runner.mjs "$root/usr/lib/agent-office/claude-runner" --os linux --cpu x64
+# The diagram-design skill given to diagram steps.
+cp -R third_party/diagram-design "$root/usr/lib/agent-office/diagram-design"
 mkdir -p "$root/usr/bin"
 ln -s ../lib/agent-office/agent-office "$root/usr/bin/agent-office"
 install -Dm644 build/linux/agent-office.desktop "$root/usr/share/applications/agent-office.desktop"
