@@ -68,8 +68,8 @@ type Config struct {
 	// Diagram is the bundled diagram-design skill, given to steps with a
 	// diagram output and used to check their results.
 	Diagram DiagramSkill
-	// Ephemeral receives high-volume provider events (message deltas)
-	// that are shown live but not stored. Optional.
+	// Ephemeral receives message deltas for immediate UI feedback. Public
+	// output is also batched into durable activity events. Optional.
 	Ephemeral func(projectID string, ev providers.Event)
 	// Logf receives diagnostics. Optional.
 	Logf func(format string, args ...any)

@@ -17,6 +17,17 @@ function Host() {
 }
 
 describe('DetailPane', () => {
+    it('recovers focus when a secondary detail replaces its focused trigger', () => {
+        function ReplaceHost() {
+            const [open, setOpen] = useState(false), [next, setNext] = useState(false);
+            return <><button onClick={() => setOpen(true)}>상세 열기</button><DetailPane detail={open ? (next ? <p>활동 기록</p> : <button onClick={() => setNext(true)}>활동 열기</button>) : null} onClose={() => setOpen(false)}/></>;
+        }
+        render(<ReplaceHost/>);
+        fireEvent.click(screen.getByRole('button', {name: '상세 열기'}));
+        const trigger = screen.getByRole('button', {name: '활동 열기'});
+        trigger.focus(); fireEvent.click(trigger);
+        expect(screen.getByRole('complementary')).toHaveFocus();
+    });
     it('takes focus when it opens, keeps it in a field while typing, and closes on Escape', () => {
         render(<Host/>);
         fireEvent.click(screen.getByRole('button', {name: '열기'}));

@@ -15,6 +15,7 @@ var SettingKeys = map[string]bool{
 	"ui.lastProjectId": true,
 	"ui.officeView":    true,
 	"ui.theme":         true,
+	"ui.tutorialSeen":  true,
 	SettingMaxActive:   true,
 }
 

@@ -49,6 +49,7 @@ describe('WorkflowAssist', () => {
 
     it('offers only connections that can read the skill for diagrams', async () => {
         renderAssist();
+        fireEvent.click(screen.getByText('AI 연결·모델'));
         await waitFor(() => expect(screen.getByRole('option', {name: 'api'})).toBeInTheDocument());
         fireEvent.click(screen.getByLabelText(/파이프라인 다이어그램 만들기/));
         await waitFor(() => expect(screen.queryByRole('option', {name: 'api'})).toBeNull());
@@ -57,14 +58,15 @@ describe('WorkflowAssist', () => {
     it('shows what a proposal changes and applies it', async () => {
         const onApplied = vi.fn();
         fakeApi.assists.mockResolvedValue([record({result: {
-            workflow: {schemaVersion: 1, title: '흐름', nodes: []}, notes: '리뷰를 넣었습니다', issues: [], canVersion: true,
+            workflow: {schemaVersion: 1, title: '흐름', nodes: []}, notes: '리뷰를 넣었습니다', issues: null, canVersion: true, // Go sends null for no issues
             changes: {added: ['기획 리뷰'], removed: [], changed: ['기획 승인']},
         }})]);
         fakeApi.applyAssist.mockResolvedValue({});
         renderAssist({onApplied});
         expect(await screen.findByText('리뷰를 넣었습니다')).toBeInTheDocument();
         expect(screen.getByText('기획 리뷰')).toBeInTheDocument();
-        fireEvent.click(screen.getByRole('button', {name: '수정안 적용'}));
+        expect(screen.getByText('검증 문제 없음')).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', {name: '초안에 적용'}));
         await waitFor(() => expect(onApplied).toHaveBeenCalled());
         expect(fakeApi.applyAssist).toHaveBeenCalledWith('ast-1');
     });
@@ -78,6 +80,33 @@ describe('WorkflowAssist', () => {
         expect(frame.getAttribute('sandbox')).toBe('');
         fireEvent.click(screen.getByRole('button', {name: 'HTML로 저장…'}));
         await waitFor(() => expect(fakeApi.saveWorkflowDiagram).toHaveBeenCalledWith('ast-1'));
+    });
+
+    it('refines a proposal without applying it', async () => {
+        fakeApi.assists.mockResolvedValue([record({result: {
+            workflow: {schemaVersion: 1, title: '흐름', nodes: []}, notes: '리뷰 추가', issues: [], canVersion: true,
+            changes: {added: [], removed: [], changed: []},
+        }})]);
+        fakeApi.startAssist.mockResolvedValue(record({id: 'ast-2', status: 'working'}));
+        renderAssist();
+        fireEvent.click(await screen.findByRole('button', {name: '추가 수정 요청'}));
+        const input = screen.getByLabelText(/어떻게 고칠까요/);
+        expect(input).toHaveFocus();
+        fireEvent.change(input, {target: {value: '승인은 유지해 줘'}});
+        await confirm('추가 수정안 요청');
+        await waitFor(() => expect(fakeApi.startAssist).toHaveBeenCalledWith(expect.objectContaining({parentId: 'ast-1', request: '승인은 유지해 줘'})));
+        expect(fakeApi.applyAssist).not.toHaveBeenCalled();
+    });
+
+    it('protects unsaved edits when applying a proposal', async () => {
+        fakeApi.assists.mockResolvedValue([record({result: {
+            workflow: {schemaVersion: 1, title: '흐름', nodes: []}, notes: '', issues: [], canVersion: true,
+            changes: {added: [], removed: [], changed: []},
+        }})]);
+        renderAssist({dirty: true});
+        fireEvent.click(await screen.findByRole('button', {name: '초안에 적용'}));
+        expect(await screen.findByText(/먼저 초안을 저장한 뒤/)).toBeInTheDocument();
+        expect(fakeApi.applyAssist).not.toHaveBeenCalled();
     });
 
     it('shows why a job failed', async () => {

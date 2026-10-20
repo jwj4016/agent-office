@@ -1,4 +1,5 @@
 build/bin
+/build/ai-activity-qa/
 frontend/dist
 frontend/node_modules
 runners/claude/node_modules

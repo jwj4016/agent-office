@@ -145,6 +145,16 @@ func TestAssistEditFailuresAndChecks(t *testing.T) {
 	if rec := e.assist(design.AssistInput{ProjectID: p.ID, WorkflowID: p.WorkflowID, Kind: design.AssistEdit, Request: "x", Model: "edit-none"}); rec.Status != design.AssistFailed || !strings.Contains(rec.Error, "workflow") {
 		t.Fatalf("no workflow: %s %q", rec.Status, rec.Error)
 	}
+	// Notes written as a list still make a proposal.
+	e.script("edit-list-notes", "edit", strings.Replace(editWith(p), `"notes": "기획 뒤에 리뷰를 넣었습니다"`, `"notes": ["리뷰 추가", "승인은 그대로"]`, 1))
+	if rec := e.assist(design.AssistInput{ProjectID: p.ID, WorkflowID: p.WorkflowID, Kind: design.AssistEdit, Request: "x", Model: "edit-list-notes"}); rec.Status != design.AssistReady || !strings.Contains(string(rec.Result), `리뷰 추가\n승인은 그대로`) {
+		t.Fatalf("list notes: %s %q %s", rec.Status, rec.Error, rec.Result)
+	}
+	// A file cut off halfway is reported as such, not as a missing workflow.
+	e.script("edit-cut", "edit", editWith(p)[:120])
+	if rec := e.assist(design.AssistInput{ProjectID: p.ID, WorkflowID: p.WorkflowID, Kind: design.AssistEdit, Request: "x", Model: "edit-cut"}); rec.Status != design.AssistFailed || !strings.Contains(rec.Error, "올바른 JSON이 아닙니다") {
+		t.Fatalf("cut-off file: %s %q", rec.Status, rec.Error)
+	}
 	// A proposal with problems is shown with its issues, not hidden.
 	e.script("edit-bad", "edit", strings.Replace(editWith(p), `"dependsOn": ["review"]`, `"dependsOn": ["nowhere"]`, 1))
 	rec := e.assist(design.AssistInput{ProjectID: p.ID, WorkflowID: p.WorkflowID, Kind: design.AssistEdit, Request: "x", Model: "edit-bad"})
@@ -220,5 +230,54 @@ func TestAssistRecoverMarksWorkingFailed(t *testing.T) {
 	}
 	if got, _ := e.db.Assist(e.ctx, rec.ID); got.Status != design.AssistFailed {
 		t.Fatalf("after recover: %s", got.Status)
+	}
+}
+
+func TestAssistFollowUpKeepsOriginalDraftAndScope(t *testing.T) {
+	e, p, captured := assistEnv(t)
+	w, _ := e.db.Workflow(e.ctx, p.ID, p.WorkflowID)
+	spec, _ := domain.ParseWorkflow(w.Draft)
+	spec.Nodes[0].Instructions = "먼저 목표를 정리하세요"
+	proposal, _ := json.Marshal(map[string]any{"workflow": spec, "notes": "기획 지시 보완"})
+	e.script("scoped", "edit", string(proposal))
+	first := e.assist(design.AssistInput{ProjectID: p.ID, WorkflowID: p.WorkflowID, Kind: design.AssistEdit, Request: "기획 지시 보완", ScopeNodeID: "plan", Model: "scoped"})
+	if first.Status != design.AssistReady {
+		t.Fatalf("scope: %s", first.Error)
+	}
+	if !strings.Contains(captured.last().Prompt, "id=plan 업무만 수정") {
+		t.Fatal("missing scope")
+	}
+	spec.Nodes[0].Instructions += ". 검증 기준도 명시하세요"
+	proposal, _ = json.Marshal(map[string]any{"workflow": spec, "notes": "기준 보완"})
+	e.script("refine", "edit", string(proposal))
+	second := e.assist(design.AssistInput{ProjectID: p.ID, WorkflowID: p.WorkflowID, Kind: design.AssistEdit, Request: "검증 기준 추가", ParentID: first.ID, Model: "refine"})
+	if second.Status != design.AssistReady || second.ScopeNodeID != "plan" || string(second.BaseWorkflow) != string(w.Draft) {
+		t.Fatalf("follow-up: %+v", second)
+	}
+	if !strings.Contains(captured.last().Prompt, "먼저 목표를 정리하세요") || !strings.Contains(captured.last().Prompt, "이전 요청: 기획 지시 보완") {
+		t.Fatal("follow-up lost proposal context")
+	}
+	page, err := e.db.Activity(e.ctx, p.ID, "", second.ID, 0)
+	if err != nil || len(page.Events) < 2 {
+		t.Fatalf("activity: %+v %v", page, err)
+	}
+	other := testenv.SeedDraft(t, e.db, "다른 서비스", assistWorkflow, map[string]string{"a-planner": "기획"}, []string{"a-owner"})
+	if _, err := e.svc.StartAssist(e.ctx, design.AssistInput{ProjectID: other.ID, WorkflowID: other.WorkflowID, Kind: design.AssistEdit, Request: "침범", ParentID: first.ID, ConnectionID: e.conn.ID}); !errors.Is(err, storage.ErrNotInProject) {
+		t.Fatalf("cross-project follow-up: %v", err)
+	}
+	if _, err := e.svc.ApplyAssist(e.ctx, second.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.svc.StartAssist(e.ctx, design.AssistInput{ProjectID: p.ID, WorkflowID: p.WorkflowID, Kind: design.AssistEdit, Request: "늦은 요청", ParentID: first.ID, ConnectionID: e.conn.ID}); !errors.Is(err, design.ErrAssistConflict) {
+		t.Fatalf("stale follow-up: %v", err)
+	}
+}
+
+func TestAssistScopedEditRejectsChangesOutsideSelectedNode(t *testing.T) {
+	e, p, _ := assistEnv(t)
+	e.script("outside", "edit", editWith(p))
+	a := e.assist(design.AssistInput{ProjectID: p.ID, WorkflowID: p.WorkflowID, Kind: design.AssistEdit, Request: "선택 업무 수정", ScopeNodeID: "plan", Model: "outside"})
+	if a.Status != design.AssistFailed || !strings.Contains(a.Error, "선택한 업무 밖") {
+		t.Fatalf("outside scope: %+v", a)
 	}
 }

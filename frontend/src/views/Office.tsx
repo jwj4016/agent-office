@@ -13,6 +13,7 @@ import {
     ActorBadge, Banner, Button, DetailHeader, EmptyState, ErrorBox, Icon, Loading, REDUCED_MOTION, StatusBadge, StepBadge, type Tone, useAction, useDetail,
 } from '../ui';
 import {ArtifactViewer} from './ArtifactViewer';
+import {AIActivityPanel} from './AIActivity';
 
 const VIEW = 'ui.officeView';
 const COLS = 3;
@@ -310,6 +311,7 @@ export function DeskDetail({project, assignmentId, onRoute}: { project: Project;
                                     onClick={() => action.run(async () => { await api.retryStep(project.id, w.runId, w.stepId); reload(); })}>다시 시도</Button>
                         ) : null}
                         <Button size="sm" variant="ghost" onClick={() => onRoute({view: 'project', projectId: project.id, tab: 'runs', runId: w.runId})}>실행 보기</Button>
+                        <Button size="sm" onClick={() => setDetail(<AIActivityPanel project={project} runId={w.runId} stepId={w.stepId} assignmentId={assignmentId} onBack={back} onInbox={() => onRoute({view: 'inbox'})}/>)}>AI 활동</Button>
                         {w.artifacts.map((art) => (
                             <Button key={art.id} size="sm" icon={FileText}
                                     onClick={() => setDetail(<ArtifactViewer projectId={project.id} artifactId={art.id} onClose={back}/>)}>

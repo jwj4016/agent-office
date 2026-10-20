@@ -339,7 +339,17 @@ export const useDetail = () => useContext(DetailContext);
 export function DetailPane({detail, onClose}: { detail: ReactNode | null; onClose: () => void }) {
     const aside = useRef<HTMLElement>(null);
     const open = detail !== null;
-    useEffect(() => { if (open) aside.current?.focus(); }, [open]);
+    useEffect(() => {
+        if (!open) return;
+        const trigger = document.activeElement as HTMLElement | null;
+        aside.current?.focus();
+        return () => { if (trigger?.isConnected) trigger.focus(); };
+    }, [open]);
+    useEffect(() => {
+        // A desk/detail replacement can remove the focused button. Recover
+        // focus only then; normal form updates must keep the person's cursor.
+        if (open && document.activeElement === document.body) aside.current?.focus();
+    }, [detail, open]);
     if (!open) return null;
     return (
         <>

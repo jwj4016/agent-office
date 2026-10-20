@@ -10,10 +10,11 @@ import {
     StatusBadge, StepBadge, stepIcon, stepTone, type Tone, runTone, useAction, useDetail, useToast,
 } from '../ui';
 import {ArtifactViewer} from './ArtifactViewer';
+import {AIActivityPanel} from './AIActivity';
 
-export function Runs({project, runId, onOpen}: { project: Project; runId?: string; onOpen: (runId?: string) => void }) {
+export function Runs({project, runId, onOpen, onInbox = () => {}}: { project: Project; runId?: string; onOpen: (runId?: string) => void; onInbox?: () => void }) {
     const list = useLoad(() => api.runs(project.id), [project.id], project.id);
-    if (runId) return <RunView project={project} runId={runId} onBack={() => onOpen(undefined)}/>;
+    if (runId) return <RunView project={project} runId={runId} onBack={() => onOpen(undefined)} onInbox={onInbox}/>;
     if (list.error) return <ErrorBox error={list.error}/>;
     if (!list.data) return <Loading/>;
     if (list.data.length === 0) {
@@ -49,7 +50,7 @@ export function Runs({project, runId, onOpen}: { project: Project; runId?: strin
 
 const markerTone = (s: StepView): Tone => stepTone[s.status] || '';
 
-function RunView({project, runId, onBack}: { project: Project; runId: string; onBack: () => void }) {
+function RunView({project, runId, onBack, onInbox}: { project: Project; runId: string; onBack: () => void; onInbox: () => void }) {
     const {data, error, reload} = useLoad(() => api.run(project.id, runId), [project.id, runId], project.id);
     const live = useLive();
     const action = useAction();
@@ -136,6 +137,7 @@ function RunView({project, runId, onBack}: { project: Project; runId: string; on
                                     {s.round > 0 ? <span className="muted small">수정 {s.round}회</span> : null}
                                     {s.attempt > 1 ? <span className="muted small">시도 {s.attempt}</span> : null}
                                     <span className="spacer"/>
+                                    <Button size="sm" icon={MessageSquare} onClick={() => setDetail(<AIActivityPanel project={project} runId={runId} stepId={s.id} onInbox={onInbox}/>)}>AI 활동</Button>
                                     {canRetry(run, s) && !blocked.includes(s)
                                         ? <Button size="sm" icon={RotateCcw} busy={action.busy} onClick={() => retry(s)}>다시 시도</Button> : null}
                                 </div>

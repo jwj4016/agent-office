@@ -152,6 +152,8 @@ export namespace design {
 	    request: string;
 	    connectionId: string;
 	    model: string;
+	    parentId: string;
+	    scopeNodeId: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new AssistInput(source);
@@ -165,6 +167,8 @@ export namespace design {
 	        this.request = source["request"];
 	        this.connectionId = source["connectionId"];
 	        this.model = source["model"];
+	        this.parentId = source["parentId"];
+	        this.scopeNodeId = source["scopeNodeId"];
 	    }
 	}
 	export class MissingItem {
@@ -2152,6 +2156,70 @@ export namespace main {
 
 export namespace storage {
 	
+	export class EventRecord {
+	    sequence: number;
+	    id: string;
+	    projectId: string;
+	    runId?: string;
+	    stepAttemptId?: string;
+	    kind: string;
+	    payload: number[];
+	    createdAt: string;
+	    stepId?: string;
+	    assignmentId?: string;
+	    attempt?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new EventRecord(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.sequence = source["sequence"];
+	        this.id = source["id"];
+	        this.projectId = source["projectId"];
+	        this.runId = source["runId"];
+	        this.stepAttemptId = source["stepAttemptId"];
+	        this.kind = source["kind"];
+	        this.payload = source["payload"];
+	        this.createdAt = source["createdAt"];
+	        this.stepId = source["stepId"];
+	        this.assignmentId = source["assignmentId"];
+	        this.attempt = source["attempt"];
+	    }
+	}
+	export class ActivityPage {
+	    events: EventRecord[];
+	    hasMore: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new ActivityPage(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.events = this.convertValues(source["events"], EventRecord);
+	        this.hasMore = source["hasMore"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class AssistRecord {
 	    id: string;
 	    projectId: string;
@@ -2166,6 +2234,9 @@ export namespace storage {
 	    error: string;
 	    createdAt: string;
 	    updatedAt: string;
+	    baseWorkflow: number[];
+	    parentId?: string;
+	    scopeNodeId?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new AssistRecord(source);
@@ -2186,6 +2257,9 @@ export namespace storage {
 	        this.error = source["error"];
 	        this.createdAt = source["createdAt"];
 	        this.updatedAt = source["updatedAt"];
+	        this.baseWorkflow = source["baseWorkflow"];
+	        this.parentId = source["parentId"];
+	        this.scopeNodeId = source["scopeNodeId"];
 	    }
 	}
 	export class DesignApplied {
@@ -2208,32 +2282,7 @@ export namespace storage {
 	        this.newProject = source["newProject"];
 	    }
 	}
-	export class EventRecord {
-	    sequence: number;
-	    id: string;
-	    projectId: string;
-	    runId?: string;
-	    stepAttemptId?: string;
-	    kind: string;
-	    payload: number[];
-	    createdAt: string;
 	
-	    static createFrom(source: any = {}) {
-	        return new EventRecord(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.sequence = source["sequence"];
-	        this.id = source["id"];
-	        this.projectId = source["projectId"];
-	        this.runId = source["runId"];
-	        this.stepAttemptId = source["stepAttemptId"];
-	        this.kind = source["kind"];
-	        this.payload = source["payload"];
-	        this.createdAt = source["createdAt"];
-	    }
-	}
 	export class ValidationResult {
 	    issues: domain.Issue[];
 	    canVersion: boolean;

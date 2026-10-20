@@ -1,17 +1,18 @@
-import {Building2, Home, Inbox as InboxIcon, Network, Plus, Settings as SettingsIcon} from 'lucide-react';
+import {Building2, CircleHelp, Home, Inbox as InboxIcon, Network, Plus, Settings as SettingsIcon} from 'lucide-react';
 import {type ReactNode, useEffect, useRef, useState} from 'react';
 import {api} from './api';
 import {t} from './i18n';
 import {LiveProvider, useLoad} from './live';
 import {markReady, startLagProbe} from './perf';
 import type {ProjectSummary} from './types';
-import {applyMotion, applyTheme, Banner, DetailPane, DetailProvider, Icon, REDUCED_MOTION, THEME, ToastProvider} from './ui';
+import {applyMotion, applyTheme, Banner, DetailPane, DetailProvider, Icon, REDUCED_MOTION, THEME, ToastProvider, useToast} from './ui';
 import {Dashboard} from './views/Dashboard';
 import {Design} from './views/Design';
 import {Inbox} from './views/Inbox';
 import {Organization} from './views/Organization';
 import {ProjectView, type ProjectTab} from './views/ProjectView';
 import {Settings} from './views/Settings';
+import {Tutorial, TUTORIAL_SEEN} from './views/Tutorial';
 
 export type Route =
     | { view: 'dashboard' }
@@ -46,7 +47,7 @@ function Shell() {
             </main>
         );
     }
-    return <Workspace perf={status.data?.perf === true}/>;
+    return <Workspace perf={status.data ? status.data.perf === true : undefined}/>;
 }
 
 // serviceState is the one-word state a service shows in the sidebar.
@@ -63,9 +64,12 @@ export function serviceState(s: ProjectSummary): { tone: 'bad' | 'warn' | 'info'
 // the tab list while the person is using the arrow keys.
 const routeKey = (r: Route) => (r.view === 'project' ? `project/${r.projectId}` : r.view);
 
-function Workspace({perf}: { perf: boolean }) {
+function Workspace({perf}: { perf: boolean | undefined }) {
     const [route, setRoute] = useState<Route>({view: 'dashboard'});
     const [detail, setDetail] = useState<ReactNode | null>(null);
+    const [tutorialOpen, setTutorialOpen] = useState(false);
+    const tutorialTouched = useRef(false);
+    const toast = useToast();
     const dash = useLoad(() => api.dashboard(false), [], '*');
     const inbox = useLoad(() => api.inbox(), [], '*');
 
@@ -82,13 +86,26 @@ function Workspace({perf}: { perf: boolean }) {
     // Display settings, and the last selected service (switching never
     // affects runs).
     useEffect(() => {
+        if (perf === undefined) return;
+        let cancelled = false;
         api.settings().then((s) => {
+            if (cancelled) return;
             applyMotion(s[REDUCED_MOTION] === 'true');
             applyTheme(s[THEME]);
+            if (!perf && !tutorialTouched.current && s[TUTORIAL_SEEN] !== 'true') setTutorialOpen(true);
             const id = s[LAST_PROJECT];
             if (id) setRoute((r) => (r.view === 'dashboard' ? {view: 'project', projectId: id, tab: 'status'} : r));
         }).catch(() => {});
-    }, []);
+        return () => { cancelled = true; };
+    }, [perf]);
+
+    const closeTutorial = () => {
+        tutorialTouched.current = true;
+        setTutorialOpen(false);
+        api.setSetting(TUTORIAL_SEEN, 'true').catch(() => {
+            toast('튜토리얼 확인 상태를 저장하지 못했습니다. 다음 실행 때 다시 열릴 수 있습니다.', 'bad');
+        });
+    };
 
     // After a route change, move focus to the new screen's title so
     // keyboard and screen-reader users start at the top of it.
@@ -179,12 +196,16 @@ function Workspace({perf}: { perf: boolean }) {
                     })}
                     {dash.data && projects.length === 0 ? <div className="nav-empty">아직 서비스가 없습니다</div> : null}
                     <div className="spacer"/>
+                    <button className="nav-item" onClick={() => { tutorialTouched.current = true; setTutorialOpen(true); }} title="튜토리얼 다시 보기" aria-label="튜토리얼 다시 보기">
+                        <Icon icon={CircleHelp} size={18}/><span className="nav-label">튜토리얼</span>
+                    </button>
                     {navButton(t.nav.organization, Network, {view: 'org'}, route.view === 'org')}
                     {navButton(t.nav.settings, SettingsIcon, {view: 'settings'}, route.view === 'settings')}
                 </nav>
                 <main className="main" id="main" tabIndex={-1}>{main}</main>
                 <DetailPane detail={detail} onClose={() => setDetail(null)}/>
             </div>
+            {tutorialOpen ? <Tutorial onClose={closeTutorial}/> : null}
         </DetailProvider>
     );
 }

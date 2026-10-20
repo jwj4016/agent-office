@@ -11,3 +11,7 @@ class ResizeObserverStub {
     disconnect() {}
 }
 globalThis.ResizeObserver ??= ResizeObserverStub as unknown as typeof ResizeObserver;
+
+// jsdom has no top layer; simulate only the native dialog's open/close state.
+HTMLDialogElement.prototype.showModal ??= function () { this.open = true; };
+HTMLDialogElement.prototype.close ??= function () { this.open = false; };

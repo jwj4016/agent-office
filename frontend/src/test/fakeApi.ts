@@ -28,6 +28,7 @@ export const fakeApi = {
     exportProject: vi.fn(),
     chooseFolder: vi.fn(async (..._args: unknown[]) => ''),
     startAssist: vi.fn(), assists: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []), assist: vi.fn(), applyAssist: vi.fn(),
+    aiActivity: vi.fn(async (..._args: unknown[]): Promise<{events: unknown[]; hasMore: boolean}> => ({events: [], hasMore: false})),
     discardAssist: ok(undefined), workflowDiagram: vi.fn(async (..._args: unknown[]) => ''), saveWorkflowDiagram: vi.fn(async (..._args: unknown[]) => ''),
     projectUsage: ok({inputTokens: 0, outputTokens: 0, costUsd: 0, unknownCostAttempts: 0, attempts: 0, budget: {}}),
     decideApproval: acted('succeeded'),

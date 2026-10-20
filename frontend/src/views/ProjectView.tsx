@@ -14,6 +14,7 @@ import {
     runTone, type TabItem, Tabs, useAction, useDetail, useToast,
 } from '../ui';
 import {ArtifactViewer} from './ArtifactViewer';
+import {AIActivityPanel} from './AIActivity';
 import {ExportButton} from './ExportButton';
 import {FolderInput} from './FolderInput';
 import {DeskDetail, Office, OfficeList, useOffice} from './Office';
@@ -73,7 +74,7 @@ export function ProjectView({route, onRoute, onChanged}: {
                 {route.tab === 'status' ? <Status project={p} onRoute={onRoute}/> : null}
                 {route.tab === 'office' ? <Office project={p} onRoute={onRoute}/> : null}
                 {route.tab === 'runs' ? (
-                    <Runs project={p} runId={route.runId}
+                    <Runs project={p} runId={route.runId} onInbox={() => onRoute({view: 'inbox'})}
                           onOpen={(runId) => onRoute({view: 'project', projectId: p.id, tab: 'runs', runId})}/>
                 ) : null}
                 {route.tab === 'workflows' ? (
@@ -148,11 +149,13 @@ function Status({project, onRoute}: { project: Project; onRoute: (r: Route) => v
                             const p = progress(r);
                             const now = currentSteps(r);
                             return (
-                                <button key={r.id} className="card clickable stack" onClick={() => openRun(r)}>
+                                <div key={r.id} className="card stack">
+                                <button className="btn ghost" onClick={() => openRun(r)} aria-label={`${r.title} 실행 보기`}>
                                     <div className="row between">
                                         <strong>{r.title} <span className="muted small">v{r.versionNumber}</span></strong>
                                         <span className="row">{r.paused ? <StatusBadge tone="warn" icon={PauseCircle}>일시 정지</StatusBadge> : null}<RunBadge status={r.status}/></span>
                                     </div>
+                                </button>
                                     <ProgressBar done={p.done} total={p.total} tone={runTone[r.status]}/>
                                     {now.length ? (
                                         <div className="row small">
@@ -160,7 +163,8 @@ function Status({project, onRoute}: { project: Project; onRoute: (r: Route) => v
                                             {now.map((s) => <span key={s.id} className="row nowrap" style={{gap: 4}}>{s.title} <StepBadge status={s.status}/></span>)}
                                         </div>
                                     ) : null}
-                                </button>
+                                    <Button size="sm" onClick={() => setDetail(<AIActivityPanel project={project} runId={r.id} onInbox={() => onRoute({view: 'inbox'})}/>)}>AI 활동 보기</Button>
+                                </div>
                             );
                         })}
                     </div>

@@ -35,6 +35,24 @@ func TestChooseFolderOpensAtCurrentFolder(t *testing.T) {
 	}
 }
 
+func TestAIActivityRejectsOtherProjectAndMixedSources(t *testing.T) {
+	a := startApp(t)
+	p, version := buildService(t, a, "기록 서비스")
+	started := need(a.StartRun(p.ID, version))
+	run := started.RunID
+	other, _ := buildService(t, a, "다른 서비스")
+	if _, err := a.AIActivity(other.ID, run, "", 0); err == nil {
+		t.Fatal("cross-project activity allowed")
+	}
+	if _, err := a.AIActivity(p.ID, run, "mixed", 0); err == nil {
+		t.Fatal("mixed sources allowed")
+	}
+	page, err := a.AIActivity(p.ID, run, "", 0)
+	if err != nil || len(page.Events) == 0 {
+		t.Fatalf("activity: %+v %v", page, err)
+	}
+}
+
 // The person asks for a pipeline diagram and saves it where they choose.
 func TestWorkflowDiagramAssistAndSave(t *testing.T) {
 	a := startApp(t)

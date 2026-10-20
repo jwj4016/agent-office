@@ -107,6 +107,18 @@ describe('Office', () => {
         expect(onRoute).toHaveBeenCalledWith({view: 'inbox'});
     });
 
+    it('opens the same task activity inside the detail pane and returns to the desk', async () => {
+        fakeApi.run.mockResolvedValue(run);
+        renderIt();
+        fireEvent.click(await screen.findByRole('button', {name: '목록'}));
+        fireEvent.click(await screen.findByRole('button', {name: '개발 AI 상세'}));
+        const pane = await screen.findByRole('complementary', {name: '상세'});
+        fireEvent.click(await within(pane).findByRole('button', {name: 'AI 활동'}));
+        expect(await within(pane).findByRole('combobox', {name: '확인할 업무'})).toHaveValue('dev');
+        fireEvent.click(within(pane).getByRole('button', {name: '담당자 상세로'}));
+        expect(await within(pane).findByText('검증 명령 실패')).toBeInTheDocument();
+    });
+
     it('starts in the list when that was chosen before', async () => {
         state.settings = {'ui.officeView': 'list'};
         renderIt();

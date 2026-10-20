@@ -86,10 +86,12 @@ export const api = {
     setAutoPolicy: (projectId: string, ids: string[]) => call<void>(Go.SetAutoPolicy(projectId, ids)),
     chooseFolder: (title: string, start: string) => call<string>(Go.ChooseFolder(title, start)),
 
-    startAssist: (a: { projectId: string; workflowId: string; kind: AssistKind; request: string; connectionId: string; model: string }) =>
+    startAssist: (a: { projectId: string; workflowId: string; kind: AssistKind; request: string; connectionId: string; model: string; parentId?: string; scopeNodeId?: string }) =>
         call<AssistRecord>(Go.StartWorkflowAssist(a as never)),
     assists: (projectId: string, workflowId: string) => call<AssistRecord[]>(Go.ListWorkflowAssists(projectId, workflowId)),
     assist: (id: string) => call<AssistRecord>(Go.GetWorkflowAssist(id)),
+    aiActivity: (projectId: string, runId = '', assistId = '', before = 0) =>
+        call<{events: StoredEvent[]; hasMore: boolean}>(Go.AIActivity(projectId, runId, assistId, before)),
     applyAssist: (id: string) => call<Workflow>(Go.ApplyWorkflowAssist(id)),
     discardAssist: (id: string) => call<void>(Go.DiscardWorkflowAssist(id)),
     workflowDiagram: (id: string) => call<string>(Go.WorkflowDiagram(id)),
