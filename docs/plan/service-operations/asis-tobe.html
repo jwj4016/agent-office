@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Agent Office — 현재와 개선 후 업무 흐름</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif&amp;family=Geist:wght@400;500;600&amp;family=Geist+Mono:wght@400;500&amp;family=Noto+Sans+KR:wght@400;500;600&amp;family=Noto+Serif+KR:wght@400&amp;display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --paper: #f5f5f5; --paper-2: #ececec; --ink: #2d3142;
+      --muted: #4f5d75; --soft: #5a6580; --rule: rgba(45,49,66,.12);
+      --accent: #bf4520; --accent-tint: rgba(191,69,32,.08); --link: #2e5aa8;
+      --sans: 'Geist', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+      --serif: 'Instrument Serif', 'Noto Serif KR', serif;
+      --mono: 'Geist Mono', monospace;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--sans); line-height: 1.7; }
+    main { max-width: 1376px; min-width: 0; margin: auto; padding: 56px 32px 32px; }
+    .eyebrow { margin: 0 0 12px; font: 500 12px var(--mono); letter-spacing: .12em; color: var(--muted); }
+    h1 { margin: 0 0 16px; font: 400 clamp(30px, 4vw, 46px)/1.35 var(--serif); letter-spacing: -.03em; }
+    .lead { max-width: 900px; margin: 0; font-size: 17px; color: var(--muted); }
+    .notice { margin: 24px 0 36px; padding: 16px 20px; border-left: 3px solid var(--accent); background: var(--accent-tint); font-size: 14px; }
+    section { margin-top: 40px; min-width: 0; max-width: 100%; }
+    .section-head { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; }
+    .section-head span { font: 500 12px var(--mono); color: var(--muted); letter-spacing: .08em; }
+    h2 { font-size: 24px; margin: 0; font-weight: 600; letter-spacing: -.035em; }
+    .summary { margin: 8px 0 12px; color: var(--muted); font-size: 15px; }
+    figure { margin: 0; min-width: 0; max-width: 100%; }
+    .diagram-container { width: 100%; overflow-x: auto; }
+    svg { display: block; width: 100%; min-width: 1280px; height: auto; font-family: var(--sans); }
+    .lane { fill: var(--paper-2); fill-opacity: .48; }
+    .divider { stroke: var(--rule); stroke-width: 1; }
+    .lane-label { fill: var(--muted); font-size: 14px; font-weight: 600; }
+    .node { fill: #fff; stroke: var(--muted); stroke-width: 1.2; }
+    .node-focal { fill: var(--accent-tint); stroke: var(--accent); stroke-width: 1.6; }
+    .mask { fill: var(--paper); }
+    .node-title { fill: var(--ink); font-size: 19px; font-weight: 600; text-anchor: middle; }
+    .node-note { fill: var(--muted); font-size: 13px; text-anchor: middle; }
+    .tag { fill: var(--paper-2); }
+    .tag-label { fill: var(--muted); font-size: 12px; font-weight: 500; }
+    .edge { fill: none; stroke: var(--muted); stroke-width: 1.6; }
+    .return { stroke-dasharray: 5 4; }
+    .edge-label { fill: var(--muted); font-size: 12px; font-weight: 500; text-anchor: middle; }
+    .legend { fill: var(--muted); font-size: 13px; }
+    .note { fill: var(--muted); font-size: 15px; }
+    figcaption { color: var(--muted); font-size: 14px; padding: 4px 0 20px; border-bottom: 1px solid var(--rule); }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 15px; text-align: left; }
+    th, td { padding: 16px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+    th { color: var(--muted); font-size: 13px; font-weight: 600; }
+    td:first-child { font-weight: 600; width: 20%; }
+    .example { margin-top: 32px; border: 1px solid var(--rule); border-radius: 6px; padding: 24px; }
+    .example h3 { margin: 0 0 12px; font-size: 18px; }
+    .example p { margin: 8px 0; font-size: 15px; color: var(--muted); }
+    .example strong { color: var(--ink); }
+    footer { border-top: 1px solid var(--rule); padding-top: 20px; margin-top: 40px; font-size: 13px; color: var(--muted); }
+    @media (max-width: 600px) { main { padding: 32px 16px; } h2 { font-size: 21px; } .lead { font-size: 15px; } th, td { padding: 12px 8px; } }
+    @media print { main { max-width: none; padding: 0; } .diagram-container { overflow-x: visible; } svg { min-width: 0; } figure, .example { break-inside: avoid; } section { margin-top: 24px; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <p class="eyebrow">AGENT OFFICE / SERVICE OPERATIONS / 2026-10-22</p>
+    <h1>정해진 순서를 따르는 도구에서,<br>사건에 반응해 협업하는 작은 회사로</h1>
+    <p class="lead">한 부서의 업무나 중간 자료가 다른 부서의 후속 작업으로 이어집니다. 필요한 부서만 참여하고, 공유한 자료와 사건을 근거로 각자 일을 진행합니다.</p>
+    <p class="notice"><strong>구현 전 계획입니다.</strong> 5차 개정: 직접 요청은 지정 부서에 전달하고, 일반 후속 사건은 구독으로 연결합니다. 실행 밖 AI 작업의 비용도 서비스 예산에 합산하고, 자동 모드에서는 AI가 참고용 협업 요청을 결정합니다. 이번 범위는 앱 안의 업무 관리이며, 실제 게시·광고 집행·배포와 앱 종료 후 상시 실행은 포함하지 않습니다.</p>
+  </header>
+
+  <section aria-labelledby="asis-heading">
+    <div class="section-head"><span>AS-IS</span><h2 id="asis-heading">현재 — 사람이 실행할 흐름을 정하고 결과를 확인</h2></div>
+    <p class="summary">조직·역할과 처리 흐름을 구성한 뒤 실행합니다. 같은 실행 안의 승인·반려·재작업은 이미 지원합니다.</p>
+    <figure>
+      <div class="diagram-container" tabindex="0" aria-label="현재 업무 흐름, 좁은 화면에서는 가로로 스크롤할 수 있습니다">
+        <svg viewBox="0 0 1280 720" role="img" aria-labelledby="asis-tobe-asis-title asis-tobe-asis-desc">
+          <title id="asis-tobe-asis-title">현재 Agent Office의 실행 중심 업무 흐름</title>
+          <desc id="asis-tobe-asis-desc">사용자가 목표와 역할 및 처리 흐름을 정하고 AI가 실행하며, 사용자의 승인이나 수정 요청을 거쳐 실행별 결과와 기록을 남깁니다.</desc>
+          <defs>
+            <marker id="asis-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#4f5d75"/></marker>
+            <marker id="asis-arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#bf4520"/></marker>
+            <marker id="asis-arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#2e5aa8"/></marker>
+          </defs>
+          <rect width="1280" height="720" fill="#f5f5f5"/>
+          <rect class="lane" x="32" y="112" width="1216" height="160" rx="6"/>
+          <line class="divider" x1="32" y1="304" x2="1248" y2="304"/>
+          <text class="lane-label" x="48" y="96">사람</text>
+          <text class="lane-label" x="48" y="328">AI · 앱</text>
+
+          <g marker-end="url(#asis-arrow)">
+            <path class="edge" d="M264 192 H312"/>
+            <path class="edge" d="M552 192 H712 Q720 192 720 200 V364"/>
+            <path class="edge" d="M840 412 H1144 Q1152 412 1152 404 V200 Q1152 192 1144 192 H1128"/>
+            <path class="edge" d="M1008 232 V364"/>
+            <path class="edge return" d="M888 212 H768 Q760 212 760 220 V364"/>
+          </g>
+          <rect class="mask" x="784" y="180" width="72" height="24" rx="2"/>
+          <text class="edge-label" x="820" y="197">수정 요청</text>
+          <rect class="mask" x="1016" y="280" width="64" height="24" rx="2"/>
+          <text class="edge-label" x="1048" y="297">통과</text>
+
+          <g>
+            <rect class="node" x="64" y="152" width="200" height="80" rx="6"/>
+            <text class="node-title" x="164" y="185">목표·요청 입력</text>
+            <text class="node-note" x="164" y="212">사용자가 일을 시작</text>
+            <rect class="node" x="312" y="152" width="240" height="80" rx="6"/>
+            <text class="node-title" x="432" y="185">역할·처리 흐름 구성</text>
+            <text class="node-note" x="432" y="212">직접 작성 또는 AI 설계</text>
+            <rect class="mask" x="600" y="364" width="240" height="96" rx="6"/>
+            <rect class="node-focal" x="600" y="364" width="240" height="96" rx="6"/>
+            <text class="node-title" x="720" y="405">AI 실행·검증</text>
+            <text class="node-note" x="720" y="434">정해진 흐름으로 작업</text>
+            <rect class="node" x="888" y="152" width="240" height="80" rx="6"/>
+            <text class="node-title" x="1008" y="185">필요한 검토·승인</text>
+            <text class="node-note" x="1008" y="212">수정 요청 시 실행 안에서 재작업</text>
+            <rect class="node" x="888" y="364" width="240" height="96" rx="6"/>
+            <text class="node-title" x="1008" y="405">실행별 결과·기록</text>
+            <text class="node-note" x="1008" y="434">산출물과 실행 상태 보관</text>
+          </g>
+          <text class="note" x="64" y="548">관리의 중심은 ‘이번 실행’입니다.</text>
+          <text class="note" x="64" y="580">부서가 계속 맡을 책임, 다음 할 일 제안, 여러 실행을 묶는 업무 관리는 아직 추가해야 합니다.</text>
+          <line class="divider" x1="48" y1="636" x2="1232" y2="636"/>
+          <path class="edge" d="M64 668 H104" marker-end="url(#asis-arrow)"/>
+          <text class="legend" x="116" y="673">진행</text>
+          <path class="edge return" d="M232 668 H272" marker-end="url(#asis-arrow)"/>
+          <text class="legend" x="284" y="673">수정 요청</text>
+          <rect class="node-focal" x="464" y="656" width="20" height="20" rx="2"/>
+          <text class="legend" x="496" y="673">현재 중심 기능</text>
+        </svg>
+      </div>
+      <figcaption>승인 단계와 실행은 설명을 위해 묶었습니다. 실제 워크플로에는 여러 사람 업무·검증·분기와 병렬 단계가 들어갈 수 있습니다.</figcaption>
+    </figure>
+  </section>
+
+  <section aria-labelledby="tobe-heading">
+    <div class="section-head"><span>TO-BE</span><h2 id="tobe-heading">개선 후 — 공유된 사건을 보고 필요한 팀이 참여</h2></div>
+    <p class="summary">예시: 마케팅팀이 캠페인을 준비하며 초안을 공유합니다. 개발팀과 재무팀은 각자의 책임과 구독 조건에 따라 후속 업무를 제안합니다.</p>
+    <figure>
+      <div class="diagram-container" tabindex="0" aria-label="사건 기반 부서 협업, 좁은 화면에서는 가로로 스크롤할 수 있습니다">
+        <svg viewBox="0 0 1280 720" role="img" aria-labelledby="asis-tobe-tobe-title asis-tobe-tobe-desc">
+          <title id="asis-tobe-tobe-title">사건과 공유 산출물로 협업하는 작은 회사</title>
+          <desc id="asis-tobe-tobe-desc">마케팅팀이 업무 도중 기획안 초안을 공유하면 관련 사건을 구독한 개발팀과 재무팀이 필요한 업무를 제안하고 병렬로 처리하며, 각 결과를 다시 공유하고 마케팅팀이 반영해 책임자의 확인으로 공동 목표를 완료합니다.</desc>
+          <defs>
+            <marker id="tobe-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#4f5d75"/></marker>
+            <marker id="tobe-arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#bf4520"/></marker>
+            <marker id="tobe-arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0,8 3,0 6" fill="#2e5aa8"/></marker>
+          </defs>
+          <rect width="1280" height="720" fill="#f5f5f5"/>
+          <text class="lane-label" x="48" y="88">요청과 책임 부서</text>
+          <text class="lane-label" x="352" y="240">중간 자료도 공유</text>
+          <text class="lane-label" x="1000" y="88">관련 부서만 참여</text>
+
+          <g marker-end="url(#tobe-arrow)">
+            <path class="edge" d="M168 192 V272"/>
+            <path class="edge" d="M288 312 H352"/>
+            <path class="edge" d="M592 312 H656"/>
+            <path class="edge" d="M896 296 H944 Q952 296 952 288 V160 Q952 152 960 152 H1000"/>
+            <path class="edge" d="M896 328 H956 Q964 328 964 336 V464 Q964 472 972 472 H1000"/>
+            <path class="edge" d="M1240 152 H1256 Q1264 152 1264 160 V572 Q1264 580 1256 580 H896"/>
+            <path class="edge" d="M1000 496 H856 Q848 496 848 504 V552"/>
+            <path class="edge" d="M656 592 H592"/>
+            <path class="edge return" d="M352 592 H176 Q168 592 168 584 V352"/>
+            <path class="edge return" d="M776 552 V352"/>
+          </g>
+          <rect class="mask" x="184" y="448" width="96" height="24" rx="2"/>
+          <text class="edge-label" x="232" y="465">수정·후속 작업</text>
+          <rect class="mask" x="792" y="432" width="136" height="24" rx="2"/>
+          <text class="edge-label" x="860" y="449">결과도 사건으로 공유</text>
+
+          <g>
+            <rect class="node" x="48" y="112" width="240" height="80" rx="6"/>
+            <text class="node-title" x="168" y="146">공동 목표·업무 요청</text>
+            <text class="node-note" x="168" y="173">사용자 요청 / 정기 점검</text>
+            <rect class="node" x="48" y="272" width="240" height="80" rx="6"/>
+            <text class="node-title" x="168" y="306">마케팅팀의 업무</text>
+            <text class="node-note" x="168" y="333">캠페인은 아직 진행 중</text>
+            <rect class="mask" x="352" y="272" width="240" height="80" rx="6"/>
+            <rect class="node-focal" x="352" y="272" width="240" height="80" rx="6"/>
+            <text class="node-title" x="472" y="306">기획안 초안 1판</text>
+            <text class="node-note" x="472" y="333">고정한 버전과 출처 공유</text>
+            <rect class="mask" x="656" y="272" width="240" height="80" rx="6"/>
+            <rect class="node-focal" x="656" y="272" width="240" height="80" rx="6"/>
+            <text class="node-title" x="776" y="306">공유 사건·부서 전달</text>
+            <text class="node-note" x="776" y="333">구독 조건으로 대상 선택</text>
+            <rect class="node" x="1000" y="112" width="240" height="80" rx="6"/>
+            <text class="node-title" x="1120" y="146">개발팀 · 구현 검토</text>
+            <text class="node-note" x="1120" y="173">필요할 때 별도 업무 제안·수행</text>
+            <rect class="node" x="1000" y="432" width="240" height="80" rx="6"/>
+            <text class="node-title" x="1120" y="466">재무팀 · 비용 검토</text>
+            <text class="node-note" x="1120" y="493">필요할 때 별도 업무 제안·수행</text>
+            <rect class="node" x="656" y="552" width="240" height="80" rx="6"/>
+            <text class="node-title" x="776" y="586">부서별 결과 자료</text>
+            <text class="node-note" x="776" y="613">각자 처리한 결과를 다시 공유</text>
+            <rect class="node" x="352" y="552" width="240" height="80" rx="6"/>
+            <text class="node-title" x="472" y="586">마케팅팀 결과 반영</text>
+            <text class="node-note" x="472" y="613">책임자 확인 후 공동 목표 완료</text>
+          </g>
+          <line class="divider" x1="48" y1="656" x2="1232" y2="656"/>
+          <path class="edge" d="M64 688 H104" marker-end="url(#tobe-arrow)"/>
+          <text class="legend" x="116" y="693">사건·자료 전달</text>
+          <path class="edge return" d="M312 688 H352" marker-end="url(#tobe-arrow)"/>
+          <text class="legend" x="364" y="693">후속 작업·재공유</text>
+          <rect class="node-focal" x="600" y="676" width="20" height="20" rx="2"/>
+          <text class="legend" x="632" y="693">추가하는 핵심 기능</text>
+        </svg>
+      </div>
+      <figcaption>참여 부서와 작업 순서는 업무마다 달라집니다. 그림은 일반 공유 사건을 구독하는 예시입니다. 특정 부서에 보낸 점검·협업 요청은 구독 여부와 관계없이 해당 부서에만 전달합니다. 각 부서는 검토 또는 자동 실행 정책을 따르고, 일반 사건에 대응할 필요가 없으면 업무를 만들지 않습니다.</figcaption>
+    </figure>
+  </section>
+
+  <section aria-labelledby="changes-heading">
+    <div class="section-head"><span>WHAT CHANGES</span><h2 id="changes-heading">무엇이 달라지는가?</h2></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th scope="col">구분</th><th scope="col">현재</th><th scope="col">개선 후</th></tr></thead>
+        <tbody>
+          <tr><td>협업 연결</td><td>처리 흐름에 참여 단계와 전달 관계를 설정</td><td>새 업무·공유 자료·도움 요청 사건에 필요한 부서가 반응</td></tr>
+          <tr><td>직접 요청</td><td>실행 안의 지정 담당자에게 질문·검토 요청</td><td>구독이 꺼져 있어도 지정한 부서에 점검·협업 요청 전달</td></tr>
+          <tr><td>새 부서 추가</td><td>기존 흐름에 역할과 단계를 배치</td><td>책임과 구독을 설정하고 이후 사건부터 참여</td></tr>
+          <tr><td>중간 산출물</td><td>실행의 정해진 후속 단계에 전달</td><td>업무가 진행 중이어도 고정본을 공유하고 다른 부서가 참조</td></tr>
+          <tr><td>다음 할 일</td><td>사람의 새 요청 또는 미리 연결한 단계</td><td>구독 사건·협업 요청·정기 점검을 근거로 부서가 제안</td></tr>
+          <tr><td>자료 개정</td><td>실행 안의 재작업과 영향 범위 관리</td><td>다른 실행·부서의 사용 관계를 따라 재검토 후보 전달</td></tr>
+          <tr><td>완료 판단</td><td>개별 실행의 완료 기준과 결과 검증</td><td>책임자가 필수 협업 결과와 공동 목표의 해결 여부 확인</td></tr>
+          <tr><td>기존 워크플로</td><td>주요 업무 실행 단위</td><td>반복되는 작은 작업에 선택적으로 재사용</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="example">
+      <h3>예시 · 마케팅의 A 업무와 B 업무는 협업 상대가 다를 수 있습니다</h3>
+      <p><strong>A 업무 — 캠페인 페이지:</strong> 기획안을 공유하면 개발팀이 구현 검토를 제안합니다. 비용 검토가 필요 없다면 재무팀은 대응 불필요로 남깁니다.</p>
+      <p><strong>B 업무 — 광고 예산:</strong> 예산안을 공유하면 재무팀이 검토를 제안합니다. 개발할 내용이 없으면 개발팀은 새 업무를 만들지 않습니다.</p>
+      <p><strong>자료 활용:</strong> 부서는 공유 자료함에서 필요한 초안을 찾아 자기 업무에 연결할 수도 있습니다. 자료를 읽는 행위 자체가 협업 업무를 자동 생성하지는 않습니다.</p>
+      <p><strong>초안 개정:</strong> 1판을 사용한 업무는 그대로 기록합니다. 2판이 공유되면 관련 부서에 영향 확인을 요청하고 진행 중인 입력을 몰래 바꾸지 않습니다.</p>
+      <p><strong>직접 요청:</strong> 마케팅팀이 개발팀을 지정해 협업을 요청하면 개발팀의 구독이 꺼져 있어도 전달합니다. 다른 부서에 같은 요청을 무조건 퍼뜨리지 않습니다.</p>
+      <p><strong>확정:</strong> 초안을 내용 변경 없이 확정할 수 있습니다. 같은 파일·버전 번호를 유지하고 확정자와 시각을 기록합니다. 새 내용 버전은 다시 초안으로 시작합니다.</p>
+      <p><strong>필수 협업:</strong> 요청이 거절되거나 수행 업무가 아직 없어도 필수 조건은 남습니다. 책임자가 이유를 남겨 해제하거나 대체한 뒤에야 완료 조건을 다시 판단합니다.</p>
+      <p><strong>통제:</strong> 제안 검토와 자동 실행을 선택할 수 있습니다. 실패한 호출은 같은 판단 회차에서 재시도하고 질문 답변만 다음 회차로 넘어갑니다. 실패·중단·계획 생성 비용도 합산하며, 중복·무한 후속 업무는 전달 기록과 한도로 막습니다.</p>
+    </div>
+  </section>
+  <footer>
+    <p>기준: 같은 폴더의 plan.md · 진행 증거: progress.md · 도식: diagram-design 스킬. 현재는 수영레인, 개선 후는 사건·자료 중심 협업 구조. 각 그림 1280 × 720, 정적 HTML/SVG.</p>
+    <p>글꼴은 Google Fonts를 사용하며, 연결할 수 없을 때는 설치된 한국어 글꼴로 표시합니다. 앱 종료 중에는 실행하지 않고, 놓친 정기 제안은 재시작 시 최신 회차 한 번만 처리합니다.</p>
+  </footer>
+</main>
+</body>
+</html>
