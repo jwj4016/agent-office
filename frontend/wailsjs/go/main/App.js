@@ -6,6 +6,10 @@ export function AIActivity(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['AIActivity'](arg1, arg2, arg3, arg4);
 }
 
+export function AddWorkNote(arg1, arg2, arg3) {
+  return window['go']['main']['App']['AddWorkNote'](arg1, arg2, arg3);
+}
+
 export function AnswerQuestion(arg1, arg2, arg3) {
   return window['go']['main']['App']['AnswerQuestion'](arg1, arg2, arg3);
 }
@@ -42,6 +46,10 @@ export function CreateProject(arg1) {
   return window['go']['main']['App']['CreateProject'](arg1);
 }
 
+export function CreateWorkItem(arg1) {
+  return window['go']['main']['App']['CreateWorkItem'](arg1);
+}
+
 export function CreateWorkflow(arg1, arg2, arg3) {
   return window['go']['main']['App']['CreateWorkflow'](arg1, arg2, arg3);
 }
@@ -56,6 +64,10 @@ export function DecideApproval(arg1, arg2, arg3, arg4, arg5, arg6) {
 
 export function DecideToolApproval(arg1, arg2, arg3) {
   return window['go']['main']['App']['DecideToolApproval'](arg1, arg2, arg3);
+}
+
+export function DeleteDepartmentTemplate(arg1) {
+  return window['go']['main']['App']['DeleteDepartmentTemplate'](arg1);
 }
 
 export function DeleteRole(arg1) {
@@ -102,12 +114,20 @@ export function GetSettings() {
   return window['go']['main']['App']['GetSettings']();
 }
 
+export function GetWorkItem(arg1, arg2) {
+  return window['go']['main']['App']['GetWorkItem'](arg1, arg2);
+}
+
 export function GetWorkflow(arg1, arg2) {
   return window['go']['main']['App']['GetWorkflow'](arg1, arg2);
 }
 
 export function GetWorkflowAssist(arg1) {
   return window['go']['main']['App']['GetWorkflowAssist'](arg1);
+}
+
+export function ImportDepartmentTemplate(arg1, arg2) {
+  return window['go']['main']['App']['ImportDepartmentTemplate'](arg1, arg2);
 }
 
 export function Inbox() {
@@ -126,6 +146,14 @@ export function ListConnections() {
   return window['go']['main']['App']['ListConnections']();
 }
 
+export function ListDepartmentTemplates() {
+  return window['go']['main']['App']['ListDepartmentTemplates']();
+}
+
+export function ListDepartments(arg1) {
+  return window['go']['main']['App']['ListDepartments'](arg1);
+}
+
 export function ListDesigns() {
   return window['go']['main']['App']['ListDesigns']();
 }
@@ -136,6 +164,10 @@ export function ListRoles() {
 
 export function ListRuns(arg1) {
   return window['go']['main']['App']['ListRuns'](arg1);
+}
+
+export function ListWorkItems(arg1, arg2) {
+  return window['go']['main']['App']['ListWorkItems'](arg1, arg2);
 }
 
 export function ListWorkflowAssists(arg1, arg2) {
@@ -160,6 +192,10 @@ export function Ping(arg1) {
 
 export function PostNote(arg1, arg2, arg3, arg4, arg5) {
   return window['go']['main']['App']['PostNote'](arg1, arg2, arg3, arg4, arg5);
+}
+
+export function ProjectCategories(arg1) {
+  return window['go']['main']['App']['ProjectCategories'](arg1);
 }
 
 export function ProjectUsage(arg1) {
@@ -194,6 +230,18 @@ export function SaveConnection(arg1) {
   return window['go']['main']['App']['SaveConnection'](arg1);
 }
 
+export function SaveDepartment(arg1) {
+  return window['go']['main']['App']['SaveDepartment'](arg1);
+}
+
+export function SaveDepartmentAsTemplate(arg1, arg2, arg3) {
+  return window['go']['main']['App']['SaveDepartmentAsTemplate'](arg1, arg2, arg3);
+}
+
+export function SaveDepartmentTemplate(arg1) {
+  return window['go']['main']['App']['SaveDepartmentTemplate'](arg1);
+}
+
 export function SaveRole(arg1) {
   return window['go']['main']['App']['SaveRole'](arg1);
 }
@@ -218,8 +266,16 @@ export function SetProjectArchived(arg1, arg2) {
   return window['go']['main']['App']['SetProjectArchived'](arg1, arg2);
 }
 
+export function SetProjectCategories(arg1, arg2) {
+  return window['go']['main']['App']['SetProjectCategories'](arg1, arg2);
+}
+
 export function SetSetting(arg1, arg2) {
   return window['go']['main']['App']['SetSetting'](arg1, arg2);
+}
+
+export function SetWorkStatus(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['SetWorkStatus'](arg1, arg2, arg3, arg4);
 }
 
 export function StartDesign(arg1) {
@@ -256,6 +312,10 @@ export function UpdateOrganization(arg1, arg2) {
 
 export function UpdateProject(arg1) {
   return window['go']['main']['App']['UpdateProject'](arg1);
+}
+
+export function UpdateWorkItem(arg1) {
+  return window['go']['main']['App']['UpdateWorkItem'](arg1);
 }
 
 export function ValidateWorkflow(arg1, arg2) {

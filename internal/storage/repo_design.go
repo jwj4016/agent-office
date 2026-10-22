@@ -70,6 +70,9 @@ func (db *DB) ApplyDesign(ctx context.Context, in DesignApply) (DesignApplied, e
 				projectID, domain.DefaultOrganizationID, p.Name, p.Goal, p.Instructions, rawOr(p.Budget, "{}"), p.Mode, rawOr(in.AutoPolicy, "{}"), now, now); err != nil {
 				return err
 			}
+			if err := seedCategoriesTx(ctx, tx, projectID); err != nil {
+				return err
+			}
 			out.NewProject = true
 			if err := c.Emit(projectID, "", "", "project.created", map[string]string{"name": p.Name, "by": "design"}); err != nil {
 				return err

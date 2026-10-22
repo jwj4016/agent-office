@@ -217,3 +217,39 @@ export type EditResult = {
     changes: { added: string[]; removed: string[]; changed: string[] };
 };
 export type DiagramResult = { path: string; checked: boolean };
+
+// ---- departments and work (service operations) ----
+
+export type ActiveStatus = 'active' | 'inactive';
+
+// A company-wide starting point; copying it into a service makes an
+// independent department.
+export type DepartmentTemplate = {
+    id: string; organizationId: string; name: string; responsibility: string; roleIds: string[]; updatedAt: string;
+};
+
+// A department inside one service. Members are the service's assignments.
+export type Department = {
+    id: string; projectId: string; name: string; responsibility: string; leadAssignmentId: string; memberIds: string[];
+    templateId: string; automation: unknown; limits: unknown; status: ActiveStatus; createdAt: string; updatedAt: string;
+};
+
+export type WorkKind = 'goal' | 'work';
+export type WorkPriority = 'urgent' | 'high' | 'normal' | 'low';
+export type WorkStatus = 'received' | 'ready' | 'in_progress' | 'waiting' | 'blocked' | 'done' | 'cancelled';
+
+export type WorkItem = {
+    id: string; projectId: string; kind: WorkKind; parentId: string; departmentId: string; assigneeAssignmentId: string;
+    title: string; description: string; doneCriteria: string; priority: WorkPriority; status: WorkStatus; statusReason: string;
+    categories: string[]; dueAt: string; createdAt: string; updatedAt: string; closedAt: string;
+};
+
+export type WorkNote = {
+    id: string; workItemId: string; kind: 'note' | 'status'; body: string; fromStatus?: string; toStatus?: string; author: string; createdAt: string;
+};
+
+export type WorkDetail = { item: WorkItem; notes: WorkNote[]; children: WorkItem[] };
+
+export type WorkFilter = {
+    kind?: string; status?: string; priority?: string; category?: string; departmentId?: string; parentId?: string; dueBefore?: string;
+};

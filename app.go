@@ -274,6 +274,10 @@ func uiErr(err error) error {
 		return errors.New("상위 역할을 이렇게 지정하면 순환이 생깁니다")
 	case errors.Is(err, storage.ErrRoleInUse):
 		return errors.New("담당자가 있는 역할은 삭제할 수 없습니다")
+	case errors.Is(err, storage.ErrInvalid):
+		return errors.New(strings.TrimPrefix(err.Error(), storage.ErrInvalid.Error()+": "))
+	case errors.Is(err, storage.ErrNotFound):
+		return errors.New("찾을 수 없는 항목입니다. 화면을 새로 고치세요")
 	case errors.Is(err, design.ErrNotReady):
 		return errors.New("이미 적용했거나 아직 준비되지 않은 설계안입니다")
 	case errors.Is(err, design.ErrInvalid):

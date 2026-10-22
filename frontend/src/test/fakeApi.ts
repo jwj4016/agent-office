@@ -48,6 +48,12 @@ export const fakeApi = {
     testConnectionCall: ok({steps: [{id: 'call', label: '실제 호출', status: 'ok', detail: 'pong'}], ready: true}), templates: ok([]), workflows: ok([]), runs: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []),
     run: vi.fn(), runMessages: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []), postNote: ok('msg-new'),
     pauseRun: ok(undefined), resumeRun: ok(undefined), cancelRun: ok(undefined), retryStep: ok(undefined), readArtifact: vi.fn(),
+    departmentTemplates: vi.fn(async (): Promise<unknown[]> => []), saveDepartmentTemplate: vi.fn(), deleteDepartmentTemplate: ok(undefined),
+    departments: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []), saveDepartment: vi.fn(),
+    importDepartmentTemplate: vi.fn(), saveDepartmentAsTemplate: vi.fn(),
+    categories: vi.fn(async (..._args: unknown[]): Promise<string[]> => []), setCategories: vi.fn(async (_p: string, names: string[]) => names),
+    workItems: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []), workItem: vi.fn(), createWorkItem: vi.fn(), updateWorkItem: vi.fn(),
+    setWorkStatus: vi.fn(), addWorkNote: vi.fn(),
     onEvents: vi.fn(() => () => {}),
     onDeltas: vi.fn(() => () => {}),
 };

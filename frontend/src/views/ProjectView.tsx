@@ -1,6 +1,6 @@
 import {
-    Activity, Archive, ArchiveRestore, ArrowRight, FileText, GitBranch, Inbox as InboxIcon, LayoutDashboard, ListChecks,
-    PauseCircle, Settings2, Users, Workflow,
+    Activity, Archive, ArchiveRestore, ArrowRight, ClipboardList, FileText, GitBranch, Inbox as InboxIcon, LayoutDashboard, ListChecks,
+    PauseCircle, Settings2, Tags, Users, Workflow,
 } from 'lucide-react';
 import {useEffect, useRef, useState} from 'react';
 import type {Route} from '../App';
@@ -20,14 +20,16 @@ import {FolderInput} from './FolderInput';
 import {DeskDetail, Office, OfficeList, useOffice} from './Office';
 import {Runs} from './Runs';
 import {Team} from './Team';
+import {Work} from './Work';
 import {Workflows} from './Workflows';
 
-export type ProjectTab = 'status' | 'office' | 'runs' | 'workflows' | 'team' | 'settings';
+export type ProjectTab = 'status' | 'work' | 'office' | 'runs' | 'workflows' | 'team' | 'settings';
 
 type ProjectRoute = Extract<Route, { view: 'project' }>;
 
 const tabs: TabItem<ProjectTab>[] = [
     {id: 'status', label: t.project.tabs.status, icon: LayoutDashboard},
+    {id: 'work', label: t.project.tabs.work, icon: ClipboardList},
     {id: 'office', label: t.project.tabs.office, icon: Users},
     {id: 'runs', label: t.project.tabs.runs, icon: Activity},
     {id: 'workflows', label: t.project.tabs.workflows, icon: Workflow},
@@ -72,6 +74,7 @@ export function ProjectView({route, onRoute, onChanged}: {
             <Tabs label="서비스 메뉴" items={tabs} value={route.tab} onChange={go}/>
             <div role="tabpanel" ref={panel} tabIndex={-1} aria-label={tabs.find((x) => x.id === route.tab)?.label} className="stack loose">
                 {route.tab === 'status' ? <Status project={p} onRoute={onRoute}/> : null}
+                {route.tab === 'work' ? <Work project={p} onTeam={() => go('team')}/> : null}
                 {route.tab === 'office' ? <Office project={p} onRoute={onRoute}/> : null}
                 {route.tab === 'runs' ? (
                     <Runs project={p} runId={route.runId} onInbox={() => onRoute({view: 'inbox'})}
@@ -296,6 +299,8 @@ function ProjectSettings({project, onSaved}: { project: Project; onSaved: () => 
 
             {form.mode === 'auto' ? <AutoScope project={project}/> : null}
 
+            <Categories project={project}/>
+
             <Section title="내보내기">
                 <div className="card stack">
                     <p className="muted small">역할·담당자·업무 흐름·실행 기록과 결과 파일을 ZIP 하나로 저장합니다.
@@ -346,6 +351,53 @@ function AutoScope({project}: { project: Project }) {
                 <ErrorBox error={action.error}/>
                 <div><Button busy={action.busy} onClick={() => action.run(async () => { await api.setAutoPolicy(project.id, allowed); toast('허용 범위를 저장했습니다'); })}>
                     허용 범위 저장</Button></div>
+            </div>
+        </Section>
+    );
+}
+
+// Categories edits the service's fixed category list used by work and,
+// later, by department subscriptions.
+export function Categories({project}: { project: Project }) {
+    const saved = useLoad(() => api.categories(project.id), [project.id], project.id);
+    const [names, setNames] = useState<string[] | null>(null);
+    const [next, setNext] = useState('');
+    const action = useAction();
+    const toast = useToast();
+    const archived = project.status === 'archived';
+    const list = names ?? saved.data ?? [];
+    const dirty = names !== null && JSON.stringify(names) !== JSON.stringify(saved.data);
+    const add = () => {
+        const n = next.trim();
+        if (n && !list.includes(n)) setNames([...list, n]);
+        setNext('');
+    };
+    return (
+        <Section title={<><Icon icon={Tags} size={18}/>업무 분류</>} label="업무 분류">
+            <div className="card stack">
+                <p className="muted small">업무와 공유 자료에 붙이는 분류입니다. 지운 분류를 쓰던 업무는 그 분류를 그대로 유지합니다.</p>
+                <ErrorBox error={saved.error || action.error}/>
+                <ul className="row" aria-label="분류 목록" style={{listStyle: 'none', padding: 0, margin: 0}}>
+                    {list.map((n) => (
+                        <li key={n}><StatusBadge>{n}
+                            <button type="button" className="btn ghost small" disabled={archived} aria-label={`${n} 분류 빼기`}
+                                    onClick={() => setNames(list.filter((x) => x !== n))}>×</button></StatusBadge></li>
+                    ))}
+                    {list.length === 0 && saved.data ? <li className="muted small">분류가 없습니다.</li> : null}
+                </ul>
+                <form className="row nowrap" aria-label="분류 추가" onSubmit={(e) => { e.preventDefault(); add(); }}>
+                    <input value={next} disabled={archived} placeholder="새 분류 이름" aria-label="새 분류 이름" onChange={(e) => setNext(e.target.value)}/>
+                    <Button type="submit" disabled={archived || !next.trim()}>추가</Button>
+                </form>
+                <div className="form-actions">
+                    <Button variant="primary" busy={action.busy} disabled={archived || !dirty} onClick={() => action.run(async () => {
+                        const out = await api.setCategories(project.id, list);
+                        setNames(null);
+                        saved.reload();
+                        toast(`분류 ${out.length}개를 저장했습니다`);
+                    })}>분류 저장</Button>
+                    {dirty ? <span className="save-state dirty">저장하지 않은 변경이 있습니다</span> : null}
+                </div>
             </div>
         </Section>
     );

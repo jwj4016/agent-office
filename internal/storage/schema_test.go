@@ -139,3 +139,36 @@ func TestEventSequenceIsMonotonic(t *testing.T) {
 		prev = s
 	}
 }
+
+// Departments and work items are pinned to their service like every
+// other project-owned row, and the work rules hold in the schema itself.
+func TestWorkSchemaConstraints(t *testing.T) {
+	f := newSchemaFixture(t)
+	now := Now()
+	dept := `INSERT INTO departments (id, project_id, name, lead_assignment_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`
+	f.mustExec(t, dept, "d-game", "game", "개발팀", "a-game", now, now)
+	f.mustExec(t, dept, "d-estate", "estate", "개발팀", nil, now, now) // same name, other service
+	f.mustFail(t, "UNIQUE", dept, "d-dup", "game", "개발팀", nil, now, now)
+	f.mustFail(t, "FOREIGN KEY", dept, "d-x", "estate", "법무팀", "a-game", now, now)
+	member := `INSERT INTO department_members (assignment_id, project_id, department_id, created_at) VALUES (?, ?, ?, ?)`
+	f.mustFail(t, "FOREIGN KEY", member, "a-game", "game", "d-estate", now)
+	f.mustExec(t, member, "a-game", "game", "d-game", now)
+	f.mustFail(t, "UNIQUE", member, "a-game", "game", "d-game", now)
+
+	work := `INSERT INTO work_items (id, project_id, kind, parent_id, department_id, title, status, status_reason, closed_at, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	f.mustExec(t, work, "goal", "game", "goal", nil, "d-game", "목표", "received", "", nil, now, now)
+	// Another service may not use this service's department or goal.
+	f.mustFail(t, "FOREIGN KEY", work, "w-x", "estate", "work", nil, "d-game", "x", "received", "", nil, now, now)
+	f.mustFail(t, "FOREIGN KEY", work, "w-y", "estate", "work", "goal", nil, "x", "received", "", nil, now, now)
+	// A goal needs a department and no parent.
+	f.mustFail(t, "CHECK", work, "g2", "game", "goal", nil, nil, "x", "received", "", nil, now, now)
+	f.mustFail(t, "CHECK", work, "g3", "game", "goal", "goal", "d-game", "x", "received", "", nil, now, now)
+	// Waiting needs a reason; closed and closed_at go together.
+	f.mustFail(t, "CHECK", work, "w1", "game", "work", "goal", nil, "x", "waiting", "", nil, now, now)
+	f.mustFail(t, "CHECK", work, "w2", "game", "work", "goal", nil, "x", "done", "", nil, now, now)
+	f.mustFail(t, "CHECK", work, "w3", "game", "work", "goal", nil, "x", "ready", "", now, now, now)
+	f.mustExec(t, work, "w4", "game", "work", "goal", nil, "x", "done", "", now, now, now)
+	f.mustFail(t, "FOREIGN KEY", `INSERT INTO work_item_notes (id, project_id, work_item_id, kind, body, author, created_at) VALUES ('n1', 'estate', 'w4', 'note', 'x', 'me', ?)`, now)
+	f.mustFail(t, "CHECK", `INSERT INTO work_item_notes (id, project_id, work_item_id, kind, body, author, created_at) VALUES ('n2', 'game', 'w4', 'note', '', 'me', ?)`, now)
+}

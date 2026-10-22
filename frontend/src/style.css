@@ -644,3 +644,10 @@ button.stat:hover { border-color: var(--border-strong); }
 .row-button .body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .row-button .title { font-weight: 600; }
 .row-button .meta { font-size: var(--fs-sm); color: var(--text-2); }
+
+/* ---------- departments ---------- */
+
+.dept-drop { border: 1px dashed transparent; border-radius: var(--r-lg); padding: var(--s-1); transition: border-color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out); }
+.dept-drop.over { border-color: var(--accent, var(--info-text)); background: var(--info-soft); }
+.dept-template { gap: var(--s-2); padding: var(--s-2) var(--s-3); cursor: grab; max-width: 320px; }
+.dept-template:active { cursor: grabbing; }

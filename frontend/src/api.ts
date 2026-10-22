@@ -7,6 +7,7 @@ import type {
     DesignView, ApplyResult, DetectedPaths, ExportResult, Usage, InboxItem, InstructionPreview, MessageView,
     Organization, Project, ProjectSummary, Role, RunDetail, StartResult, StoredEvent, SystemStatus, Template,
     Validation, Workflow, WorkflowSpec, AssistKind, AssistRecord,
+    Department, DepartmentTemplate, WorkDetail, WorkFilter, WorkItem, WorkNote, WorkStatus,
 } from './types';
 
 // The generated d.ts types differ from the real JSON for raw fields, so
@@ -36,6 +37,25 @@ export const api = {
     roles: () => call<Role[]>(Go.ListRoles()),
     saveRole: (r: Partial<Role>) => call<Role>(Go.SaveRole(r as never)),
     deleteRole: (id: string) => call<void>(Go.DeleteRole(id)),
+
+    departmentTemplates: () => call<DepartmentTemplate[]>(Go.ListDepartmentTemplates()),
+    saveDepartmentTemplate: (d: Partial<DepartmentTemplate>) => call<DepartmentTemplate>(Go.SaveDepartmentTemplate(d as never)),
+    deleteDepartmentTemplate: (id: string) => call<void>(Go.DeleteDepartmentTemplate(id)),
+    departments: (projectId: string) => call<Department[]>(Go.ListDepartments(projectId)),
+    saveDepartment: (d: Partial<Department>) => call<Department>(Go.SaveDepartment(d as never)),
+    importDepartmentTemplate: (projectId: string, templateId: string) => call<Department>(Go.ImportDepartmentTemplate(projectId, templateId)),
+    saveDepartmentAsTemplate: (projectId: string, departmentId: string, name: string) =>
+        call<DepartmentTemplate>(Go.SaveDepartmentAsTemplate(projectId, departmentId, name)),
+    categories: (projectId: string) => call<string[]>(Go.ProjectCategories(projectId)),
+    setCategories: (projectId: string, names: string[]) => call<string[]>(Go.SetProjectCategories(projectId, names)),
+
+    workItems: (projectId: string, filter: WorkFilter = {}) => call<WorkItem[]>(Go.ListWorkItems(projectId, filter as never)),
+    workItem: (projectId: string, id: string) => call<WorkDetail>(Go.GetWorkItem(projectId, id)),
+    createWorkItem: (w: Partial<WorkItem>) => call<WorkItem>(Go.CreateWorkItem(w as never)),
+    updateWorkItem: (w: Partial<WorkItem>) => call<WorkItem>(Go.UpdateWorkItem(w as never)),
+    setWorkStatus: (projectId: string, id: string, status: WorkStatus, reason: string) =>
+        call<WorkItem>(Go.SetWorkStatus(projectId, id, status, reason)),
+    addWorkNote: (projectId: string, id: string, body: string) => call<WorkNote>(Go.AddWorkNote(projectId, id, body)),
 
     assignments: (projectId: string) => call<Assignment[]>(Go.ListAssignments(projectId)),
     saveAssignment: (a: Partial<Assignment>) => call<Assignment>(Go.SaveAssignment(a as never)),

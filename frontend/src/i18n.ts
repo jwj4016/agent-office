@@ -1,6 +1,6 @@
 // UI strings. Korean first; another language is a second object with the
 // same shape.
-import type {InboxKind, MessageKind, NodeKind, OutputType, RunStatus, StepStatus} from './types';
+import type {InboxKind, MessageKind, NodeKind, OutputType, RunStatus, StepStatus, WorkPriority, WorkStatus} from './types';
 
 export const ko = {
     app: {name: 'Agent Office'},
@@ -9,7 +9,7 @@ export const ko = {
         services: '서비스', newService: '새 서비스', archived: '보관된 서비스 보기',
     },
     project: {
-        tabs: {status: '현황', office: '사무실', runs: '실행', workflows: '업무 흐름', team: '담당자', settings: '설정'},
+        tabs: {status: '현황', work: '업무', office: '사무실', runs: '실행', workflows: '업무 흐름', team: '부서·담당자', settings: '설정'},
         name: '서비스 이름', goal: '목표', instructions: '서비스 지침', mode: '실행 모드',
         modeReview: '검토 후 실행', modeAuto: '자동 구성·실행',
         create: '서비스 만들기', save: '저장', archive: '보관', restore: '보관 해제',
@@ -39,6 +39,12 @@ export const ko = {
         question: '질문', answer: '답변', review_request: '검토 요청', proposal: '제안', decision: '결정',
         handoff: '전달', escalation: '사용자에게 넘김',
     } satisfies Record<MessageKind, string>,
+    workStatus: {
+        received: '접수', ready: '준비', in_progress: '진행', waiting: '대기', blocked: '막힘', done: '완료', cancelled: '취소',
+    } satisfies Record<WorkStatus, string>,
+    workPriority: {
+        urgent: '긴급', high: '높음', normal: '보통', low: '낮음',
+    } satisfies Record<WorkPriority, string>,
     inboxKind: {
         task: '작업 제출', review: '리뷰', approval: '승인', tool_approval: '도구 사용 승인', question: 'AI 질문', budget: '예산 한도',
     } satisfies Record<InboxKind, string>,

@@ -716,6 +716,62 @@ export namespace domain {
 		    return a;
 		}
 	}
+	export class Department {
+	    id: string;
+	    projectId: string;
+	    name: string;
+	    responsibility: string;
+	    leadAssignmentId: string;
+	    memberIds: string[];
+	    templateId: string;
+	    automation: number[];
+	    limits: number[];
+	    status: string;
+	    createdAt: string;
+	    updatedAt: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Department(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.projectId = source["projectId"];
+	        this.name = source["name"];
+	        this.responsibility = source["responsibility"];
+	        this.leadAssignmentId = source["leadAssignmentId"];
+	        this.memberIds = source["memberIds"];
+	        this.templateId = source["templateId"];
+	        this.automation = source["automation"];
+	        this.limits = source["limits"];
+	        this.status = source["status"];
+	        this.createdAt = source["createdAt"];
+	        this.updatedAt = source["updatedAt"];
+	    }
+	}
+	export class DepartmentTemplate {
+	    id: string;
+	    organizationId: string;
+	    name: string;
+	    responsibility: string;
+	    roleIds: string[];
+	    updatedAt: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DepartmentTemplate(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.organizationId = source["organizationId"];
+	        this.name = source["name"];
+	        this.responsibility = source["responsibility"];
+	        this.roleIds = source["roleIds"];
+	        this.updatedAt = source["updatedAt"];
+	    }
+	}
 	export class Input {
 	    name: string;
 	    fromStep: string;
@@ -1040,6 +1096,76 @@ export namespace domain {
 	
 	
 	
+	export class WorkItem {
+	    id: string;
+	    projectId: string;
+	    kind: string;
+	    parentId: string;
+	    departmentId: string;
+	    assigneeAssignmentId: string;
+	    title: string;
+	    description: string;
+	    doneCriteria: string;
+	    priority: string;
+	    status: string;
+	    statusReason: string;
+	    categories: string[];
+	    dueAt: string;
+	    createdAt: string;
+	    updatedAt: string;
+	    closedAt: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new WorkItem(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.projectId = source["projectId"];
+	        this.kind = source["kind"];
+	        this.parentId = source["parentId"];
+	        this.departmentId = source["departmentId"];
+	        this.assigneeAssignmentId = source["assigneeAssignmentId"];
+	        this.title = source["title"];
+	        this.description = source["description"];
+	        this.doneCriteria = source["doneCriteria"];
+	        this.priority = source["priority"];
+	        this.status = source["status"];
+	        this.statusReason = source["statusReason"];
+	        this.categories = source["categories"];
+	        this.dueAt = source["dueAt"];
+	        this.createdAt = source["createdAt"];
+	        this.updatedAt = source["updatedAt"];
+	        this.closedAt = source["closedAt"];
+	    }
+	}
+	export class WorkNote {
+	    id: string;
+	    workItemId: string;
+	    kind: string;
+	    body: string;
+	    fromStatus?: string;
+	    toStatus?: string;
+	    author: string;
+	    createdAt: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new WorkNote(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.workItemId = source["workItemId"];
+	        this.kind = source["kind"];
+	        this.body = source["body"];
+	        this.fromStatus = source["fromStatus"];
+	        this.toStatus = source["toStatus"];
+	        this.author = source["author"];
+	        this.createdAt = source["createdAt"];
+	    }
+	}
 	export class Workflow {
 	    id: string;
 	    projectId: string;
@@ -2151,6 +2277,40 @@ export namespace main {
 	        this.perf = source["perf"];
 	    }
 	}
+	export class WorkDetail {
+	    item: domain.WorkItem;
+	    notes: domain.WorkNote[];
+	    children: domain.WorkItem[];
+	
+	    static createFrom(source: any = {}) {
+	        return new WorkDetail(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.item = this.convertValues(source["item"], domain.WorkItem);
+	        this.notes = this.convertValues(source["notes"], domain.WorkNote);
+	        this.children = this.convertValues(source["children"], domain.WorkItem);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 
 }
 
@@ -2316,6 +2476,30 @@ export namespace storage {
 		    }
 		    return a;
 		}
+	}
+	export class WorkFilter {
+	    kind: string;
+	    status: string;
+	    priority: string;
+	    category: string;
+	    departmentId: string;
+	    parentId: string;
+	    dueBefore: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new WorkFilter(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.kind = source["kind"];
+	        this.status = source["status"];
+	        this.priority = source["priority"];
+	        this.category = source["category"];
+	        this.departmentId = source["departmentId"];
+	        this.parentId = source["parentId"];
+	        this.dueBefore = source["dueBefore"];
+	    }
 	}
 
 }

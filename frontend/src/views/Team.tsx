@@ -1,10 +1,10 @@
-import {FileText, FlaskConical, Pencil, UserPlus, Users} from 'lucide-react';
-import {useState} from 'react';
+import {Building, Copy, FileText, FlaskConical, GripVertical, LayoutTemplate, Pencil, Plus, UserPlus, Users} from 'lucide-react';
+import {type DragEvent, useState} from 'react';
 import {api} from '../api';
 import {t} from '../i18n';
 import {useLoad} from '../live';
-import type {ActorKind, Assignment, Project} from '../types';
-import {ActorBadge, Button, DetailHeader, EmptyState, ErrorBox, Field, Loading, StatusBadge, useAction, useDetail, useToast} from '../ui';
+import type {ActiveStatus, ActorKind, Assignment, Department, DepartmentTemplate, Project, Role} from '../types';
+import {ActorBadge, Banner, Button, DetailHeader, EmptyState, ErrorBox, Field, Icon, Loading, Section, StatusBadge, useAction, useDetail, useToast} from '../ui';
 
 type Form = {
     id: string; roleId: string; actorKind: ActorKind; displayName: string;
@@ -29,7 +29,7 @@ export function Team({project}: { project: Project }) {
         setDetail(
             <>
                 <DetailHeader title={`${a.displayName}의 최종 지침`} onClose={() => setDetail(null)}>
-                    <p className="muted small">회사 → 상위 역할 → 역할 → 서비스 → 담당자 순서로 합쳐집니다. 업무 지시와 수정 의견은 실행 때 덧붙습니다.</p>
+                    <p className="muted small">회사 → 상위 역할 → 역할 → 서비스 → 부서 → 담당자 순서로 합쳐집니다. 업무 지시와 수정 의견은 실행 때 덧붙습니다.</p>
                 </DetailHeader>
                 <ol className="timeline">
                     {p.layers.map((l, i) => (
@@ -52,7 +52,9 @@ export function Team({project}: { project: Project }) {
     if (list.error) return <ErrorBox error={list.error}/>;
     if (!list.data) return <Loading/>;
     return (
-        <div className="stack">
+        <div className="stack loose">
+            <ServiceDepartments project={project} assignments={list.data} roles={roles.data ?? []} onChanged={list.reload}/>
+            <Section title={<><Icon icon={Users} size={18}/>담당자</>} label="담당자" count={list.data.length}>
             <div className="row between">
                 <p className="muted">회사 역할을 이 서비스에서 누가 맡을지 정합니다. 배정만으로 AI가 실행되지는 않습니다.</p>
                 <Button variant="primary" icon={UserPlus} disabled={archived} onClick={() => edit({...empty})}>담당자 추가</Button>
@@ -97,7 +99,180 @@ export function Team({project}: { project: Project }) {
                     </table>
                 </div>
             )}
+            </Section>
         </div>
+    );
+}
+
+// TEMPLATE_MIME carries a department template id while it is dragged.
+export const TEMPLATE_MIME = 'application/x-agent-office-department-template';
+
+// ServiceDepartments lists this service's departments. A service is one
+// company, so its departments are its own; company templates can be
+// copied in with a button or by dragging them onto the list.
+function ServiceDepartments({project, assignments, roles, onChanged}: {
+    project: Project; assignments: Assignment[]; roles: Role[]; onChanged: () => void;
+}) {
+    const list = useLoad(() => api.departments(project.id), [project.id], project.id);
+    const templates = useLoad(() => api.departmentTemplates(), []);
+    const setDetail = useDetail();
+    const action = useAction();
+    const toast = useToast();
+    const [over, setOver] = useState(false);
+    const archived = project.status === 'archived';
+    const person = (id: string) => assignments.find((a) => a.id === id)?.displayName;
+    const reload = () => { list.reload(); onChanged(); };
+    const edit = (d: Partial<Department>) => setDetail(
+        <DepartmentForm key={d.id || 'new'} project={project} initial={d} departments={list.data ?? []} assignments={assignments}
+                        onDone={() => { setDetail(null); reload(); }} onTemplate={() => templates.reload()}/>);
+    const importTemplate = (tpl: DepartmentTemplate) => action.run(async () => {
+        const d = await api.importDepartmentTemplate(project.id, tpl.id);
+        reload();
+        toast(`‘${tpl.name}’ 템플릿으로 ‘${d.name}’ 부서를 만들었습니다${d.memberIds.length ? ` (구성원 ${d.memberIds.length}명)` : ''}`);
+    });
+    const drop = (e: DragEvent<HTMLElement>) => {
+        e.preventDefault();
+        setOver(false);
+        const tpl = (templates.data ?? []).find((x) => x.id === e.dataTransfer.getData(TEMPLATE_MIME));
+        if (tpl && !archived) importTemplate(tpl);
+    };
+    const dragging = (e: DragEvent<HTMLElement>) => {
+        if (!archived && e.dataTransfer.types.includes(TEMPLATE_MIME)) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'copy';
+            setOver(true);
+        }
+    };
+    const roleNames = (ids: string[]) => ids.map((id) => roles.find((r) => r.id === id)?.name).filter(Boolean).join(', ');
+    return (
+        <Section title={<><Icon icon={Building} size={18}/>부서</>} label="부서" count={list.data?.length}
+                 actions={<Button icon={Plus} disabled={archived || !list.data} onClick={() => edit({})}>부서 만들기</Button>}>
+            <p className="muted small">서비스는 하나의 회사입니다. 부서와 구성원은 이 서비스에만 속합니다.</p>
+            <ErrorBox error={list.error || templates.error || action.error}/>
+            <div className={`dept-drop ${over ? 'over' : ''}`} onDragOver={dragging} onDragEnter={dragging}
+                 onDragLeave={() => setOver(false)} onDrop={drop} aria-label="부서 목록 (템플릿을 끌어다 놓으면 부서를 만듭니다)">
+                {list.data && list.data.length === 0 ? (
+                    <p className="muted small">아직 부서가 없습니다. 새로 만들거나 아래 템플릿을 끌어다 놓으세요.</p>
+                ) : null}
+                {list.data && list.data.length ? (
+                    <div className="table-wrap">
+                        <table className="list">
+                            <thead><tr><th>부서</th><th>책임</th><th>구성원</th><th>대표 담당자</th><th>상태</th><th/></tr></thead>
+                            <tbody>
+                            {list.data.map((d) => (
+                                <tr key={d.id}>
+                                    <td><strong>{d.name}</strong></td>
+                                    <td className="small pre">{d.responsibility || <span className="muted">적지 않음</span>}</td>
+                                    <td className="small">{d.memberIds.map(person).filter(Boolean).join(', ') || <span className="muted">없음</span>}</td>
+                                    <td className="small">{person(d.leadAssignmentId) ?? <span className="muted">지정 안 함</span>}</td>
+                                    <td><StatusBadge tone={d.status === 'active' ? 'ok' : ''}>{d.status === 'active' ? '사용' : '사용 안 함'}</StatusBadge></td>
+                                    <td className="actions"><Button size="sm" icon={Pencil} disabled={archived}
+                                                                    aria-label={`${d.name} 부서 편집`} onClick={() => edit(d)}>{t.common.edit}</Button></td>
+                                </tr>
+                            ))}
+                            </tbody>
+                        </table>
+                    </div>
+                ) : null}
+            </div>
+            <div className="stack tight">
+                <span className="field-label row nowrap"><Icon icon={LayoutTemplate} size={16}/>회사 부서 템플릿</span>
+                {templates.data && templates.data.length === 0 ? (
+                    <p className="muted small">회사 조직에서 부서 템플릿을 만들면 여기서 가져올 수 있습니다.</p>
+                ) : null}
+                <ul className="row" aria-label="부서 템플릿" style={{listStyle: 'none', padding: 0, margin: 0}}>
+                    {(templates.data ?? []).map((tpl) => (
+                        <li key={tpl.id} className="card row nowrap dept-template" draggable={!archived}
+                            onDragStart={(e) => { e.dataTransfer.setData(TEMPLATE_MIME, tpl.id); e.dataTransfer.effectAllowed = 'copy'; }}
+                            title={[tpl.responsibility, roleNames(tpl.roleIds) && `추천 역할: ${roleNames(tpl.roleIds)}`].filter(Boolean).join('\n')}>
+                            <Icon icon={GripVertical} size={14} className="muted"/>
+                            <span className="stack tight" style={{minWidth: 0}}>
+                                <strong className="small truncate">{tpl.name}</strong>
+                                {tpl.roleIds.length ? <span className="muted xsmall truncate">{roleNames(tpl.roleIds)}</span> : null}
+                            </span>
+                            <Button size="sm" variant="ghost" icon={Copy} busy={action.busy} disabled={archived}
+                                    aria-label={`${tpl.name} 템플릿 가져오기`} onClick={() => importTemplate(tpl)}>가져오기</Button>
+                        </li>
+                    ))}
+                </ul>
+                {templates.data?.length ? (
+                    <p className="muted xsmall">가져오면 이 서비스의 부서가 새로 만들어집니다. 템플릿의 추천 역할을 맡은 담당자 중 아직 부서가 없는 사람이 구성원이 됩니다.
+                        템플릿을 나중에 고쳐도 가져온 부서는 바뀌지 않습니다.</p>
+                ) : null}
+            </div>
+        </Section>
+    );
+}
+
+function DepartmentForm({project, initial, departments, assignments, onDone, onTemplate}: {
+    project: Project; initial: Partial<Department>; departments: Department[]; assignments: Assignment[];
+    onDone: () => void; onTemplate: () => void;
+}) {
+    const [form, setForm] = useState({
+        name: initial.name ?? '', responsibility: initial.responsibility ?? '', leadAssignmentId: initial.leadAssignmentId ?? '',
+        memberIds: initial.memberIds ?? [] as string[], status: (initial.status ?? 'active') as ActiveStatus,
+    });
+    const action = useAction();
+    const toast = useToast();
+    const setDetail = useDetail();
+    const editing = !!initial.id;
+    const elsewhere = (assignmentId: string) => departments.find((d) => d.id !== initial.id && d.memberIds.includes(assignmentId))?.name;
+    const toggle = (id: string, on: boolean) => {
+        const memberIds = on ? [...form.memberIds, id] : form.memberIds.filter((x) => x !== id);
+        setForm({...form, memberIds, leadAssignmentId: memberIds.includes(form.leadAssignmentId) ? form.leadAssignmentId : ''});
+    };
+    const save = async () => {
+        const saved = await action.run(() => api.saveDepartment({id: initial.id, projectId: project.id, ...form}));
+        if (saved) {
+            toast(`‘${saved.name}’ 부서를 저장했습니다`);
+            onDone();
+        }
+    };
+    const asTemplate = () => action.run(async () => {
+        const tpl = await api.saveDepartmentAsTemplate(project.id, initial.id ?? '', form.name);
+        onTemplate();
+        toast(`‘${tpl.name}’ 부서 템플릿으로 저장했습니다`);
+    });
+    return (
+        <form className="stack" aria-label="부서 편집" onSubmit={(e) => { e.preventDefault(); save(); }}>
+            <DetailHeader title={editing ? `${initial.name} 부서` : '새 부서'} onClose={() => setDetail(null)}/>
+            <Field label="이름"><input value={form.name} autoFocus onChange={(e) => setForm({...form, name: e.target.value})}/></Field>
+            <Field label="책임" optional hint="이 부서 구성원의 지침에 ‘부서’ 층으로 들어갑니다.">
+                <textarea value={form.responsibility} rows={3} onChange={(e) => setForm({...form, responsibility: e.target.value})}/></Field>
+            <fieldset className="stack tight">
+                <legend className="field-label">구성원 <span className="optional">(선택)</span></legend>
+                {assignments.length === 0 ? <span className="muted small">아래 ‘담당자’에서 담당자를 먼저 추가하세요.</span> : null}
+                {assignments.map((a) => {
+                    const other = elsewhere(a.id);
+                    const checked = form.memberIds.includes(a.id);
+                    return (
+                        <label key={a.id} className="check block">
+                            <input type="checkbox" checked={checked} onChange={(e) => toggle(a.id, e.target.checked)}/>
+                            {a.displayName}
+                            {other ? <span className="muted xsmall">{checked ? `(${other}에서 옮겨집니다)` : `(현재 ${other})`}</span> : null}
+                        </label>
+                    );
+                })}
+            </fieldset>
+            <Field label="대표 담당자" optional hint="구성원 중 한 명. 부서의 판단과 기본 업무 실행을 맡습니다.">
+                <select value={form.leadAssignmentId} onChange={(e) => setForm({...form, leadAssignmentId: e.target.value})}>
+                    <option value="">지정 안 함</option>
+                    {assignments.filter((a) => form.memberIds.includes(a.id)).map((a) => <option key={a.id} value={a.id}>{a.displayName}</option>)}
+                </select></Field>
+            {editing ? (
+                <label className="check">
+                    <input type="checkbox" checked={form.status === 'active'}
+                           onChange={(e) => setForm({...form, status: e.target.checked ? 'active' : 'inactive'})}/>
+                    사용 (끄면 새 업무를 맡지 않고, 맡은 업무는 그대로 남습니다)
+                </label>
+            ) : null}
+            <ErrorBox error={action.error}/>
+            <div className="form-actions">
+                <Button variant="primary" type="submit" busy={action.busy} disabled={!form.name.trim()}>{t.common.save}</Button>
+                {editing ? <Button icon={LayoutTemplate} busy={action.busy} onClick={asTemplate}>템플릿으로 저장</Button> : null}
+                <Button onClick={() => setDetail(null)}>{t.common.cancel}</Button>
+            </div>
+        </form>
     );
 }
 
