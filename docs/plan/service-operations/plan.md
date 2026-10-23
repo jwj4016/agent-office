@@ -1,7 +1,7 @@
 # Agent Office 개선 구현 계획서 — 사건과 산출물로 협업하는 작은 회사
 
 작성일·수정일: 2026-10-22  
-상태: 구현 중(4단계 완료), 6차 개정  
+상태: 구현 중(5단계 완료), 6차 개정  
 관련 파일: [진행 체크리스트](progress.md) · [현재/개선 후 업무 흐름](asis-tobe.html)
 
 ## 1. 목표와 설계 방향
@@ -495,20 +495,43 @@ Agent Office는 Go·Wails·React·TypeScript·SQLite 기반 데스크톱 앱이�
 
 **화면에서 보이는 변화:** 관련 사건을 받은 부서가 필요한 일을 제안하거나, 대응하지 않는 이유를 남긴다.
 
-- [ ] 사건 종류·분류·판단 관점으로 구독 설정 화면을 만든다. `document.confirmed`는 기본 선택에서 제외한다.
-- [ ] 결정적인 조건으로 먼저 걸러 관련된 부서만 판단에 배정하고, 구독 판단에만 사건당 부서 수 상한을 적용한다.
-- [ ] 사용자 점검 요청은 사용자 작업 슬롯, 구독·정기 판단은 백그라운드 슬롯에서 처리되는지 검증한다.
-- [ ] 워크플로 AI 도우미와 같은 방식의 판단 작업을 만든다. 대응 불필요·제안·추가 질문을 구조화해 받고 형식 오류를 실패로 처리한다.
-- [ ] 3단계의 공통 AI 작업·시도 구조를 판단에도 사용한다. 예산 보류 중에는 시작하지 않고 시도 사용량을 중복 합산하지 않는다.
-- [ ] 원인 사건·자료 버전·기존 업무·부서 책임을 판단 입력에 넣는다.
-- [ ] 제안 수정·거절·업무 등록, 중복 후보 표시, 같은 사건 제안의 일괄 처리를 구현한다.
-- [ ] 업무 등록은 같은 제안에서 한 번만 하고 원인과 담당 부서를 보존한다.
-- [ ] ‘추가 질문’을 ‘내 할 일’에 넣고, 답변 후 한 번 다시 판단한다.
-- [ ] 같은 회차의 실패 재시도와 질문 답변 후 다음 회차를 구분한다. 호출 중 종료·결과 저장 직후 종료를 각각 복구하고 완료 결과는 재호출하지 않는다.
-- [ ] 사용자 점검 요청과 기존 자료 선택 검토도 같은 판단 기능을 쓴다.
-- [ ] 한도·재시도·순환 방지와 ‘제안 없음’ 처리를 검증한다.
+- [x] 사건 종류·분류·판단 관점으로 구독 설정 화면을 만든다. `document.confirmed`는 기본 선택에서 제외한다.
+- [x] 결정적인 조건으로 먼저 걸러 관련된 부서만 판단에 배정하고, 구독 판단에만 사건당 부서 수 상한을 적용한다.
+- [x] 사용자 점검 요청은 사용자 작업 슬롯, 구독·정기 판단은 백그라운드 슬롯에서 처리되는지 검증한다.
+- [x] 워크플로 AI 도우미와 같은 방식의 판단 작업을 만든다. 대응 불필요·제안·추가 질문을 구조화해 받고 형식 오류를 실패로 처리한다.
+- [x] 3단계의 공통 AI 작업·시도 구조를 판단에도 사용한다. 예산 보류 중에는 시작하지 않고 시도 사용량을 중복 합산하지 않는다.
+- [x] 원인 사건·자료 버전·기존 업무·부서 책임을 판단 입력에 넣는다.
+- [x] 제안 수정·거절·업무 등록, 중복 후보 표시, 같은 사건 제안의 일괄 처리를 구현한다.
+- [x] 업무 등록은 같은 제안에서 한 번만 하고 원인과 담당 부서를 보존한다.
+- [x] ‘추가 질문’을 ‘내 할 일’에 넣고, 답변 후 한 번 다시 판단한다.
+- [x] 같은 회차의 실패 재시도와 질문 답변 후 다음 회차를 구분한다. 호출 중 종료·결과 저장 직후 종료를 각각 복구하고 완료 결과는 재호출하지 않는다.
+- [x] 사용자 점검 요청과 기존 자료 선택 검토도 같은 판단 기능을 쓴다.
+- [x] 한도·재시도·순환 방지와 ‘제안 없음’ 처리를 검증한다.
 
 **완료 기준:** 기획안 하나에서 개발 업무와 재무 업무가 각각 제안되고, 무관한 부서는 호출되지 않는다. 개발만 필요한 기획안에서는 재무 업무가 생기지 않는다. 판단 비용이 서비스 사용량에 나타난다.
+
+구현 메모(5단계):
+- 파일: 마이그레이션 `0013_judgments.sql`, 저장소 `internal/storage/repo_judgments.go`, 판단 `internal/work/judge.go`, 바인딩 `app_work.go`, 화면 `views/Judgments.tsx`.
+- 처리 흐름:
+  - 전달 처리기의 처리기를 `work.Judge`로 바꿨다. 판단 전달(`judge`)은 판단 작업(`work_ai_jobs.kind='judgment'`)을 만들고 전달을 `processing`으로 둔다. 알림·협업 요청 전달은 지금처럼 기록만 한다.
+  - 작업이 끝나면 `CompleteJudgment`가 한 트랜잭션에서 작업을 `ready`로, 판단과 제안을 저장하고, 전달을 `done`(1회차 질문이면 `waiting_answer`)으로 바꾼다. 작업이 실패·보류되면 전달도 실패·보류가 된다.
+  - 줄: 사람이 직접 보낸 `department.check_requested`(자료 검토 요청 포함)는 사용자 작업 줄, 구독 판단은 백그라운드 줄.
+  - 전달을 다시 처리하면 같은 요청 키(`judgment:<전달>:1`)의 작업을 다시 쓴다. 완료된 작업은 다시 호출하지 않고 결과로 전달을 끝낸다.
+  - 자동으로 생긴 사건의 연쇄 깊이가 기본값 3(`domain.DefaultChainDepth`) 이상이면 판단하지 않고 보류한다.
+  - 대표 담당자가 AI가 아니거나 없으면 판단하지 못하고 전달이 그 이유로 실패한다.
+- 판단 입력: 부서 책임, 구독의 판단 관점, 사건(제목·메모·분류·연쇄), 관련 업무, 자료 본문(16KB까지), 부서의 열린 업무와 대기 중인 제안, 2회차의 질문과 답변. 입력 스냅숏을 작업에 저장하고 2회차는 1회차 스냅숏을 그대로 쓴다.
+- 결과 검사: `none`·`propose`·`question` 중 하나, 이유 필수, 제안은 1~5개(제목 필수), 질문 결과에는 질문 필수. 서비스에 없는 분류는 버리고 우선순위가 잘못되면 보통으로 둔다. 형식 오류는 실패한 시도로 남고 자동 재시도된다.
+- 제안 등록:
+  - 제안마다 한 번만 등록하고, 업무에 원인 사건(`origin_event_sequence`)과 제안(`origin_proposal_id`), 제안한 부서를 남긴다. 사건의 공동 목표가 열려 있으면 그 아래에 둔다. 자료 사건은 자료를 만든 업무의 목표를 쓴다.
+  - 같은 부서의 열린 업무·대기 중인 제안과 제목이 같으면(대소문자·공백·기호 무시) `duplicate_of`로 표시만 한다.
+  - 일괄 처리(`DecideProposals`)는 제안마다 따로 처리해, 이미 처리된 제안이 있어도 나머지는 진행한다.
+- 질문: 1회차 질문은 ‘내 할 일’(받은 일 화면 위쪽)과 업무 탭에 보인다. 답하면 2회차 작업이 같은 트랜잭션에서 생긴다. 2회차도 질문하면 사람이 직접 결정하고 닫는다(`manual`).
+- 기존 자료 검토: `RequestDocumentReview`가 고른 판마다 그 부서에 직접 점검 요청을 보낸다(한 번에 50개까지, 철회된 판과 볼 수 없는 자료는 거절).
+- 화면:
+  - ‘팀’ 탭 부서 행의 ‘판단 설정’: 받을 사건(확정은 기본 해제), 분류, 판단 관점, 사용 여부.
+  - ‘업무’ 탭 ‘부서 판단과 제안’: 질문 답하기·닫기, 사건별로 묶은 제안의 등록·고쳐서 등록·거절·모두 등록·모두 거절, 중복 후보 표시.
+  - 받은 일 화면 위쪽 ‘부서의 제안과 질문’(모든 서비스).
+  - 부서 전달함의 ‘기존 자료 검토 요청’.
 
 ### 6단계 — 협업 요청과 공동 목표의 완료
 
@@ -697,8 +720,8 @@ Agent Office는 Go·Wails·React·TypeScript·SQLite 기반 데스크톱 앱이�
 | `document_links` | 4 | `project_id`, `work_item_id`, `version_id`, `linked_at`, `unlinked_at` | `UNIQUE(work_item_id, version_id)`; 연결 해제는 행을 지우지 않고 `unlinked_at`을 기록 |
 | `document_pins` | 4 | `project_id`, `work_item_id`, `version_id`, `run_id`, `pinned_at` | `UNIQUE(run_id, version_id)`, `run_id` 필수 |
 | `impact_checks` | 4 | `project_id`, `work_item_id`, `cause`(`revised`/`withdrawn`/`required_reopened`), `ref_id`, `document_id`, `summary`, `status`(`open`/`resolved`/`dismissed`), `note` | `UNIQUE(work_item_id, cause, ref_id)` |
-| `judgments` | 5 | `project_id`, `delivery_id`, `round`, `ai_job_id`, `outcome`(`none`/`propose`/`question`), `reason`, `evidence`(JSON), `question`, `answer`, `question_status`(`open`/`answered`/`closed`, 질문 없으면 비움) | `UNIQUE(delivery_id, round)`, `UNIQUE(ai_job_id)`; 작업 상태와 비용은 AI 작업·시도에서 조회 |
-| `work_proposals` | 5 | `project_id`, `judgment_id`, `position`, `title`, `description`, `done_criteria`, `categories`(JSON), `status`(`proposed`/`accepted`/`rejected`), `work_item_id`, `duplicate_of` | `UNIQUE(judgment_id, position)`, `UNIQUE(work_item_id)` |
+| `judgments` | 5 | `project_id`, `delivery_id`, `round`, `ai_job_id`, `department_id`, `outcome`(`none`/`propose`/`question`), `reason`, `evidence`(JSON), `question`, `answer`, `question_status`(질문 없으면 비움, `open`/`answered`/`manual`/`closed`) | `UNIQUE(delivery_id, round)`, `UNIQUE(ai_job_id)`; 질문 결과와 질문 상태는 CHECK로 함께 둠; 작업 상태와 비용은 AI 작업·시도에서 조회 |
+| `work_proposals` | 5 | `project_id`, `judgment_id`, `position`, `department_id`, `title`, `description`, `done_criteria`, `categories`(JSON), `priority`, `status`(`proposed`/`accepted`/`rejected`), `work_item_id`, `duplicate_of`, `decision_note`, `decided_at` | `UNIQUE(judgment_id, position)`, `UNIQUE(work_item_id)`; 등록된 제안만 `work_item_id`가 있음 |
 | `collab_requests` | 6 | `project_id`, `from_work_item_id`, `to_department_id`, `question`, `input_versions`(JSON), `requirement`(`reference`/`required`), `requirement_reason`, `status`(`requested`/`question`/`accepted`/`declined`/`cancelled`), `decided_by`(`user`/`ai`), `decision_job_id`, `decision_reason`, `reverted_at`, `revert_reason`, `result_work_item_id`, `due_at` | `UNIQUE(result_work_item_id)`; `decided_by='ai'`는 `requirement='reference'`일 때만 허용 |
 | `department_schedules` | 8 | `department_id`, `frequency`(`daily`/`weekly`), `time_of_day`, `weekday`, `timezone`, `enabled` | — |
 | `schedule_slots` | 8 | `schedule_id`, `slot_key`, `event_sequence` | `UNIQUE(schedule_id, slot_key)` |
