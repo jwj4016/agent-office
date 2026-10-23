@@ -160,3 +160,69 @@ func (a *App) AddWorkNote(projectID, id, body string) (domain.WorkNote, error) {
 	n, err := a.db.AddWorkNote(a.ctx, projectID, id, body)
 	return n, uiErr(err)
 }
+
+// ---- work events, subscriptions and department inboxes ----
+
+// ListWorkEvents lists a work item's events and where each went.
+func (a *App) ListWorkEvents(projectID, workItemID string) ([]storage.WorkEventView, error) {
+	if err := a.ready(); err != nil {
+		return nil, err
+	}
+	list, err := a.db.WorkEvents(a.ctx, projectID, workItemID)
+	return list, uiErr(err)
+}
+
+func (a *App) ListSubscriptions(projectID, departmentID string) ([]domain.Subscription, error) {
+	if err := a.ready(); err != nil {
+		return nil, err
+	}
+	list, err := a.db.Subscriptions(a.ctx, projectID, departmentID)
+	return list, uiErr(err)
+}
+
+// SaveSubscription creates or updates what a department hears about.
+func (a *App) SaveSubscription(s domain.Subscription) (domain.Subscription, error) {
+	if err := a.ready(); err != nil {
+		return s, err
+	}
+	saved, err := a.db.SaveSubscription(a.ctx, s)
+	return saved, uiErr(err)
+}
+
+// ListDeliveries lists a service's department inbox entries.
+func (a *App) ListDeliveries(projectID string, filter storage.DeliveryFilter) ([]storage.Delivery, error) {
+	if err := a.ready(); err != nil {
+		return nil, err
+	}
+	list, err := a.db.Deliveries(a.ctx, projectID, filter)
+	return list, uiErr(err)
+}
+
+// RequestDepartmentCheck asks a department to look for work to do.
+func (a *App) RequestDepartmentCheck(projectID, departmentID, note string) error {
+	if err := a.ready(); err != nil {
+		return err
+	}
+	_, err := a.db.RequestDepartmentCheck(a.ctx, projectID, departmentID, note)
+	return uiErr(err)
+}
+
+// RetryDelivery puts a failed or held delivery back in the queue.
+func (a *App) RetryDelivery(projectID, deliveryID string) error {
+	if err := a.ready(); err != nil {
+		return err
+	}
+	if err := a.db.RetryDelivery(a.ctx, projectID, deliveryID); err != nil {
+		return uiErr(err)
+	}
+	a.work.Wake()
+	return nil
+}
+
+// SkipDelivery closes a delivery the person decided not to act on.
+func (a *App) SkipDelivery(projectID, deliveryID, reason string) error {
+	if err := a.ready(); err != nil {
+		return err
+	}
+	return uiErr(a.db.SkipDelivery(a.ctx, projectID, deliveryID, reason))
+}

@@ -8,6 +8,7 @@ import type {
     Organization, Project, ProjectSummary, Role, RunDetail, StartResult, StoredEvent, SystemStatus, Template,
     Validation, Workflow, WorkflowSpec, AssistKind, AssistRecord,
     Department, DepartmentTemplate, WorkDetail, WorkFilter, WorkItem, WorkNote, WorkStatus,
+    Delivery, DeliveryFilter, Subscription, WorkEventView,
 } from './types';
 
 // The generated d.ts types differ from the real JSON for raw fields, so
@@ -56,6 +57,14 @@ export const api = {
     setWorkStatus: (projectId: string, id: string, status: WorkStatus, reason: string) =>
         call<WorkItem>(Go.SetWorkStatus(projectId, id, status, reason)),
     addWorkNote: (projectId: string, id: string, body: string) => call<WorkNote>(Go.AddWorkNote(projectId, id, body)),
+    workEvents: (projectId: string, workItemId: string) => call<WorkEventView[]>(Go.ListWorkEvents(projectId, workItemId)),
+    subscriptions: (projectId: string, departmentId = '') => call<Subscription[]>(Go.ListSubscriptions(projectId, departmentId)),
+    saveSubscription: (s: Partial<Subscription>) => call<Subscription>(Go.SaveSubscription(s as never)),
+    deliveries: (projectId: string, filter: DeliveryFilter = {}) => call<Delivery[]>(Go.ListDeliveries(projectId, filter as never)),
+    requestDepartmentCheck: (projectId: string, departmentId: string, note: string) =>
+        call<void>(Go.RequestDepartmentCheck(projectId, departmentId, note)),
+    retryDelivery: (projectId: string, id: string) => call<void>(Go.RetryDelivery(projectId, id)),
+    skipDelivery: (projectId: string, id: string, reason: string) => call<void>(Go.SkipDelivery(projectId, id, reason)),
 
     assignments: (projectId: string) => call<Assignment[]>(Go.ListAssignments(projectId)),
     saveAssignment: (a: Partial<Assignment>) => call<Assignment>(Go.SaveAssignment(a as never)),

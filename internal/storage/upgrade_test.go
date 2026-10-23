@@ -125,6 +125,7 @@ func TestUpgradeToDiagramArtifactsKeepsArtifacts(t *testing.T) {
 // right away.
 func TestUpgradeToDepartmentsKeepsServices(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "v7.db")
+	// v9 (deliveries) applies on top in the same upgrade.
 	raw, err := sql.Open("sqlite", "file:"+path+"?_pragma=foreign_keys(1)")
 	if err != nil {
 		t.Fatal(err)
@@ -170,6 +171,9 @@ func TestUpgradeToDepartmentsKeepsServices(t *testing.T) {
 	}
 	if _, err := db.CreateWorkItem(ctx, domain.WorkItem{ProjectID: "prj-1", Kind: domain.WorkGoal, DepartmentID: dept.ID, Title: "목표"}); err != nil {
 		t.Fatal(err)
+	}
+	if _, err := db.RequestDepartmentCheck(ctx, "prj-1", dept.ID, ""); err != nil {
+		t.Fatalf("delivery after upgrade: %v", err)
 	}
 	if rows, _ := db.Read().Query(`PRAGMA foreign_key_check`); rows.Next() {
 		rows.Close()

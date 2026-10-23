@@ -253,3 +253,27 @@ export type WorkDetail = { item: WorkItem; notes: WorkNote[]; children: WorkItem
 export type WorkFilter = {
     kind?: string; status?: string; priority?: string; category?: string; departmentId?: string; parentId?: string; dueBefore?: string;
 };
+
+export type DeliveryStatus = 'pending' | 'processing' | 'waiting_answer' | 'done' | 'skipped' | 'held' | 'failed';
+export type DeliveryPurpose = 'judge' | 'notify' | 'collab_request';
+
+// The payload of work, document and department events.
+export type WorkEventPayload = {
+    departmentId: string; targetDepartmentId?: string; workItemId?: string; goalId?: string; title?: string; note?: string;
+    categories: string[]; causeSequence: number | null; chainRootSequence: number | null; chainDepth: number; automated: boolean;
+};
+
+export type Delivery = {
+    id: string; projectId: string; eventSequence: number; eventKind: string; event: WorkEventPayload; eventAt: string;
+    departmentId: string; subscriptionId: string; purpose: DeliveryPurpose; status: DeliveryStatus; note: string; error: string;
+    holdReason: string; createdAt: string; updatedAt: string;
+};
+
+export type WorkEventView = { sequence: number; kind: string; event: WorkEventPayload; createdAt: string; deliveries: Delivery[] };
+
+export type Subscription = {
+    id: string; projectId: string; departmentId: string; eventKinds: string[]; categories: string[]; guidance: string; enabled: boolean;
+    updatedAt: string;
+};
+
+export type DeliveryFilter = { departmentId?: string; status?: string; limit?: number };

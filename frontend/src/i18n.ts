@@ -1,6 +1,6 @@
 // UI strings. Korean first; another language is a second object with the
 // same shape.
-import type {InboxKind, MessageKind, NodeKind, OutputType, RunStatus, StepStatus, WorkPriority, WorkStatus} from './types';
+import type {DeliveryPurpose, DeliveryStatus, InboxKind, MessageKind, NodeKind, OutputType, RunStatus, StepStatus, WorkPriority, WorkStatus} from './types';
 
 export const ko = {
     app: {name: 'Agent Office'},
@@ -45,6 +45,17 @@ export const ko = {
     workPriority: {
         urgent: '긴급', high: '높음', normal: '보통', low: '낮음',
     } satisfies Record<WorkPriority, string>,
+    workEvent: {
+        'work.created': '업무 등록됨', 'work.collab_requested': '협업 요청됨', 'work.completed': '업무 완료됨', 'work.reopened': '업무 재개됨',
+        'document.shared': '자료 공유됨', 'document.revised': '자료 개정됨', 'document.confirmed': '자료 확정됨', 'document.withdrawn': '자료 철회됨',
+        'department.check_requested': '부서 점검 요청됨',
+    } as Record<string, string>,
+    deliveryStatus: {
+        pending: '대기', processing: '처리 중', waiting_answer: '답변 대기', done: '처리됨', skipped: '건너뜀', held: '보류', failed: '실패',
+    } satisfies Record<DeliveryStatus, string>,
+    deliveryPurpose: {
+        judge: '판단', notify: '알림', collab_request: '협업 요청',
+    } satisfies Record<DeliveryPurpose, string>,
     inboxKind: {
         task: '작업 제출', review: '리뷰', approval: '승인', tool_approval: '도구 사용 승인', question: 'AI 질문', budget: '예산 한도',
     } satisfies Record<InboxKind, string>,

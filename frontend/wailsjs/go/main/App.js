@@ -146,6 +146,10 @@ export function ListConnections() {
   return window['go']['main']['App']['ListConnections']();
 }
 
+export function ListDeliveries(arg1, arg2) {
+  return window['go']['main']['App']['ListDeliveries'](arg1, arg2);
+}
+
 export function ListDepartmentTemplates() {
   return window['go']['main']['App']['ListDepartmentTemplates']();
 }
@@ -164,6 +168,14 @@ export function ListRoles() {
 
 export function ListRuns(arg1) {
   return window['go']['main']['App']['ListRuns'](arg1);
+}
+
+export function ListSubscriptions(arg1, arg2) {
+  return window['go']['main']['App']['ListSubscriptions'](arg1, arg2);
+}
+
+export function ListWorkEvents(arg1, arg2) {
+  return window['go']['main']['App']['ListWorkEvents'](arg1, arg2);
 }
 
 export function ListWorkItems(arg1, arg2) {
@@ -210,8 +222,16 @@ export function ReparseDesign(arg1) {
   return window['go']['main']['App']['ReparseDesign'](arg1);
 }
 
+export function RequestDepartmentCheck(arg1, arg2, arg3) {
+  return window['go']['main']['App']['RequestDepartmentCheck'](arg1, arg2, arg3);
+}
+
 export function ResumeRun(arg1, arg2) {
   return window['go']['main']['App']['ResumeRun'](arg1, arg2);
+}
+
+export function RetryDelivery(arg1, arg2) {
+  return window['go']['main']['App']['RetryDelivery'](arg1, arg2);
 }
 
 export function RetryStep(arg1, arg2, arg3) {
@@ -246,6 +266,10 @@ export function SaveRole(arg1) {
   return window['go']['main']['App']['SaveRole'](arg1);
 }
 
+export function SaveSubscription(arg1) {
+  return window['go']['main']['App']['SaveSubscription'](arg1);
+}
+
 export function SaveWorkflowDiagram(arg1) {
   return window['go']['main']['App']['SaveWorkflowDiagram'](arg1);
 }
@@ -276,6 +300,10 @@ export function SetSetting(arg1, arg2) {
 
 export function SetWorkStatus(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['SetWorkStatus'](arg1, arg2, arg3, arg4);
+}
+
+export function SkipDelivery(arg1, arg2, arg3) {
+  return window['go']['main']['App']['SkipDelivery'](arg1, arg2, arg3);
 }
 
 export function StartDesign(arg1) {

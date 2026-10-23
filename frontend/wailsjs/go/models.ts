@@ -1095,6 +1095,32 @@ export namespace domain {
 	}
 	
 	
+	export class Subscription {
+	    id: string;
+	    projectId: string;
+	    departmentId: string;
+	    eventKinds: string[];
+	    categories: string[];
+	    guidance: string;
+	    enabled: boolean;
+	    updatedAt: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Subscription(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.projectId = source["projectId"];
+	        this.departmentId = source["departmentId"];
+	        this.eventKinds = source["eventKinds"];
+	        this.categories = source["categories"];
+	        this.guidance = source["guidance"];
+	        this.enabled = source["enabled"];
+	        this.updatedAt = source["updatedAt"];
+	    }
+	}
 	
 	export class WorkItem {
 	    id: string;
@@ -2422,6 +2448,116 @@ export namespace storage {
 	        this.scopeNodeId = source["scopeNodeId"];
 	    }
 	}
+	export class WorkEvent {
+	    departmentId: string;
+	    targetDepartmentId?: string;
+	    collabRequestId?: string;
+	    workItemId?: string;
+	    goalId?: string;
+	    title?: string;
+	    note?: string;
+	    categories: string[];
+	    causeSequence?: number;
+	    chainRootSequence?: number;
+	    chainDepth: number;
+	    automated: boolean;
+	    documentVersionId?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new WorkEvent(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.departmentId = source["departmentId"];
+	        this.targetDepartmentId = source["targetDepartmentId"];
+	        this.collabRequestId = source["collabRequestId"];
+	        this.workItemId = source["workItemId"];
+	        this.goalId = source["goalId"];
+	        this.title = source["title"];
+	        this.note = source["note"];
+	        this.categories = source["categories"];
+	        this.causeSequence = source["causeSequence"];
+	        this.chainRootSequence = source["chainRootSequence"];
+	        this.chainDepth = source["chainDepth"];
+	        this.automated = source["automated"];
+	        this.documentVersionId = source["documentVersionId"];
+	    }
+	}
+	export class Delivery {
+	    id: string;
+	    projectId: string;
+	    eventSequence: number;
+	    eventKind: string;
+	    event: WorkEvent;
+	    eventAt: string;
+	    departmentId: string;
+	    subscriptionId: string;
+	    purpose: string;
+	    status: string;
+	    note: string;
+	    error: string;
+	    holdReason: string;
+	    createdAt: string;
+	    updatedAt: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Delivery(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.projectId = source["projectId"];
+	        this.eventSequence = source["eventSequence"];
+	        this.eventKind = source["eventKind"];
+	        this.event = this.convertValues(source["event"], WorkEvent);
+	        this.eventAt = source["eventAt"];
+	        this.departmentId = source["departmentId"];
+	        this.subscriptionId = source["subscriptionId"];
+	        this.purpose = source["purpose"];
+	        this.status = source["status"];
+	        this.note = source["note"];
+	        this.error = source["error"];
+	        this.holdReason = source["holdReason"];
+	        this.createdAt = source["createdAt"];
+	        this.updatedAt = source["updatedAt"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class DeliveryFilter {
+	    departmentId: string;
+	    status: string;
+	    limit: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new DeliveryFilter(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.departmentId = source["departmentId"];
+	        this.status = source["status"];
+	        this.limit = source["limit"];
+	    }
+	}
 	export class DesignApplied {
 	    projectId: string;
 	    roleIds: Record<string, string>;
@@ -2457,6 +2593,45 @@ export namespace storage {
 	        this.issues = this.convertValues(source["issues"], domain.Issue);
 	        this.canVersion = source["canVersion"];
 	        this.canRun = source["canRun"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	export class WorkEventView {
+	    sequence: number;
+	    kind: string;
+	    event: WorkEvent;
+	    createdAt: string;
+	    deliveries: Delivery[];
+	
+	    static createFrom(source: any = {}) {
+	        return new WorkEventView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.sequence = source["sequence"];
+	        this.kind = source["kind"];
+	        this.event = this.convertValues(source["event"], WorkEvent);
+	        this.createdAt = source["createdAt"];
+	        this.deliveries = this.convertValues(source["deliveries"], Delivery);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

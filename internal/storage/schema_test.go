@@ -172,3 +172,20 @@ func TestWorkSchemaConstraints(t *testing.T) {
 	f.mustFail(t, "FOREIGN KEY", `INSERT INTO work_item_notes (id, project_id, work_item_id, kind, body, author, created_at) VALUES ('n1', 'estate', 'w4', 'note', 'x', 'me', ?)`, now)
 	f.mustFail(t, "CHECK", `INSERT INTO work_item_notes (id, project_id, work_item_id, kind, body, author, created_at) VALUES ('n2', 'game', 'w4', 'note', '', 'me', ?)`, now)
 }
+
+// A delivery exists once per event, department and purpose, belongs to
+// the event's service, and a failure or hold always says why.
+func TestDeliverySchemaConstraints(t *testing.T) {
+	f := newSchemaFixture(t)
+	now := Now()
+	f.mustExec(t, `INSERT INTO departments (id, project_id, name, created_at, updated_at) VALUES ('d-game', 'game', '개발팀', ?, ?)`, now, now)
+	f.mustExec(t, `INSERT INTO execution_events (sequence, id, project_id, kind, payload, created_at) VALUES (900, 'ev-w', 'game', 'work.created', '{}', ?)`, now)
+	dlv := `INSERT INTO event_deliveries (id, project_id, event_sequence, department_id, purpose, status, error, hold_reason, created_at, updated_at)
+		VALUES (?, ?, 900, 'd-game', ?, ?, ?, ?, ?, ?)`
+	f.mustExec(t, dlv, "dl1", "game", "judge", "pending", "", "", now, now)
+	f.mustFail(t, "UNIQUE", dlv, "dl2", "game", "judge", "pending", "", "", now, now)
+	f.mustExec(t, dlv, "dl3", "game", "notify", "pending", "", "", now, now)
+	f.mustFail(t, "FOREIGN KEY", dlv, "dl4", "estate", "collab_request", "pending", "", "", now, now)
+	f.mustFail(t, "CHECK", dlv, "dl5", "game", "collab_request", "failed", "", "", now, now)
+	f.mustFail(t, "CHECK", dlv, "dl6", "game", "collab_request", "held", "", "", now, now)
+}

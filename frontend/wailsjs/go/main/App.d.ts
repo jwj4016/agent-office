@@ -80,6 +80,8 @@ export function ListAssignments(arg1:string):Promise<Array<domain.Assignment>>;
 
 export function ListConnections():Promise<Array<main.ConnectionView>>;
 
+export function ListDeliveries(arg1:string,arg2:storage.DeliveryFilter):Promise<Array<storage.Delivery>>;
+
 export function ListDepartmentTemplates():Promise<Array<domain.DepartmentTemplate>>;
 
 export function ListDepartments(arg1:string):Promise<Array<domain.Department>>;
@@ -89,6 +91,10 @@ export function ListDesigns():Promise<Array<main.DesignView>>;
 export function ListRoles():Promise<Array<domain.Role>>;
 
 export function ListRuns(arg1:string):Promise<Array<engine.RunDetail>>;
+
+export function ListSubscriptions(arg1:string,arg2:string):Promise<Array<domain.Subscription>>;
+
+export function ListWorkEvents(arg1:string,arg2:string):Promise<Array<storage.WorkEventView>>;
 
 export function ListWorkItems(arg1:string,arg2:storage.WorkFilter):Promise<Array<domain.WorkItem>>;
 
@@ -112,7 +118,11 @@ export function ReadArtifact(arg1:string,arg2:string):Promise<engine.ArtifactCon
 
 export function ReparseDesign(arg1:string):Promise<main.DesignView>;
 
+export function RequestDepartmentCheck(arg1:string,arg2:string,arg3:string):Promise<void>;
+
 export function ResumeRun(arg1:string,arg2:string):Promise<void>;
+
+export function RetryDelivery(arg1:string,arg2:string):Promise<void>;
 
 export function RetryStep(arg1:string,arg2:string,arg3:string):Promise<void>;
 
@@ -130,6 +140,8 @@ export function SaveDepartmentTemplate(arg1:domain.DepartmentTemplate):Promise<d
 
 export function SaveRole(arg1:domain.Role):Promise<domain.Role>;
 
+export function SaveSubscription(arg1:domain.Subscription):Promise<domain.Subscription>;
+
 export function SaveWorkflowDiagram(arg1:string):Promise<string>;
 
 export function SaveWorkflowDraft(arg1:string,arg2:string,arg3:number,arg4:string):Promise<domain.Workflow>;
@@ -145,6 +157,8 @@ export function SetProjectCategories(arg1:string,arg2:Array<string>):Promise<Arr
 export function SetSetting(arg1:string,arg2:string):Promise<void>;
 
 export function SetWorkStatus(arg1:string,arg2:string,arg3:string,arg4:string):Promise<domain.WorkItem>;
+
+export function SkipDelivery(arg1:string,arg2:string,arg3:string):Promise<void>;
 
 export function StartDesign(arg1:main.DesignInput):Promise<main.DesignView>;
 

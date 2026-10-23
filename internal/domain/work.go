@@ -108,3 +108,66 @@ type WorkNote struct {
 	Author     string `json:"author"`
 	CreatedAt  string `json:"createdAt"`
 }
+
+// Work event kinds (plan §4.2). They are stored in execution_events
+// without a run and are told apart from run events by their prefix.
+const (
+	EventWorkCreated         = "work.created"
+	EventWorkCollabRequested = "work.collab_requested"
+	EventWorkCompleted       = "work.completed"
+	EventWorkReopened        = "work.reopened"
+	EventDocumentShared      = "document.shared"
+	EventDocumentRevised     = "document.revised"
+	EventDocumentConfirmed   = "document.confirmed"
+	EventDocumentWithdrawn   = "document.withdrawn"
+	EventDepartmentCheck     = "department.check_requested"
+)
+
+// SubscribableEvents are the kinds a department can subscribe to.
+// Direct requests (check, collaboration) reach their target without one.
+var SubscribableEvents = []string{
+	EventWorkCreated, EventWorkCompleted, EventWorkReopened,
+	EventDocumentShared, EventDocumentRevised, EventDocumentConfirmed, EventDocumentWithdrawn,
+}
+
+// IsWorkEvent reports whether an event kind belongs to service operations.
+func IsWorkEvent(kind string) bool {
+	for _, p := range []string{"work.", "document.", "department."} {
+		if len(kind) > len(p) && kind[:len(p)] == p {
+			return true
+		}
+	}
+	return false
+}
+
+// Subscription is what a department wants to hear about: event kinds,
+// optionally narrowed to categories, and the point of view it judges from.
+type Subscription struct {
+	ID           string   `json:"id"`
+	ProjectID    string   `json:"projectId"`
+	DepartmentID string   `json:"departmentId"`
+	EventKinds   []string `json:"eventKinds"`
+	Categories   []string `json:"categories"` // empty: every category
+	Guidance     string   `json:"guidance"`
+	Enabled      bool     `json:"enabled"`
+	UpdatedAt    string   `json:"updatedAt"`
+}
+
+// Delivery purposes and statuses.
+const (
+	PurposeJudge         = "judge"
+	PurposeNotify        = "notify"
+	PurposeCollabRequest = "collab_request"
+
+	DeliveryPending       = "pending"
+	DeliveryProcessing    = "processing"
+	DeliveryWaitingAnswer = "waiting_answer"
+	DeliveryDone          = "done"
+	DeliverySkipped       = "skipped"
+	DeliveryHeld          = "held"
+	DeliveryFailed        = "failed"
+)
+
+// DefaultJudgeFanout is how many departments one event may send to AI
+// judgment through subscriptions; the rest are held (plan §4.3, §9.3).
+const DefaultJudgeFanout = 5

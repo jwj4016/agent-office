@@ -22,6 +22,7 @@ import (
 	"agent-office/internal/secrets"
 	"agent-office/internal/storage"
 	"agent-office/internal/templates"
+	"agent-office/internal/work"
 	"agent-office/internal/workspace"
 
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -62,6 +63,9 @@ type App struct {
 	testProvider *providers.TestProvider
 	stopEngine   context.CancelFunc
 	engineDone   chan struct{}
+	// work handles department deliveries (service operations).
+	work     *work.Processor
+	workDone chan struct{}
 
 	deltaMu sync.Mutex
 	deltas  map[string]*Delta
@@ -123,9 +127,18 @@ func (a *App) startup(ctx context.Context) {
 		Diagram:   diagram,
 		Ephemeral: a.addDelta,
 	})
-	a.db.Subscribe(func(evs []storage.EventRecord) { a.emit(a.ctx, EventStored, evs) })
+	a.work = work.New(a.db, work.Acknowledge)
+	a.db.Subscribe(func(evs []storage.EventRecord) {
+		a.emit(a.ctx, EventStored, evs)
+		for _, ev := range evs {
+			if domain.IsWorkEvent(ev.Kind) {
+				a.work.Wake() // only a signal: the callback must not write
+				break
+			}
+		}
+	})
 	ectx, cancel := context.WithCancel(context.Background())
-	a.stopEngine, a.engineDone = cancel, make(chan struct{})
+	a.stopEngine, a.engineDone, a.workDone = cancel, make(chan struct{}), make(chan struct{})
 	a.design = &design.Service{DB: a.db, Engine: a.eng, Providers: a.providerFor, Connections: a.designConnections, Ctx: ectx,
 		DataDir: dir, Diagram: diagram}
 	if err := a.design.Recover(ctx); err != nil {
@@ -136,6 +149,12 @@ func (a *App) startup(ctx context.Context) {
 			log.Printf("engine stopped: %v", err)
 		}
 		close(a.engineDone)
+	}()
+	go func() {
+		if err := a.work.Run(ectx); err != nil {
+			log.Printf("work processor stopped: %v", err)
+		}
+		close(a.workDone)
 	}()
 	go a.flushDeltas(ectx)
 	if perfEnabled() {
@@ -157,6 +176,7 @@ func (a *App) shutdown(ctx context.Context) {
 	if a.stopEngine != nil {
 		a.stopEngine()
 		<-a.engineDone
+		<-a.workDone
 		a.design.Wait()
 	}
 	if a.db != nil {

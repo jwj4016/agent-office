@@ -3,6 +3,7 @@ package main
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"agent-office/internal/domain"
 	"agent-office/internal/storage"
@@ -70,5 +71,73 @@ func TestBindingsDepartmentsAndWork(t *testing.T) {
 	}
 	if _, err := b.GetWorkItem(other.ID, goal.ID); err == nil || !strings.Contains(err.Error(), "이 서비스에서 찾을 수 없는") {
 		t.Fatalf("cross-service read: %v", err)
+	}
+}
+
+func waitDeliveries(t *testing.T, a *App, projectID string, done int) []storage.Delivery {
+	t.Helper()
+	deadline := time.Now().Add(e2eWait)
+	for {
+		list := need(a.ListDeliveries(projectID, storage.DeliveryFilter{}))
+		n := 0
+		for _, d := range list {
+			if d.Status == domain.DeliveryDone {
+				n++
+			}
+		}
+		if n >= done {
+			return list
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("deliveries done = %d, want %d: %+v", n, done, list)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+// Stage 2 acceptance: one work event reaches two subscribed departments,
+// is handled once, and a restart neither loses nor repeats deliveries.
+// A direct check reaches a department that subscribes to nothing.
+func TestBindingsWorkEventsReachDepartments(t *testing.T) {
+	a := startApp(t)
+	p := need(a.CreateProject(ProjectInput{Name: "캠페인", Mode: "review"}))
+	dept := map[string]domain.Department{}
+	for _, name := range []string{"마케팅팀", "개발팀", "재무팀"} {
+		dept[name] = need(a.SaveDepartment(domain.Department{ProjectID: p.ID, Name: name}))
+	}
+	for _, name := range []string{"개발팀", "재무팀"} {
+		need(a.SaveSubscription(domain.Subscription{ProjectID: p.ID, DepartmentID: dept[name].ID,
+			EventKinds: []string{domain.EventWorkCreated}, Guidance: name + " 관점", Enabled: true}))
+	}
+	plan := need(a.CreateWorkItem(domain.WorkItem{ProjectID: p.ID, DepartmentID: dept["마케팅팀"].ID, Title: "캠페인 기획안"}))
+	got := waitDeliveries(t, a, p.ID, 2)
+	if len(got) != 2 {
+		t.Fatalf("deliveries = %+v", got)
+	}
+	evs := need(a.ListWorkEvents(p.ID, plan.ID))
+	if len(evs) != 1 || evs[0].Kind != domain.EventWorkCreated || len(evs[0].Deliveries) != 2 {
+		t.Fatalf("events = %+v", evs)
+	}
+
+	// Restart: nothing is lost or handled again; new events still flow.
+	a.shutdown(a.ctx)
+	b := NewApp()
+	b.emit = a.emit
+	b.startup(t.Context())
+	t.Cleanup(func() { b.shutdown(t.Context()) })
+	if err := b.RequestDepartmentCheck(p.ID, dept["마케팅팀"].ID, "다음 분기 캠페인 아이디어"); err != nil {
+		t.Fatal(err)
+	}
+	got = waitDeliveries(t, b, p.ID, 3)
+	if len(got) != 3 {
+		t.Fatalf("after restart = %+v", got)
+	}
+	for _, d := range got {
+		if d.EventKind == domain.EventDepartmentCheck && (d.DepartmentID != dept["마케팅팀"].ID || d.Event.Note != "다음 분기 캠페인 아이디어") {
+			t.Fatalf("check delivery = %+v", d)
+		}
+	}
+	if err := b.RetryDelivery(p.ID, got[0].ID); err == nil || strings.Contains(err.Error(), "invalid input") {
+		t.Fatalf("retry of a done delivery: %v", err)
 	}
 }

@@ -713,7 +713,8 @@ func (db *DB) CreateWorkItem(ctx context.Context, w domain.WorkItem) (domain.Wor
 		return w, invalid("대기나 막힘 상태에는 이유가 필요합니다")
 	}
 	cats, _ := json.Marshal(w.Categories)
-	err := db.Write(ctx, func(tx *sql.Tx) error {
+	_, err := db.Change(ctx, func(c *Change) error {
+		tx := c.Tx
 		if err := writableProjectTx(ctx, tx, w.ProjectID); err != nil {
 			return err
 		}
@@ -729,7 +730,11 @@ func (db *DB) CreateWorkItem(ctx context.Context, w domain.WorkItem) (domain.Wor
 			w.Title, w.Description, w.DoneCriteria, w.Priority, w.Status, strings.TrimSpace(w.StatusReason), string(cats), w.DueAt, now, now); err != nil {
 			return err
 		}
-		return addNoteTx(ctx, tx, w.ProjectID, w.ID, domain.NoteStatus, strings.TrimSpace(w.StatusReason), "", w.Status, now)
+		if err := addNoteTx(ctx, tx, w.ProjectID, w.ID, domain.NoteStatus, strings.TrimSpace(w.StatusReason), "", w.Status, now); err != nil {
+			return err
+		}
+		_, err := emitWorkEventTx(ctx, c, w.ProjectID, domain.EventWorkCreated, workEventFor(w))
+		return err
 	})
 	if err != nil {
 		return w, err
@@ -785,7 +790,8 @@ func (db *DB) SetWorkStatus(ctx context.Context, projectID, id, status, reason s
 	if domain.WorkNeedsReason(status) && reason == "" {
 		return domain.WorkItem{}, invalid("대기나 막힘 상태에는 이유가 필요합니다")
 	}
-	err := db.Write(ctx, func(tx *sql.Tx) error {
+	_, err := db.Change(ctx, func(c *Change) error {
+		tx := c.Tx
 		if err := writableProjectTx(ctx, tx, projectID); err != nil {
 			return err
 		}
@@ -814,7 +820,20 @@ func (db *DB) SetWorkStatus(ctx context.Context, projectID, id, status, reason s
 			status, stored, closed, now, id, projectID); err != nil {
 			return err
 		}
-		return addNoteTx(ctx, tx, projectID, id, domain.NoteStatus, reason, cur.Status, status, now)
+		if err := addNoteTx(ctx, tx, projectID, id, domain.NoteStatus, reason, cur.Status, status, now); err != nil {
+			return err
+		}
+		// Completing and reopening are events other departments may react
+		// to; other status changes stay in the item's history only.
+		ev := workEventFor(cur)
+		ev.Note = reason
+		switch {
+		case status == domain.WorkDone && cur.Status != domain.WorkDone:
+			_, err = emitWorkEventTx(ctx, c, projectID, domain.EventWorkCompleted, ev)
+		case domain.WorkClosed(cur.Status) && !domain.WorkClosed(status):
+			_, err = emitWorkEventTx(ctx, c, projectID, domain.EventWorkReopened, ev)
+		}
+		return err
 	})
 	if err != nil {
 		return domain.WorkItem{}, err

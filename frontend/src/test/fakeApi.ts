@@ -54,6 +54,9 @@ export const fakeApi = {
     categories: vi.fn(async (..._args: unknown[]): Promise<string[]> => []), setCategories: vi.fn(async (_p: string, names: string[]) => names),
     workItems: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []), workItem: vi.fn(), createWorkItem: vi.fn(), updateWorkItem: vi.fn(),
     setWorkStatus: vi.fn(), addWorkNote: vi.fn(),
+    workEvents: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []), subscriptions: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []),
+    saveSubscription: vi.fn(), deliveries: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []),
+    requestDepartmentCheck: ok(undefined), retryDelivery: ok(undefined), skipDelivery: ok(undefined),
     onEvents: vi.fn(() => () => {}),
     onDeltas: vi.fn(() => () => {}),
 };

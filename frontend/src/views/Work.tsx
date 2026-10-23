@@ -8,6 +8,7 @@ import {
     Banner, Button, DetailHeader, EmptyState, ErrorBox, Field, Icon, Loading, Section, StatusBadge, type Tone, shortTime, useAction, useDetail,
     useToast,
 } from '../ui';
+import {DeliveryInbox, WorkEvents} from './Deliveries';
 
 export const workStatuses: WorkStatus[] = ['received', 'ready', 'in_progress', 'waiting', 'blocked', 'done', 'cancelled'];
 export const workPriorities: WorkPriority[] = ['urgent', 'high', 'normal', 'low'];
@@ -171,6 +172,8 @@ export function Work({project, onTeam}: { project: Project; onTeam: () => void }
                     </div>
                 )}
             </Section>
+
+            <DeliveryInbox project={project} departments={departments.data}/>
         </div>
     );
 }
@@ -233,6 +236,8 @@ function WorkPanel({ctx, id, onChanged}: { ctx: Context; id: string; onChanged: 
                     ) : null}
                 </Section>
             ) : null}
+
+            <WorkEvents project={ctx.project} workItemId={w.id} departments={ctx.departments}/>
 
             <History ctx={ctx} itemId={w.id} notes={d.data.notes} disabled={archived} onAdded={d.reload}/>
         </div>
