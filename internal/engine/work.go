@@ -14,11 +14,15 @@ const maxPreviousResult = 16 << 10
 // StartWork runs a work item's plan as a one-step workflow version of its
 // own and returns the run id. With feedback, the step is also given the
 // person's change request and the latest result it is about, so a new
-// run can rework it (service operations plan §4.6, stage 3).
+// run can rework it (service operations plan §4.6, stage 3). The shared
+// documents the work links are given to the step and pinned to the run.
 func (e *Engine) StartWork(ctx context.Context, projectID, workItemID, feedback string) (string, error) {
-	extra := ""
+	extra, pinned, err := e.WorkDocumentsSection(ctx, projectID, workItemID)
+	if err != nil {
+		return "", err
+	}
 	if feedback = strings.TrimSpace(feedback); feedback != "" {
-		extra = "## 이전 결과에 대한 수정 요청\n" + feedback
+		extra += "\n\n## 이전 결과에 대한 수정 요청\n" + feedback
 		if prev := e.previousWorkResult(ctx, projectID, workItemID); prev != "" {
 			extra += "\n\n## 이전 결과\n" + prev
 		}
@@ -31,7 +35,7 @@ func (e *Engine) StartWork(ctx context.Context, projectID, workItemID, feedback 
 	if err != nil {
 		return "", err
 	}
-	return e.startRun(ctx, projectID, v.ID, workItemID)
+	return e.startRun(ctx, projectID, v.ID, workItemID, pinned)
 }
 
 // previousWorkResult is the text of the latest run's valid results, or ""

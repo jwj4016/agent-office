@@ -191,10 +191,11 @@ func (db *DB) WorkVersion(ctx context.Context, projectID, workItemID string, spe
 
 // ---- runs of work items ----
 
-// StartWorkRunTx links a run being inserted in c to its work item and
-// marks the item in progress. It refuses a closed item, another
-// service's item and a second active run.
-func StartWorkRunTx(ctx context.Context, c *Change, projectID, workItemID, runID string) error {
+// StartWorkRunTx links a run being inserted in c to its work item, pins
+// the shared document versions it is given, and marks the item in
+// progress. It refuses a closed item, another service's item and a
+// second active run.
+func StartWorkRunTx(ctx context.Context, c *Change, projectID, workItemID, runID string, documentVersions []string) error {
 	w, err := workTx(ctx, c.Tx, projectID, workItemID)
 	if err != nil {
 		return err
@@ -209,6 +210,9 @@ func StartWorkRunTx(ctx context.Context, c *Change, projectID, workItemID, runID
 		return invalid("이 업무는 이미 실행 중입니다. 끝나거나 취소된 뒤에 다시 실행하세요")
 	}
 	if _, err := c.Tx.ExecContext(ctx, `UPDATE runs SET work_item_id = ? WHERE id = ? AND project_id = ?`, workItemID, runID, projectID); err != nil {
+		return err
+	}
+	if err := pinDocumentsTx(ctx, c.Tx, projectID, workItemID, runID, documentVersions); err != nil {
 		return err
 	}
 	return setWorkStatusTx(ctx, c, w, domain.WorkInProgress, "실행을 시작했습니다", "run:"+runID)

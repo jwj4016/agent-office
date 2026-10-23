@@ -9,6 +9,7 @@ import type {
     Validation, Workflow, WorkflowSpec, AssistKind, AssistRecord,
     Department, DepartmentTemplate, WorkDetail, WorkFilter, WorkItem, WorkNote, WorkStatus,
     Delivery, DeliveryFilter, Subscription, WorkEventView, WorkPlan, WorkPlanView, AIJob, PlanJobView,
+    DocumentContent, DocumentFilter, DocumentVersion, ImpactCheck, LinkedDocument, NewDocumentVersion, SharedDocument,
 } from './types';
 
 // The generated d.ts types differ from the real JSON for raw fields, so
@@ -74,6 +75,25 @@ export const api = {
     planJobs: (projectId: string, workItemId: string) => call<PlanJobView[]>(Go.ListPlanJobs(projectId, workItemId)),
     applyPlanJob: (projectId: string, jobId: string) => call<WorkPlan>(Go.ApplyPlanJob(projectId, jobId)),
     retryAIJob: (projectId: string, jobId: string) => call<void>(Go.RetryAIJob(projectId, jobId)),
+
+    documents: (projectId: string, filter: DocumentFilter = {}) => call<SharedDocument[]>(Go.ListDocuments(projectId, filter as never)),
+    document: (projectId: string, id: string) => call<SharedDocument>(Go.GetDocument(projectId, id)),
+    readDocumentVersion: (projectId: string, versionId: string) => call<DocumentContent>(Go.ReadDocumentVersion(projectId, versionId)),
+    shareArtifact: (projectId: string, artifactId: string, doc: NewDocumentVersion) =>
+        call<DocumentVersion>(Go.ShareArtifact(projectId, artifactId, doc as never)),
+    shareWorkspaceFile: (projectId: string, relPath: string, doc: NewDocumentVersion) =>
+        call<DocumentVersion>(Go.ShareWorkspaceFile(projectId, relPath, doc as never)),
+    confirmDocumentVersion: (projectId: string, versionId: string, note: string) =>
+        call<DocumentVersion>(Go.ConfirmDocumentVersion(projectId, versionId, note)),
+    withdrawDocument: (projectId: string, documentId: string, versionId: string, reason: string) =>
+        call<void>(Go.WithdrawDocument(projectId, documentId, versionId, reason)),
+    linkDocument: (projectId: string, workItemId: string, versionId: string) => call<void>(Go.LinkDocument(projectId, workItemId, versionId)),
+    unlinkDocument: (projectId: string, workItemId: string, versionId: string) => call<void>(Go.UnlinkDocument(projectId, workItemId, versionId)),
+    workDocuments: (projectId: string, workItemId: string) => call<LinkedDocument[]>(Go.ListWorkDocuments(projectId, workItemId)),
+    runDocuments: (projectId: string, runId: string) => call<DocumentVersion[]>(Go.ListRunDocuments(projectId, runId)),
+    impactChecks: (projectId: string, workItemId = '', status = '') => call<ImpactCheck[]>(Go.ListImpactChecks(projectId, workItemId, status)),
+    closeImpactCheck: (projectId: string, id: string, status: 'resolved' | 'dismissed', note: string) =>
+        call<void>(Go.CloseImpactCheck(projectId, id, status, note)),
 
     assignments: (projectId: string) => call<Assignment[]>(Go.ListAssignments(projectId)),
     saveAssignment: (a: Partial<Assignment>) => call<Assignment>(Go.SaveAssignment(a as never)),

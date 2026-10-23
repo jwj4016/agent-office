@@ -1,6 +1,6 @@
 import {
     Activity, Archive, ArchiveRestore, ArrowRight, ClipboardList, FileText, GitBranch, Inbox as InboxIcon, LayoutDashboard, ListChecks,
-    PauseCircle, Settings2, Tags, Users, Workflow,
+    FolderOpen, PauseCircle, Settings2, Tags, Users, Workflow,
 } from 'lucide-react';
 import {useEffect, useRef, useState} from 'react';
 import type {Route} from '../App';
@@ -20,16 +20,18 @@ import {FolderInput} from './FolderInput';
 import {DeskDetail, Office, OfficeList, useOffice} from './Office';
 import {Runs} from './Runs';
 import {Team} from './Team';
+import {Documents} from './Documents';
 import {Work} from './Work';
 import {Workflows} from './Workflows';
 
-export type ProjectTab = 'status' | 'work' | 'office' | 'runs' | 'workflows' | 'team' | 'settings';
+export type ProjectTab = 'status' | 'work' | 'docs' | 'office' | 'runs' | 'workflows' | 'team' | 'settings';
 
 type ProjectRoute = Extract<Route, { view: 'project' }>;
 
 const tabs: TabItem<ProjectTab>[] = [
     {id: 'status', label: t.project.tabs.status, icon: LayoutDashboard},
     {id: 'work', label: t.project.tabs.work, icon: ClipboardList},
+    {id: 'docs', label: t.project.tabs.docs, icon: FolderOpen},
     {id: 'office', label: t.project.tabs.office, icon: Users},
     {id: 'runs', label: t.project.tabs.runs, icon: Activity},
     {id: 'workflows', label: t.project.tabs.workflows, icon: Workflow},
@@ -76,6 +78,7 @@ export function ProjectView({route, onRoute, onChanged}: {
                 {route.tab === 'status' ? <Status project={p} onRoute={onRoute}/> : null}
                 {route.tab === 'work' ? <Work project={p} onTeam={() => go('team')}
                                               onOpenRun={(runId) => onRoute({view: 'project', projectId: p.id, tab: 'runs', runId})}/> : null}
+                {route.tab === 'docs' ? <Documents project={p}/> : null}
                 {route.tab === 'office' ? <Office project={p} onRoute={onRoute}/> : null}
                 {route.tab === 'runs' ? (
                     <Runs project={p} runId={route.runId} onInbox={() => onRoute({view: 'inbox'})}

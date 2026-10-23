@@ -1,11 +1,12 @@
-import {Check, ExternalLink, FileText, MessageSquareWarning, Play, Plus, RotateCcw, Save, Sparkles, Trash2} from 'lucide-react';
+import {Check, ExternalLink, FileText, MessageSquareWarning, Play, Plus, RotateCcw, Save, Share2, Sparkles, Trash2} from 'lucide-react';
 import {useEffect, useState} from 'react';
 import {api} from '../api';
 import {t} from '../i18n';
 import {useLoad} from '../live';
-import type {Assignment, OutputType, PlanJobView, Project, RunDetail, WorkflowOutput, WorkItem, WorkPlan} from '../types';
+import type {Assignment, Department, OutputType, PlanJobView, Project, RunDetail, WorkflowOutput, WorkItem, WorkPlan} from '../types';
 import {Banner, Button, ErrorBox, Field, IssueList, Loading, RunBadge, Section, StatusBadge, useAction, useToast} from '../ui';
 import {ArtifactViewer} from './ArtifactViewer';
+import {ShareResult} from './Documents';
 
 const outputTypes: OutputType[] = ['markdown', 'json', 'report', 'file', 'code_change', 'diagram'];
 const activeRun = (r: RunDetail) => r.status === 'running' || r.status === 'waiting' || r.status === 'paused';
@@ -13,8 +14,9 @@ const activeRun = (r: RunDetail) => r.status === 'running' || r.status === 'wait
 // WorkRun is how a work item gets done: a small plan the person writes,
 // runs of that plan, their results, and change requests. A finished run
 // never completes the work; the person checks the result and completes it.
-export function WorkRun({project, item, assignments, onChanged, onOpenRun}: {
-    project: Project; item: WorkItem; assignments: Assignment[]; onChanged: () => void; onOpenRun: (runId: string) => void;
+export function WorkRun({project, item, assignments, departments = [], categories = [], onChanged, onOpenRun}: {
+    project: Project; item: WorkItem; assignments: Assignment[]; departments?: Department[]; categories?: string[];
+    onChanged: () => void; onOpenRun: (runId: string) => void;
 }) {
     const view = useLoad(() => api.workPlan(project.id, item.id), [project.id, item.id, item.updatedAt], project.id);
     const runs = useLoad(() => api.workRuns(project.id, item.id), [project.id, item.id], project.id);
@@ -39,7 +41,7 @@ export function WorkRun({project, item, assignments, onChanged, onOpenRun}: {
             {closed ? <p className="muted small">닫힌 업무입니다. 다시 열면 실행할 수 있습니다.</p> : null}
             <RunControls project={project} itemId={item.id} canRun={view.data.saved && !view.data.problem && !closed && !archived}
                          busy={busy} hasResult={runs.data.some((r) => r.status === 'succeeded')} onStarted={reload}/>
-            <RunList project={project} runs={runs.data} onOpenRun={onOpenRun}/>
+            <RunList project={project} runs={runs.data} item={item} departments={departments} categories={categories} onOpenRun={onOpenRun}/>
         </Section>
     );
 }
@@ -134,8 +136,11 @@ function RunControls({project, itemId, canRun, busy, hasResult, onStarted}: {
     );
 }
 
-function RunList({project, runs, onOpenRun}: { project: Project; runs: RunDetail[]; onOpenRun: (runId: string) => void }) {
+function RunList({project, runs, item, departments, categories, onOpenRun}: {
+    project: Project; runs: RunDetail[]; item: WorkItem; departments: Department[]; categories: string[]; onOpenRun: (runId: string) => void;
+}) {
     const [open, setOpen] = useState<string | null>(null);
+    const [sharing, setSharing] = useState<string | null>(null);
     if (runs.length === 0) return <p className="muted small">아직 실행하지 않았습니다.</p>;
     return (
         <ul className="stack tight" aria-label="이 업무의 실행" style={{listStyle: 'none', padding: 0, margin: 0}}>
@@ -151,13 +156,21 @@ function RunList({project, runs, onOpenRun}: { project: Project; runs: RunDetail
                         {arts.length ? (
                             <div className="row">
                                 {arts.map((a) => (
-                                    <Button key={a.id} size="sm" icon={FileText} aria-pressed={open === a.id}
-                                            onClick={() => setOpen(open === a.id ? null : a.id)}>{a.outputKey} 결과</Button>
+                                    <span key={a.id} className="row nowrap">
+                                        <Button size="sm" icon={FileText} aria-pressed={open === a.id}
+                                                onClick={() => setOpen(open === a.id ? null : a.id)}>{a.outputKey} 결과</Button>
+                                        <Button size="sm" variant="ghost" icon={Share2} aria-label={`${a.outputKey} 결과 공유`} disabled={project.status === 'archived'}
+                                                onClick={() => setSharing(sharing === a.id ? null : a.id)}>공유</Button>
+                                    </span>
                                 ))}
                             </div>
                         ) : null}
                         {arts.some((a) => a.id === open) && open ? (
                             <ArtifactViewer projectId={project.id} artifactId={open} onClose={() => setOpen(null)}/>
+                        ) : null}
+                        {arts.some((a) => a.id === sharing) && sharing ? (
+                            <ShareResult project={project} artifactId={sharing} item={item} departments={departments} categories={categories}
+                                         onDone={() => setSharing(null)}/>
                         ) : null}
                     </li>
                 );

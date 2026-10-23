@@ -175,6 +175,10 @@ func TestUpgradeToDepartmentsKeepsServices(t *testing.T) {
 	if _, err := db.RequestDepartmentCheck(ctx, "prj-1", dept.ID, ""); err != nil {
 		t.Fatalf("delivery after upgrade: %v", err)
 	}
+	if _, _, err := db.AddDocumentVersion(ctx, "prj-1", NewDocumentVersion{Title: "자료", OwnerDepartmentID: dept.ID, SourceKind: "workspace",
+		SourcePath: "a.md", FileName: "a.md", Path: "projects/prj-1/documents/a.md", Hash: "h", Size: 1}); err != nil {
+		t.Fatalf("document after upgrade: %v", err)
+	}
 	if rows, _ := db.Read().Query(`PRAGMA foreign_key_check`); rows.Next() {
 		rows.Close()
 		t.Fatal("foreign key violations after upgrade")

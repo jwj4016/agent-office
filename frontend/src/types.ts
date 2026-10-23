@@ -301,3 +301,37 @@ export type ProposedPlan = { assignmentId: string; instructions: string; materia
 
 // stale: the work changed after the proposal was made, so it cannot apply.
 export type PlanJobView = { job: AIJob; proposal?: ProposedPlan; stale: boolean };
+
+// ---- shared documents ----
+
+export type DocumentVersion = {
+    id: string; documentId: string; projectId: string; number: number; stage: 'draft' | 'final'; confirmedBy: string; confirmedAt: string;
+    confirmationNote: string; sourceKind: 'artifact' | 'workspace'; sourceArtifactId: string; sourcePath: string; fileName: string; path: string;
+    hash: string; size: number; withdrawnAt: string; createdAt: string;
+};
+
+export type SharedDocument = {
+    id: string; projectId: string; title: string; categories: string[]; ownerDepartmentId: string; workItemId: string;
+    scope: 'service' | 'departments'; scopeDepartments: string[]; status: 'active' | 'withdrawn'; createdAt: string; updatedAt: string;
+    versions: DocumentVersion[];
+};
+
+// With documentId it is a new version of that document; otherwise a new
+// document is made from the other fields.
+export type NewDocumentVersion = {
+    documentId?: string; title?: string; categories?: string[]; ownerDepartmentId?: string; workItemId?: string;
+    scope?: 'service' | 'departments'; scopeDepartments?: string[];
+};
+
+export type DocumentFilter = {
+    query?: string; category?: string; ownerDepartmentId?: string; visibleTo?: string; stage?: string; includeWithdrawn?: boolean;
+};
+
+export type LinkedDocument = { version: DocumentVersion; document: SharedDocument; newer: number; linkedAt: string };
+
+export type ImpactCheck = {
+    id: string; projectId: string; workItemId: string; cause: 'revised' | 'withdrawn' | 'required_reopened'; refId: string; documentId: string;
+    summary: string; status: 'open' | 'resolved' | 'dismissed'; note: string; createdAt: string;
+};
+
+export type DocumentContent = DocumentVersion & { title: string; content: string; binary: boolean; truncated: boolean; hashOk: boolean };

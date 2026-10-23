@@ -263,7 +263,11 @@ func (a *App) GetWorkPlan(projectID, workItemID string) (WorkPlanView, error) {
 		}
 		return v, nil
 	}
-	spec, err := a.db.ComposeWorkSpec(a.ctx, projectID, workItemID, "")
+	docs, _, err := a.eng.WorkDocumentsSection(a.ctx, projectID, workItemID)
+	if err != nil {
+		return v, uiErr(err)
+	}
+	spec, err := a.db.ComposeWorkSpec(a.ctx, projectID, workItemID, docs)
 	if err != nil {
 		v.Problem = uiErr(err).Error()
 	} else {
@@ -375,4 +379,121 @@ func (a *App) RetryAIJob(projectID, jobID string) error {
 	}
 	a.ai.Wake(job.Lane)
 	return nil
+}
+
+// ---- shared documents ----
+
+func (a *App) ListDocuments(projectID string, filter storage.DocumentFilter) ([]storage.SharedDocument, error) {
+	if err := a.ready(); err != nil {
+		return nil, err
+	}
+	list, err := a.db.Documents(a.ctx, projectID, filter)
+	return list, uiErr(err)
+}
+
+func (a *App) GetDocument(projectID, documentID string) (storage.SharedDocument, error) {
+	if err := a.ready(); err != nil {
+		return storage.SharedDocument{}, err
+	}
+	d, err := a.db.Document(a.ctx, projectID, documentID)
+	return d, uiErr(err)
+}
+
+// ReadDocumentVersion returns a shared copy's text and whether its hash
+// still matches.
+func (a *App) ReadDocumentVersion(projectID, versionID string) (engine.DocumentContent, error) {
+	if err := a.ready(); err != nil {
+		return engine.DocumentContent{}, err
+	}
+	c, err := a.eng.ReadDocumentVersion(a.ctx, projectID, versionID)
+	return c, uiErr(err)
+}
+
+// ShareArtifact shares a run result as a new document, or as a new
+// version when doc.documentId is set. The work does not have to be done.
+func (a *App) ShareArtifact(projectID, artifactID string, doc storage.NewDocumentVersion) (storage.DocumentVersion, error) {
+	if err := a.ready(); err != nil {
+		return storage.DocumentVersion{}, err
+	}
+	v, err := a.eng.ShareArtifact(a.ctx, projectID, artifactID, doc)
+	return v, uiErr(err)
+}
+
+// ShareWorkspaceFile shares a file of the service's work folder, given by
+// its path inside that folder.
+func (a *App) ShareWorkspaceFile(projectID, relPath string, doc storage.NewDocumentVersion) (storage.DocumentVersion, error) {
+	if err := a.ready(); err != nil {
+		return storage.DocumentVersion{}, err
+	}
+	v, err := a.eng.ShareWorkspaceFile(a.ctx, projectID, relPath, doc)
+	return v, uiErr(err)
+}
+
+// ConfirmDocumentVersion marks a version final without changing it.
+func (a *App) ConfirmDocumentVersion(projectID, versionID, note string) (storage.DocumentVersion, error) {
+	if err := a.ready(); err != nil {
+		return storage.DocumentVersion{}, err
+	}
+	v, err := a.db.ConfirmDocumentVersion(a.ctx, projectID, versionID, note)
+	return v, uiErr(err)
+}
+
+// WithdrawDocument withdraws one version, or the whole document when
+// versionID is "".
+func (a *App) WithdrawDocument(projectID, documentID, versionID, reason string) error {
+	if err := a.ready(); err != nil {
+		return err
+	}
+	return uiErr(a.db.WithdrawDocument(a.ctx, projectID, documentID, versionID, reason))
+}
+
+func (a *App) LinkDocument(projectID, workItemID, versionID string) error {
+	if err := a.ready(); err != nil {
+		return err
+	}
+	return uiErr(a.db.LinkDocument(a.ctx, projectID, workItemID, versionID))
+}
+
+func (a *App) UnlinkDocument(projectID, workItemID, versionID string) error {
+	if err := a.ready(); err != nil {
+		return err
+	}
+	return uiErr(a.db.UnlinkDocument(a.ctx, projectID, workItemID, versionID))
+}
+
+// ListWorkDocuments lists the shared versions a work item links.
+func (a *App) ListWorkDocuments(projectID, workItemID string) ([]storage.LinkedDocument, error) {
+	if err := a.ready(); err != nil {
+		return nil, err
+	}
+	list, err := a.db.WorkDocuments(a.ctx, projectID, workItemID)
+	return list, uiErr(err)
+}
+
+// ListRunDocuments lists the shared versions a run was given.
+func (a *App) ListRunDocuments(projectID, runID string) ([]storage.DocumentVersion, error) {
+	if err := a.ready(); err != nil {
+		return nil, err
+	}
+	list, err := a.db.RunDocuments(a.ctx, projectID, runID)
+	return list, uiErr(err)
+}
+
+// ListImpactChecks lists changes to check, for a work item or the whole
+// service ("" ), with a status or "" for all.
+func (a *App) ListImpactChecks(projectID, workItemID, status string) ([]storage.ImpactCheck, error) {
+	if err := a.ready(); err != nil {
+		return nil, err
+	}
+	list, err := a.db.ImpactChecks(a.ctx, projectID, workItemID, status)
+	return list, uiErr(err)
+}
+
+// CloseImpactCheck records that a change was checked (resolved) or does
+// not matter (dismissed).
+func (a *App) CloseImpactCheck(projectID, id, status, note string) error {
+	if err := a.ready(); err != nil {
+		return err
+	}
+	return uiErr(a.db.CloseImpactCheck(a.ctx, projectID, id, status, note))
 }

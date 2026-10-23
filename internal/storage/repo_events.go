@@ -30,6 +30,7 @@ type WorkEvent struct {
 	ChainRootSequence  *int64   `json:"chainRootSequence"`
 	ChainDepth         int      `json:"chainDepth"`
 	Automated          bool     `json:"automated"`
+	DocumentID         string   `json:"documentId,omitempty"`
 	DocumentVersionID  string   `json:"documentVersionId,omitempty"`
 }
 
@@ -117,6 +118,17 @@ func routeEventTx(ctx context.Context, tx *sql.Tx, projectID string, seq int64, 
 	if err := rows.Err(); err != nil {
 		return err
 	}
+	var notify []string
+	if strings.HasPrefix(kind, "document.") && ev.DocumentID != "" {
+		doc, err := documentTx(ctx, tx, projectID, ev.DocumentID)
+		if err != nil {
+			return err
+		}
+		targets = slices.DeleteFunc(targets, func(t deliveryTarget) bool { return !doc.VisibleTo(t.department) })
+		if notify, err = documentNotifyTx(ctx, tx, projectID, kind, ev, doc); err != nil {
+			return err
+		}
+	}
 	for i, t := range targets {
 		status, hold := domain.DeliveryPending, ""
 		if i >= domain.DefaultJudgeFanout {
@@ -127,7 +139,100 @@ func routeEventTx(ctx context.Context, tx *sql.Tx, projectID string, seq int64, 
 			return err
 		}
 	}
+	for _, d := range notify {
+		if slices.ContainsFunc(targets, func(t deliveryTarget) bool { return t.department == d }) {
+			continue // the department is already asked to judge
+		}
+		if err := insert(deliveryTarget{department: d}, domain.PurposeNotify, domain.DeliveryPending, ""); err != nil {
+			return err
+		}
+	}
 	return nil
+}
+
+// documentNotifyTx lists the departments to notify about a document
+// event: those whose work used an affected version (other than the
+// document's own work), and for a confirmation also those that follow
+// the document's shares. Only active departments that may see the
+// document are listed (plan §4.2, §4.4).
+func documentNotifyTx(ctx context.Context, tx *sql.Tx, projectID, kind string, ev WorkEvent, doc SharedDocument) ([]string, error) {
+	var versions []string
+	for _, v := range doc.Versions {
+		switch kind {
+		case domain.EventDocumentRevised:
+			if v.ID != ev.DocumentVersionID {
+				versions = append(versions, v.ID)
+			}
+		case domain.EventDocumentWithdrawn:
+			if ev.DocumentVersionID == "" || v.ID == ev.DocumentVersionID {
+				versions = append(versions, v.ID)
+			}
+		case domain.EventDocumentConfirmed:
+			if v.ID == ev.DocumentVersionID {
+				versions = append(versions, v.ID)
+			}
+		}
+	}
+	items, err := usersOfVersionsTx(ctx, tx, versions)
+	if err != nil {
+		return nil, err
+	}
+	var out []string
+	add := func(dept string) error {
+		if dept == "" || slices.Contains(out, dept) || !doc.VisibleTo(dept) {
+			return nil
+		}
+		d, err := departmentTx(ctx, tx, projectID, dept)
+		if err != nil {
+			return err
+		}
+		if d.Status == domain.StatusActive {
+			out = append(out, dept)
+		}
+		return nil
+	}
+	for _, id := range items {
+		if id == doc.WorkItemID {
+			continue
+		}
+		w, err := workTx(ctx, tx, projectID, id)
+		if err != nil {
+			return nil, err
+		}
+		if err := add(w.DepartmentID); err != nil {
+			return nil, err
+		}
+	}
+	if kind == domain.EventDocumentConfirmed {
+		rows, err := tx.QueryContext(ctx, `SELECT department_id, event_kinds, categories FROM subscriptions WHERE project_id = ? AND enabled = 1`, projectID)
+		if err != nil {
+			return nil, err
+		}
+		var follow []string
+		for rows.Next() {
+			var dept, kindsRaw, catsRaw string
+			if err := rows.Scan(&dept, &kindsRaw, &catsRaw); err != nil {
+				rows.Close()
+				return nil, err
+			}
+			var kinds, cats []string
+			json.Unmarshal([]byte(kindsRaw), &kinds)
+			json.Unmarshal([]byte(catsRaw), &cats)
+			follows := slices.Contains(kinds, domain.EventDocumentShared) || slices.Contains(kinds, domain.EventDocumentRevised)
+			if follows && (len(cats) == 0 || slices.ContainsFunc(cats, func(c string) bool { return slices.Contains(ev.Categories, c) })) {
+				follow = append(follow, dept)
+			}
+		}
+		rows.Close()
+		for _, d := range follow {
+			if d != ev.DepartmentID {
+				if err := add(d); err != nil {
+					return nil, err
+				}
+			}
+		}
+	}
+	return out, nil
 }
 
 // workEventFor is the payload for an event about a work item.

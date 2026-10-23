@@ -42,6 +42,14 @@ export function ClearConnectionKey(arg1) {
   return window['go']['main']['App']['ClearConnectionKey'](arg1);
 }
 
+export function CloseImpactCheck(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['CloseImpactCheck'](arg1, arg2, arg3, arg4);
+}
+
+export function ConfirmDocumentVersion(arg1, arg2, arg3) {
+  return window['go']['main']['App']['ConfirmDocumentVersion'](arg1, arg2, arg3);
+}
+
 export function ConfirmVersion(arg1, arg2, arg3) {
   return window['go']['main']['App']['ConfirmVersion'](arg1, arg2, arg3);
 }
@@ -106,6 +114,10 @@ export function GetDesign(arg1) {
   return window['go']['main']['App']['GetDesign'](arg1);
 }
 
+export function GetDocument(arg1, arg2) {
+  return window['go']['main']['App']['GetDocument'](arg1, arg2);
+}
+
 export function GetOrganization() {
   return window['go']['main']['App']['GetOrganization']();
 }
@@ -146,6 +158,10 @@ export function InstructionPreview(arg1, arg2) {
   return window['go']['main']['App']['InstructionPreview'](arg1, arg2);
 }
 
+export function LinkDocument(arg1, arg2, arg3) {
+  return window['go']['main']['App']['LinkDocument'](arg1, arg2, arg3);
+}
+
 export function ListAssignments(arg1) {
   return window['go']['main']['App']['ListAssignments'](arg1);
 }
@@ -170,6 +186,14 @@ export function ListDesigns() {
   return window['go']['main']['App']['ListDesigns']();
 }
 
+export function ListDocuments(arg1, arg2) {
+  return window['go']['main']['App']['ListDocuments'](arg1, arg2);
+}
+
+export function ListImpactChecks(arg1, arg2, arg3) {
+  return window['go']['main']['App']['ListImpactChecks'](arg1, arg2, arg3);
+}
+
 export function ListPlanJobs(arg1, arg2) {
   return window['go']['main']['App']['ListPlanJobs'](arg1, arg2);
 }
@@ -178,12 +202,20 @@ export function ListRoles() {
   return window['go']['main']['App']['ListRoles']();
 }
 
+export function ListRunDocuments(arg1, arg2) {
+  return window['go']['main']['App']['ListRunDocuments'](arg1, arg2);
+}
+
 export function ListRuns(arg1) {
   return window['go']['main']['App']['ListRuns'](arg1);
 }
 
 export function ListSubscriptions(arg1, arg2) {
   return window['go']['main']['App']['ListSubscriptions'](arg1, arg2);
+}
+
+export function ListWorkDocuments(arg1, arg2) {
+  return window['go']['main']['App']['ListWorkDocuments'](arg1, arg2);
 }
 
 export function ListWorkEvents(arg1, arg2) {
@@ -232,6 +264,10 @@ export function ProjectUsage(arg1) {
 
 export function ReadArtifact(arg1, arg2) {
   return window['go']['main']['App']['ReadArtifact'](arg1, arg2);
+}
+
+export function ReadDocumentVersion(arg1, arg2) {
+  return window['go']['main']['App']['ReadDocumentVersion'](arg1, arg2);
 }
 
 export function ReparseDesign(arg1) {
@@ -330,6 +366,14 @@ export function SetWorkStatus(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['SetWorkStatus'](arg1, arg2, arg3, arg4);
 }
 
+export function ShareArtifact(arg1, arg2, arg3) {
+  return window['go']['main']['App']['ShareArtifact'](arg1, arg2, arg3);
+}
+
+export function ShareWorkspaceFile(arg1, arg2, arg3) {
+  return window['go']['main']['App']['ShareWorkspaceFile'](arg1, arg2, arg3);
+}
+
 export function SkipDelivery(arg1, arg2, arg3) {
   return window['go']['main']['App']['SkipDelivery'](arg1, arg2, arg3);
 }
@@ -366,6 +410,10 @@ export function TestConnectionCall(arg1, arg2) {
   return window['go']['main']['App']['TestConnectionCall'](arg1, arg2);
 }
 
+export function UnlinkDocument(arg1, arg2, arg3) {
+  return window['go']['main']['App']['UnlinkDocument'](arg1, arg2, arg3);
+}
+
 export function UpdateOrganization(arg1, arg2) {
   return window['go']['main']['App']['UpdateOrganization'](arg1, arg2);
 }
@@ -380,6 +428,10 @@ export function UpdateWorkItem(arg1) {
 
 export function ValidateWorkflow(arg1, arg2) {
   return window['go']['main']['App']['ValidateWorkflow'](arg1, arg2);
+}
+
+export function WithdrawDocument(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['WithdrawDocument'](arg1, arg2, arg3, arg4);
 }
 
 export function WorkflowDiagram(arg1) {

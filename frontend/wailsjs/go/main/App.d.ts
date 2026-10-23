@@ -28,6 +28,10 @@ export function ChooseFolder(arg1:string,arg2:string):Promise<string>;
 
 export function ClearConnectionKey(arg1:string):Promise<main.ConnectionView>;
 
+export function CloseImpactCheck(arg1:string,arg2:string,arg3:string,arg4:string):Promise<void>;
+
+export function ConfirmDocumentVersion(arg1:string,arg2:string,arg3:string):Promise<storage.DocumentVersion>;
+
 export function ConfirmVersion(arg1:string,arg2:string,arg3:number):Promise<main.ConfirmResult>;
 
 export function CreateProject(arg1:main.ProjectInput):Promise<domain.Project>;
@@ -60,6 +64,8 @@ export function ExportProject(arg1:string):Promise<main.ExportResult>;
 
 export function GetDesign(arg1:string):Promise<main.DesignView>;
 
+export function GetDocument(arg1:string,arg2:string):Promise<storage.SharedDocument>;
+
 export function GetOrganization():Promise<domain.Organization>;
 
 export function GetRun(arg1:string,arg2:string):Promise<engine.RunDetail>;
@@ -80,6 +86,8 @@ export function Inbox():Promise<Array<engine.InboxItem>>;
 
 export function InstructionPreview(arg1:string,arg2:string):Promise<main.InstructionPreview>;
 
+export function LinkDocument(arg1:string,arg2:string,arg3:string):Promise<void>;
+
 export function ListAssignments(arg1:string):Promise<Array<domain.Assignment>>;
 
 export function ListConnections():Promise<Array<main.ConnectionView>>;
@@ -92,13 +100,21 @@ export function ListDepartments(arg1:string):Promise<Array<domain.Department>>;
 
 export function ListDesigns():Promise<Array<main.DesignView>>;
 
+export function ListDocuments(arg1:string,arg2:storage.DocumentFilter):Promise<Array<storage.SharedDocument>>;
+
+export function ListImpactChecks(arg1:string,arg2:string,arg3:string):Promise<Array<storage.ImpactCheck>>;
+
 export function ListPlanJobs(arg1:string,arg2:string):Promise<Array<main.PlanJobView>>;
 
 export function ListRoles():Promise<Array<domain.Role>>;
 
+export function ListRunDocuments(arg1:string,arg2:string):Promise<Array<storage.DocumentVersion>>;
+
 export function ListRuns(arg1:string):Promise<Array<engine.RunDetail>>;
 
 export function ListSubscriptions(arg1:string,arg2:string):Promise<Array<domain.Subscription>>;
+
+export function ListWorkDocuments(arg1:string,arg2:string):Promise<Array<storage.LinkedDocument>>;
 
 export function ListWorkEvents(arg1:string,arg2:string):Promise<Array<storage.WorkEventView>>;
 
@@ -123,6 +139,8 @@ export function ProjectCategories(arg1:string):Promise<Array<string>>;
 export function ProjectUsage(arg1:string):Promise<engine.Usage>;
 
 export function ReadArtifact(arg1:string,arg2:string):Promise<engine.ArtifactContent>;
+
+export function ReadDocumentVersion(arg1:string,arg2:string):Promise<engine.DocumentContent>;
 
 export function ReparseDesign(arg1:string):Promise<main.DesignView>;
 
@@ -172,6 +190,10 @@ export function SetSetting(arg1:string,arg2:string):Promise<void>;
 
 export function SetWorkStatus(arg1:string,arg2:string,arg3:string,arg4:string):Promise<domain.WorkItem>;
 
+export function ShareArtifact(arg1:string,arg2:string,arg3:storage.NewDocumentVersion):Promise<storage.DocumentVersion>;
+
+export function ShareWorkspaceFile(arg1:string,arg2:string,arg3:storage.NewDocumentVersion):Promise<storage.DocumentVersion>;
+
 export function SkipDelivery(arg1:string,arg2:string,arg3:string):Promise<void>;
 
 export function StartDesign(arg1:main.DesignInput):Promise<main.DesignView>;
@@ -190,6 +212,8 @@ export function SystemStatus():Promise<main.SystemStatus>;
 
 export function TestConnectionCall(arg1:string,arg2:string):Promise<connect.Report>;
 
+export function UnlinkDocument(arg1:string,arg2:string,arg3:string):Promise<void>;
+
 export function UpdateOrganization(arg1:string,arg2:string):Promise<void>;
 
 export function UpdateProject(arg1:main.ProjectInput):Promise<domain.Project>;
@@ -197,6 +221,8 @@ export function UpdateProject(arg1:main.ProjectInput):Promise<domain.Project>;
 export function UpdateWorkItem(arg1:domain.WorkItem):Promise<domain.WorkItem>;
 
 export function ValidateWorkflow(arg1:string,arg2:string):Promise<storage.ValidationResult>;
+
+export function WithdrawDocument(arg1:string,arg2:string,arg3:string,arg4:string):Promise<void>;
 
 export function WorkflowDiagram(arg1:string):Promise<string>;
 

@@ -9,6 +9,7 @@ import {
     useToast,
 } from '../ui';
 import {DeliveryInbox, WorkEvents} from './Deliveries';
+import {WorkDocuments} from './Documents';
 import {WorkRun} from './WorkRuns';
 
 export const workStatuses: WorkStatus[] = ['received', 'ready', 'in_progress', 'waiting', 'blocked', 'done', 'cancelled'];
@@ -219,7 +220,11 @@ function WorkPanel({ctx, id, onChanged}: { ctx: Context; id: string; onChanged: 
             <StatusChanger key={`${w.status}-${w.updatedAt}`} ctx={ctx} item={w} disabled={archived} onChanged={changed}/>
 
             {w.kind === 'work' ? (
-                <WorkRun project={ctx.project} item={w} assignments={ctx.assignments} onChanged={changed} onOpenRun={ctx.onOpenRun}/>
+                <WorkRun project={ctx.project} item={w} assignments={ctx.assignments} departments={ctx.departments} categories={ctx.categories}
+                         onChanged={changed} onOpenRun={ctx.onOpenRun}/>
+            ) : null}
+            {w.kind === 'work' ? (
+                <WorkDocuments project={ctx.project} item={w}/>
             ) : null}
 
             {w.kind === 'goal' ? (

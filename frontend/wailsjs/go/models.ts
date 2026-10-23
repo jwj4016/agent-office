@@ -1447,6 +1447,60 @@ export namespace engine {
 	        this.text = source["text"];
 	    }
 	}
+	export class DocumentContent {
+	    id: string;
+	    documentId: string;
+	    projectId: string;
+	    number: number;
+	    stage: string;
+	    confirmedBy: string;
+	    confirmedAt: string;
+	    confirmationNote: string;
+	    sourceKind: string;
+	    sourceArtifactId: string;
+	    sourcePath: string;
+	    fileName: string;
+	    path: string;
+	    hash: string;
+	    size: number;
+	    withdrawnAt: string;
+	    createdAt: string;
+	    title: string;
+	    content: string;
+	    binary: boolean;
+	    truncated: boolean;
+	    hashOk: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new DocumentContent(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.documentId = source["documentId"];
+	        this.projectId = source["projectId"];
+	        this.number = source["number"];
+	        this.stage = source["stage"];
+	        this.confirmedBy = source["confirmedBy"];
+	        this.confirmedAt = source["confirmedAt"];
+	        this.confirmationNote = source["confirmationNote"];
+	        this.sourceKind = source["sourceKind"];
+	        this.sourceArtifactId = source["sourceArtifactId"];
+	        this.sourcePath = source["sourcePath"];
+	        this.fileName = source["fileName"];
+	        this.path = source["path"];
+	        this.hash = source["hash"];
+	        this.size = source["size"];
+	        this.withdrawnAt = source["withdrawnAt"];
+	        this.createdAt = source["createdAt"];
+	        this.title = source["title"];
+	        this.content = source["content"];
+	        this.binary = source["binary"];
+	        this.truncated = source["truncated"];
+	        this.hashOk = source["hashOk"];
+	    }
+	}
 	export class WorkspaceInfo {
 	    kind: string;
 	    path: string;
@@ -2627,6 +2681,7 @@ export namespace storage {
 	    chainRootSequence?: number;
 	    chainDepth: number;
 	    automated: boolean;
+	    documentId?: string;
 	    documentVersionId?: string;
 	
 	    static createFrom(source: any = {}) {
@@ -2647,6 +2702,7 @@ export namespace storage {
 	        this.chainRootSequence = source["chainRootSequence"];
 	        this.chainDepth = source["chainDepth"];
 	        this.automated = source["automated"];
+	        this.documentId = source["documentId"];
 	        this.documentVersionId = source["documentVersionId"];
 	    }
 	}
@@ -2742,6 +2798,215 @@ export namespace storage {
 	        this.assignmentIds = source["assignmentIds"];
 	        this.workflowId = source["workflowId"];
 	        this.newProject = source["newProject"];
+	    }
+	}
+	export class DocumentFilter {
+	    query: string;
+	    category: string;
+	    ownerDepartmentId: string;
+	    visibleTo: string;
+	    stage: string;
+	    includeWithdrawn: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new DocumentFilter(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.query = source["query"];
+	        this.category = source["category"];
+	        this.ownerDepartmentId = source["ownerDepartmentId"];
+	        this.visibleTo = source["visibleTo"];
+	        this.stage = source["stage"];
+	        this.includeWithdrawn = source["includeWithdrawn"];
+	    }
+	}
+	export class DocumentVersion {
+	    id: string;
+	    documentId: string;
+	    projectId: string;
+	    number: number;
+	    stage: string;
+	    confirmedBy: string;
+	    confirmedAt: string;
+	    confirmationNote: string;
+	    sourceKind: string;
+	    sourceArtifactId: string;
+	    sourcePath: string;
+	    fileName: string;
+	    path: string;
+	    hash: string;
+	    size: number;
+	    withdrawnAt: string;
+	    createdAt: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DocumentVersion(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.documentId = source["documentId"];
+	        this.projectId = source["projectId"];
+	        this.number = source["number"];
+	        this.stage = source["stage"];
+	        this.confirmedBy = source["confirmedBy"];
+	        this.confirmedAt = source["confirmedAt"];
+	        this.confirmationNote = source["confirmationNote"];
+	        this.sourceKind = source["sourceKind"];
+	        this.sourceArtifactId = source["sourceArtifactId"];
+	        this.sourcePath = source["sourcePath"];
+	        this.fileName = source["fileName"];
+	        this.path = source["path"];
+	        this.hash = source["hash"];
+	        this.size = source["size"];
+	        this.withdrawnAt = source["withdrawnAt"];
+	        this.createdAt = source["createdAt"];
+	    }
+	}
+	
+	export class ImpactCheck {
+	    id: string;
+	    projectId: string;
+	    workItemId: string;
+	    cause: string;
+	    refId: string;
+	    documentId: string;
+	    summary: string;
+	    status: string;
+	    note: string;
+	    createdAt: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ImpactCheck(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.projectId = source["projectId"];
+	        this.workItemId = source["workItemId"];
+	        this.cause = source["cause"];
+	        this.refId = source["refId"];
+	        this.documentId = source["documentId"];
+	        this.summary = source["summary"];
+	        this.status = source["status"];
+	        this.note = source["note"];
+	        this.createdAt = source["createdAt"];
+	    }
+	}
+	export class SharedDocument {
+	    id: string;
+	    projectId: string;
+	    title: string;
+	    categories: string[];
+	    ownerDepartmentId: string;
+	    workItemId: string;
+	    scope: string;
+	    scopeDepartments: string[];
+	    status: string;
+	    createdAt: string;
+	    updatedAt: string;
+	    versions: DocumentVersion[];
+	
+	    static createFrom(source: any = {}) {
+	        return new SharedDocument(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.projectId = source["projectId"];
+	        this.title = source["title"];
+	        this.categories = source["categories"];
+	        this.ownerDepartmentId = source["ownerDepartmentId"];
+	        this.workItemId = source["workItemId"];
+	        this.scope = source["scope"];
+	        this.scopeDepartments = source["scopeDepartments"];
+	        this.status = source["status"];
+	        this.createdAt = source["createdAt"];
+	        this.updatedAt = source["updatedAt"];
+	        this.versions = this.convertValues(source["versions"], DocumentVersion);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class LinkedDocument {
+	    version: DocumentVersion;
+	    document: SharedDocument;
+	    newer: number;
+	    linkedAt: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new LinkedDocument(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.version = this.convertValues(source["version"], DocumentVersion);
+	        this.document = this.convertValues(source["document"], SharedDocument);
+	        this.newer = source["newer"];
+	        this.linkedAt = source["linkedAt"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class NewDocumentVersion {
+	    documentId: string;
+	    title: string;
+	    categories: string[];
+	    ownerDepartmentId: string;
+	    workItemId: string;
+	    scope: string;
+	    scopeDepartments: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new NewDocumentVersion(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.documentId = source["documentId"];
+	        this.title = source["title"];
+	        this.categories = source["categories"];
+	        this.ownerDepartmentId = source["ownerDepartmentId"];
+	        this.workItemId = source["workItemId"];
+	        this.scope = source["scope"];
+	        this.scopeDepartments = source["scopeDepartments"];
 	    }
 	}
 	

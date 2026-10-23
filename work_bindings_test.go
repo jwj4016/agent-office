@@ -271,3 +271,59 @@ func TestBindingsAIPlanProposal(t *testing.T) {
 		t.Fatalf("applying started a run: %+v", runs)
 	}
 }
+
+// Stage 4 through the UI-facing API: a running campaign's draft result
+// is shared, another department links it and sees it in its plan, the
+// draft is confirmed without changing, and reading it checks the copy.
+func TestBindingsShareDraftWithAnotherDepartment(t *testing.T) {
+	a := startApp(t)
+	p := need(a.CreateProject(ProjectInput{Name: "캠페인", Mode: "review"}))
+	conn := need(a.EnsureTestConnection())
+	dept := func(name string) (domain.Department, domain.Assignment) {
+		role := need(a.SaveRole(domain.Role{Name: name + " 담당"}))
+		asg := need(a.SaveAssignment(domain.Assignment{ProjectID: p.ID, RoleID: role.ID, ActorKind: domain.ActorAI,
+			DisplayName: name + " AI", ConnectionID: conn.ID, Model: "auto"}))
+		return need(a.SaveDepartment(domain.Department{ProjectID: p.ID, Name: name, MemberIDs: []string{asg.ID}, LeadAssignmentID: asg.ID})), asg
+	}
+	mkt, mktAsg := dept("마케팅팀")
+	dev, devAsg := dept("개발팀")
+	plan := need(a.CreateWorkItem(domain.WorkItem{ProjectID: p.ID, DepartmentID: mkt.ID, Title: "기획안 작성"}))
+	review := need(a.CreateWorkItem(domain.WorkItem{ProjectID: p.ID, DepartmentID: dev.ID, Title: "구현 검토"}))
+	need(a.SaveWorkPlan(domain.WorkPlan{ProjectID: p.ID, WorkItemID: plan.ID, AssignmentID: mktAsg.ID}))
+	need(a.SaveWorkPlan(domain.WorkPlan{ProjectID: p.ID, WorkItemID: review.ID, AssignmentID: devAsg.ID}))
+	run := need(a.StartWork(p.ID, plan.ID, ""))
+	deadline := time.Now().Add(e2eWait)
+	var art engine.ArtifactView
+	for {
+		d := need(a.GetRun(p.ID, run.RunID))
+		if d.Status == "succeeded" {
+			art = d.Steps[0].Artifacts[0]
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("run not finished: %s", d.Status)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	v1 := need(a.ShareArtifact(p.ID, art.ID, storage.NewDocumentVersion{Title: "캠페인 기획안", WorkItemID: plan.ID}))
+	docs := need(a.ListDocuments(p.ID, storage.DocumentFilter{VisibleTo: dev.ID}))
+	if len(docs) != 1 || docs[0].OwnerDepartmentID != mkt.ID || len(docs[0].Versions) != 1 {
+		t.Fatalf("documents = %+v", docs)
+	}
+	if err := a.LinkDocument(p.ID, review.ID, v1.ID); err != nil {
+		t.Fatal(err)
+	}
+	if view := need(a.GetWorkPlan(p.ID, review.ID)); !strings.Contains(view.Preview, "캠페인 기획안 1판 (초안)") {
+		t.Fatalf("preview lacks the draft:\n%s", view.Preview)
+	}
+	final := need(a.ConfirmDocumentVersion(p.ID, v1.ID, "확정"))
+	if final.Stage != "final" || final.Hash != v1.Hash {
+		t.Fatalf("confirmed = %+v", final)
+	}
+	if c := need(a.ReadDocumentVersion(p.ID, v1.ID)); !c.HashOK || c.Content == "" {
+		t.Fatalf("read = %+v", c)
+	}
+	if w := need(a.GetWorkItem(p.ID, plan.ID)).Item; w.Status == domain.WorkDone {
+		t.Fatal("sharing completed the work")
+	}
+}
