@@ -1,7 +1,7 @@
 # Agent Office 개선 구현 계획서 — 사건과 산출물로 협업하는 작은 회사
 
 작성일·수정일: 2026-10-22  
-상태: 구현 중(3단계 완료), 6차 개정  
+상태: 구현 중(4단계 완료), 6차 개정  
 관련 파일: [진행 체크리스트](progress.md) · [현재/개선 후 업무 흐름](asis-tobe.html)
 
 ## 1. 목표와 설계 방향
@@ -463,17 +463,33 @@ Agent Office는 Go·Wails·React·TypeScript·SQLite 기반 데스크톱 앱이�
 
 **화면에서 보이는 변화:** 진행 중인 업무에서도 자료를 공유하고, 다른 부서가 가져다 쓴다.
 
-- [ ] 공유 문서·버전·분류·출처·접근 범위·사용 기록을 저장한다.
-- [ ] 실행 산출물 또는 작업 공간 파일을 고정 사본으로 공유한다. 복사 후 해시를 다시 확인한다.
-- [ ] 초안/확정 표시와 공유 범위(서비스 전체/지정 부서)를 제공한다.
-- [ ] 공유·개정·철회 사건을 저장한다. 직전 버전과 해시가 같은 공유는 거절한다.
-- [ ] 내용 변경 없는 ‘이 버전 확정’을 구현한다. 확정자·시각·메모와 `document.confirmed` 사건을 남기고 중복 확정·철회 후 확정을 차단한다. 확정 사건은 알림 전달만 만든다.
-- [ ] 자료 검색·필터·업무 입력 연결(`document_links`)을 구현하고, 실행 시작 시 사용 버전을 고정(`document_pins`)한다.
-- [ ] 변경 중인 파일의 불안정한 복사를 거절하고 경로·링크·해시·서비스 범위를 검사한다.
-- [ ] 새 버전·철회 시 이전 버전을 사용한 업무에만 영향 확인 항목을 만든다.
-- [ ] 실행 회차가 끝날 때 초안을 공유하고 다음 회차에서 이어 작업하는 흐름을 검증한다.
+- [x] 공유 문서·버전·분류·출처·접근 범위·사용 기록을 저장한다.
+- [x] 실행 산출물 또는 작업 공간 파일을 고정 사본으로 공유한다. 복사 후 해시를 다시 확인한다.
+- [x] 초안/확정 표시와 공유 범위(서비스 전체/지정 부서)를 제공한다.
+- [x] 공유·개정·철회 사건을 저장한다. 직전 버전과 해시가 같은 공유는 거절한다.
+- [x] 내용 변경 없는 ‘이 버전 확정’을 구현한다. 확정자·시각·메모와 `document.confirmed` 사건을 남기고 중복 확정·철회 후 확정을 차단한다. 확정 사건은 알림 전달만 만든다.
+- [x] 자료 검색·필터·업무 입력 연결(`document_links`)을 구현하고, 실행 시작 시 사용 버전을 고정(`document_pins`)한다.
+- [x] 변경 중인 파일의 불안정한 복사를 거절하고 경로·링크·해시·서비스 범위를 검사한다.
+- [x] 새 버전·철회 시 이전 버전을 사용한 업무에만 영향 확인 항목을 만든다.
+- [x] 실행 회차가 끝날 때 초안을 공유하고 다음 회차에서 이어 작업하는 흐름을 검증한다.
 
 **완료 기준:** 캠페인이 진행 중이어도 기획안 초안 1판을 공유하고, 개발팀과 재무팀이 같은 고정본을 참조할 수 있다. 2판을 공유해도 1판을 사용한 실행의 입력은 바뀌지 않는다.
+
+구현 메모(4단계):
+- 저장 구조: 마이그레이션 `0012_documents.sql`(`shared_documents`, `shared_document_versions`, `document_links`, `document_pins`, `impact_checks`).
+- 저장소 `internal/storage/repo_documents.go`: 기록, 사건, 영향 확인, 연결, 고정.
+- 엔진 `internal/engine/documents.go`:
+  - 고정 사본 복사와 재확인. 사본은 `projects/<서비스>/documents/<복사 ID>/<파일>`에 읽기 전용으로 둔다.
+  - 작업 폴더 파일은 일반 파일이고 폴더 안일 때만 받는다. 복사 전후 크기·수정 시각이 다르면 거절한다.
+  - 실행에는 연결된 판을 ‘참고 공유 자료’ 절로 전달한다. 텍스트는 합계 32KB까지 붙이고 나머지는 경로만 준다. 같은 트랜잭션에서 그 판을 `document_pins`로 고정한다.
+- 업무 하나에는 같은 자료의 판을 하나만 연결한다. 다른 판을 연결하면 이전 연결은 해제 기록으로 남는다.
+- 자료 사건 전달:
+  - 공유 범위 밖 부서에는 보내지 않는다.
+  - 개정·철회·확정 때는 그 판을 연결하거나 고정한 업무의 부서에 알림(`notify`)을 보낸다. 확정 때는 공유를 구독한 부서에도 알린다.
+- 화면:
+  - 서비스 ‘자료’ 탭: 자료함, 작업 폴더 파일 공유, 판별 내용·확정·새 판·철회.
+  - 업무 실행 결과의 ‘공유’ 버튼.
+  - 업무 상세의 ‘참고 공유 자료’: 연결, 새 판으로 바꾸기, 해제, 영향 확인 처리.
 
 ### 5단계 — 사건을 보고 후속 업무 제안
 
@@ -677,10 +693,10 @@ Agent Office는 Go·Wails·React·TypeScript·SQLite 기반 데스크톱 앱이�
 | `work_ai_jobs` | 3 | `project_id`, `kind`(`plan`/`judgment`/`collab_decision`), `lane`(`interactive`/`background`), `request_key`, `assignment_id`, `connection_id`, `model`, `max_attempts`(기본 3, 사람의 재시도마다 +1), `applied_at`, `work_item_id`, `delivery_id`, `round`, `status`(`pending`/`working`/`waiting_answer`/`ready`/`held`/`failed`), `input_snapshot`, `input_hash`, `result`(JSON), `error`, `hold_reason` | `UNIQUE(project_id, request_key)`, `UNIQUE(delivery_id, round)`; `plan`은 업무 필수·전달/회차 없음·키 `plan:{work_item_id}:{요청 ID 또는 전달 ID}`, `judgment`·`collab_decision`은 전달 필수·회차 1 또는 2(`collab_decision`은 7단계에 추가) |
 | `work_ai_attempts` | 3 | `project_id`, `job_id`, `number`, `connection_id`, `model`, `status`(`working`/`succeeded`/`failed`/`interrupted`), `usage`(JSON), `usage_reported`, `started_at`, `ended_at`, `error` | `UNIQUE(job_id, number)`; 시도별 최신 누적 사용량을 저장하고 다른 시도는 합산 |
 | `shared_documents` | 4 | `project_id`, `title`, `categories`(JSON), `owner_department_id`, `work_item_id`, `scope`(`service`/`departments`), `scope_departments`(JSON), `status`(`active`/`withdrawn`) | — |
-| `shared_document_versions` | 4 | `document_id`, `project_id`, `number`, `stage`(`draft`/`final`), `confirmed_by`, `confirmed_at`, `confirmation_note`, `source_kind`(`artifact`/`workspace`), `source_artifact_id`, `source_path`, `path`, `hash`, `size`, `withdrawn_at`, `event_sequence` | `UNIQUE(document_id, number)`; 내용은 고정하고 확정 상태와 이력은 별도로 관리 |
+| `shared_document_versions` | 4 | `document_id`, `project_id`, `number`, `stage`(`draft`/`final`), `confirmed_by`, `confirmed_at`, `confirmation_note`, `source_kind`(`artifact`/`workspace`), `source_artifact_id`, `source_path`, `file_name`, `path`, `hash`, `size`, `withdrawn_at`, `event_sequence` | `UNIQUE(document_id, number)`; 내용은 고정하고 확정 상태와 이력은 별도로 관리 |
 | `document_links` | 4 | `project_id`, `work_item_id`, `version_id`, `linked_at`, `unlinked_at` | `UNIQUE(work_item_id, version_id)`; 연결 해제는 행을 지우지 않고 `unlinked_at`을 기록 |
 | `document_pins` | 4 | `project_id`, `work_item_id`, `version_id`, `run_id`, `pinned_at` | `UNIQUE(run_id, version_id)`, `run_id` 필수 |
-| `impact_checks` | 4 | `project_id`, `work_item_id`, `cause`(`revised`/`withdrawn`/`required_reopened`), `ref_id`, `status`(`open`/`resolved`/`dismissed`), `note` | `UNIQUE(work_item_id, cause, ref_id)` |
+| `impact_checks` | 4 | `project_id`, `work_item_id`, `cause`(`revised`/`withdrawn`/`required_reopened`), `ref_id`, `document_id`, `summary`, `status`(`open`/`resolved`/`dismissed`), `note` | `UNIQUE(work_item_id, cause, ref_id)` |
 | `judgments` | 5 | `project_id`, `delivery_id`, `round`, `ai_job_id`, `outcome`(`none`/`propose`/`question`), `reason`, `evidence`(JSON), `question`, `answer`, `question_status`(`open`/`answered`/`closed`, 질문 없으면 비움) | `UNIQUE(delivery_id, round)`, `UNIQUE(ai_job_id)`; 작업 상태와 비용은 AI 작업·시도에서 조회 |
 | `work_proposals` | 5 | `project_id`, `judgment_id`, `position`, `title`, `description`, `done_criteria`, `categories`(JSON), `status`(`proposed`/`accepted`/`rejected`), `work_item_id`, `duplicate_of` | `UNIQUE(judgment_id, position)`, `UNIQUE(work_item_id)` |
 | `collab_requests` | 6 | `project_id`, `from_work_item_id`, `to_department_id`, `question`, `input_versions`(JSON), `requirement`(`reference`/`required`), `requirement_reason`, `status`(`requested`/`question`/`accepted`/`declined`/`cancelled`), `decided_by`(`user`/`ai`), `decision_job_id`, `decision_reason`, `reverted_at`, `revert_reason`, `result_work_item_id`, `due_at` | `UNIQUE(result_work_item_id)`; `decided_by='ai'`는 `requirement='reference'`일 때만 허용 |
