@@ -189,3 +189,33 @@ func TestDeliverySchemaConstraints(t *testing.T) {
 	f.mustFail(t, "CHECK", dlv, "dl5", "game", "collab_request", "failed", "", "", now, now)
 	f.mustFail(t, "CHECK", dlv, "dl6", "game", "collab_request", "held", "", "", now, now)
 }
+
+// A judgment belongs to its delivery's service, and a question always
+// has a question status; an accepted proposal names its work.
+func TestJudgmentSchemaConstraints(t *testing.T) {
+	f := newSchemaFixture(t)
+	now := Now()
+	f.mustExec(t, `INSERT INTO departments (id, project_id, name, created_at, updated_at) VALUES ('d-game', 'game', '개발팀', ?, ?)`, now, now)
+	f.mustExec(t, `INSERT INTO execution_events (sequence, id, project_id, kind, payload, created_at) VALUES (900, 'ev-w', 'game', 'work.created', '{}', ?)`, now)
+	f.mustExec(t, `INSERT INTO event_deliveries (id, project_id, event_sequence, department_id, purpose, status, created_at, updated_at)
+		VALUES ('dl1', 'game', 900, 'd-game', 'judge', 'processing', ?, ?)`, now, now)
+	job := `INSERT INTO work_ai_jobs (id, project_id, kind, lane, request_key, delivery_id, round, created_at, updated_at)
+		VALUES (?, 'game', 'judgment', 'background', ?, 'dl1', ?, ?, ?)`
+	f.mustExec(t, job, "j1", "k1", 1, now, now)
+	f.mustExec(t, job, "j2", "k2", 2, now, now)
+	jd := `INSERT INTO judgments (id, project_id, delivery_id, round, ai_job_id, department_id, outcome, question, question_status, created_at, updated_at)
+		VALUES (?, ?, 'dl1', ?, ?, 'd-game', ?, ?, ?, ?, ?)`
+	f.mustFail(t, "FOREIGN KEY", jd, "x1", "estate", 1, "j1", "none", "", "", now, now)
+	f.mustFail(t, "CHECK", jd, "x2", "game", 1, "j1", "question", "", "open", now, now)
+	f.mustFail(t, "CHECK", jd, "x3", "game", 1, "j1", "question", "왜?", "", now, now)
+	f.mustFail(t, "CHECK", jd, "x4", "game", 1, "j1", "none", "", "open", now, now)
+	f.mustExec(t, jd, "jd1", "game", 1, "j1", "propose", "", "", now, now)
+	f.mustFail(t, "UNIQUE", jd, "x5", "game", 1, "j2", "none", "", "", now, now)
+	prop := `INSERT INTO work_proposals (id, project_id, judgment_id, position, department_id, title, status, work_item_id, decided_at, created_at)
+		VALUES (?, 'game', 'jd1', ?, 'd-game', '업무', ?, ?, ?, ?)`
+	f.mustExec(t, prop, "p1", 1, "proposed", nil, nil, now)
+	f.mustFail(t, "UNIQUE", prop, "p2", 1, "proposed", nil, nil, now)
+	f.mustFail(t, "CHECK", prop, "p3", 6, "proposed", nil, nil, now)
+	f.mustFail(t, "CHECK", prop, "p4", 2, "accepted", nil, now, now)
+	f.mustFail(t, "CHECK", prop, "p5", 2, "rejected", nil, nil, now)
+}

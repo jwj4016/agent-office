@@ -261,6 +261,7 @@ export type DeliveryPurpose = 'judge' | 'notify' | 'collab_request';
 export type WorkEventPayload = {
     departmentId: string; targetDepartmentId?: string; workItemId?: string; goalId?: string; title?: string; note?: string;
     categories: string[]; causeSequence: number | null; chainRootSequence: number | null; chainDepth: number; automated: boolean;
+    documentId?: string; documentVersionId?: string;
 };
 
 export type Delivery = {
@@ -335,3 +336,31 @@ export type ImpactCheck = {
 };
 
 export type DocumentContent = DocumentVersion & { title: string; content: string; binary: boolean; truncated: boolean; hashOk: boolean };
+
+// ---- department judgments ----
+
+export type JudgmentOutcome = 'none' | 'propose' | 'question';
+
+// questionStatus: '' without a question; open until answered; answered once
+// the department judges again; manual when it asked again and a person
+// decides; closed when the person closed it.
+export type Judgment = {
+    id: string; projectId: string; projectName: string; deliveryId: string; round: number; aiJobId: string; departmentId: string;
+    departmentName: string; outcome: JudgmentOutcome; reason: string; evidence: string[]; question: string; answer: string;
+    questionStatus: '' | 'open' | 'answered' | 'manual' | 'closed'; eventSequence: number; eventKind: string; event: WorkEventPayload;
+    createdAt: string;
+};
+
+// duplicateOf names an open work item or proposal with the same title.
+export type Proposal = {
+    id: string; projectId: string; projectName: string; judgmentId: string; position: number; departmentId: string; departmentName: string;
+    title: string; description: string; doneCriteria: string; categories: string[]; priority: WorkPriority;
+    status: 'proposed' | 'accepted' | 'rejected'; workItemId: string; duplicateOf: string; decisionNote: string; reason: string;
+    eventSequence: number; eventKind: string; eventTitle: string; createdAt: string;
+};
+
+export type ProposalEdit = { title?: string; description?: string; doneCriteria?: string; categories?: string[]; priority?: WorkPriority };
+
+export type ProposalBatch = { done: number; errors: string[] };
+
+export type Decisions = { questions: Judgment[]; proposals: Proposal[] };

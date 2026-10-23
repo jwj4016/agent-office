@@ -10,6 +10,7 @@ import type {
     Department, DepartmentTemplate, WorkDetail, WorkFilter, WorkItem, WorkNote, WorkStatus,
     Delivery, DeliveryFilter, Subscription, WorkEventView, WorkPlan, WorkPlanView, AIJob, PlanJobView,
     DocumentContent, DocumentFilter, DocumentVersion, ImpactCheck, LinkedDocument, NewDocumentVersion, SharedDocument,
+    Decisions, Judgment, Proposal, ProposalBatch, ProposalEdit,
 } from './types';
 
 // The generated d.ts types differ from the real JSON for raw fields, so
@@ -66,6 +67,17 @@ export const api = {
         call<void>(Go.RequestDepartmentCheck(projectId, departmentId, note)),
     retryDelivery: (projectId: string, id: string) => call<void>(Go.RetryDelivery(projectId, id)),
     skipDelivery: (projectId: string, id: string, reason: string) => call<void>(Go.SkipDelivery(projectId, id, reason)),
+    judgments: (projectId: string, questionStatus = '') => call<Judgment[]>(Go.ListJudgments(projectId, questionStatus)),
+    answerJudgment: (projectId: string, id: string, answer: string) => call<void>(Go.AnswerJudgment(projectId, id, answer)),
+    closeJudgmentQuestion: (projectId: string, id: string, note: string) => call<void>(Go.CloseJudgmentQuestion(projectId, id, note)),
+    proposals: (projectId: string, status = 'proposed') => call<Proposal[]>(Go.ListProposals(projectId, status)),
+    acceptProposal: (projectId: string, id: string, edit: ProposalEdit = {}) => call<WorkItem>(Go.AcceptProposal(projectId, id, edit as never)),
+    rejectProposal: (projectId: string, id: string, note: string) => call<void>(Go.RejectProposal(projectId, id, note)),
+    decideProposals: (projectId: string, ids: string[], accept: boolean, note = '') =>
+        call<ProposalBatch>(Go.DecideProposals(projectId, ids, accept, note)),
+    pendingDecisions: () => call<Decisions>(Go.PendingDecisions()),
+    requestDocumentReview: (projectId: string, departmentId: string, versionIds: string[], note: string) =>
+        call<number>(Go.RequestDocumentReview(projectId, departmentId, versionIds, note)),
     workPlan: (projectId: string, workItemId: string) => call<WorkPlanView>(Go.GetWorkPlan(projectId, workItemId)),
     saveWorkPlan: (p: Partial<WorkPlan>) => call<WorkPlan>(Go.SaveWorkPlan(p as never)),
     startWork: (projectId: string, workItemId: string, feedback: string) => call<StartResult>(Go.StartWork(projectId, workItemId, feedback)),

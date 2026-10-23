@@ -212,7 +212,8 @@ func (a *App) RequestDepartmentCheck(projectID, departmentID, note string) error
 	return uiErr(err)
 }
 
-// RetryDelivery puts a failed or held delivery back in the queue.
+// RetryDelivery puts a failed or held delivery back in the queue, or
+// retries its judgment.
 func (a *App) RetryDelivery(projectID, deliveryID string) error {
 	if err := a.ready(); err != nil {
 		return err
@@ -221,6 +222,9 @@ func (a *App) RetryDelivery(projectID, deliveryID string) error {
 		return uiErr(err)
 	}
 	a.work.Wake()
+	for _, l := range []string{storage.LaneInteractive, storage.LaneBackground} {
+		a.ai.Wake(l) // a retried judgment job
+	}
 	return nil
 }
 
@@ -496,4 +500,124 @@ func (a *App) CloseImpactCheck(projectID, id, status, note string) error {
 		return err
 	}
 	return uiErr(a.db.CloseImpactCheck(a.ctx, projectID, id, status, note))
+}
+
+// ---- department judgments and proposals ----
+
+// ListJudgments lists a service's judgments ("" for every service);
+// questionStatus filters, e.g. "open,manual" for questions to answer.
+func (a *App) ListJudgments(projectID, questionStatus string) ([]storage.Judgment, error) {
+	if err := a.ready(); err != nil {
+		return nil, err
+	}
+	list, err := a.db.Judgments(a.ctx, projectID, questionStatus)
+	return list, uiErr(err)
+}
+
+// AnswerJudgment answers a department's question; the department judges
+// once more with the answer.
+func (a *App) AnswerJudgment(projectID, judgmentID, answer string) error {
+	if err := a.ready(); err != nil {
+		return err
+	}
+	job, err := a.db.AnswerJudgment(a.ctx, projectID, judgmentID, answer)
+	if err != nil {
+		return uiErr(err)
+	}
+	a.ai.Wake(job.Lane)
+	return nil
+}
+
+// CloseJudgmentQuestion closes a question the person decided themselves.
+func (a *App) CloseJudgmentQuestion(projectID, judgmentID, note string) error {
+	if err := a.ready(); err != nil {
+		return err
+	}
+	return uiErr(a.db.CloseJudgmentQuestion(a.ctx, projectID, judgmentID, note))
+}
+
+// ListProposals lists proposed work of a service ("" for every service)
+// with a status ("proposed", "accepted", "rejected") or "" for all.
+func (a *App) ListProposals(projectID, status string) ([]storage.Proposal, error) {
+	if err := a.ready(); err != nil {
+		return nil, err
+	}
+	list, err := a.db.Proposals(a.ctx, projectID, status)
+	return list, uiErr(err)
+}
+
+// AcceptProposal registers a proposal as work, with the person's edits.
+func (a *App) AcceptProposal(projectID, proposalID string, edit storage.ProposalEdit) (domain.WorkItem, error) {
+	if err := a.ready(); err != nil {
+		return domain.WorkItem{}, err
+	}
+	w, err := a.db.AcceptProposal(a.ctx, projectID, proposalID, edit)
+	return w, uiErr(err)
+}
+
+// RejectProposal declines a proposal.
+func (a *App) RejectProposal(projectID, proposalID, note string) error {
+	if err := a.ready(); err != nil {
+		return err
+	}
+	return uiErr(a.db.RejectProposal(a.ctx, projectID, proposalID, note))
+}
+
+// ProposalBatch is what deciding several proposals at once did.
+type ProposalBatch struct {
+	Done   int      `json:"done"`
+	Errors []string `json:"errors"`
+}
+
+// DecideProposals accepts (unchanged) or rejects several proposals. Each
+// is decided on its own, so one already decided does not stop the rest.
+func (a *App) DecideProposals(projectID string, proposalIDs []string, accept bool, note string) (ProposalBatch, error) {
+	if err := a.ready(); err != nil {
+		return ProposalBatch{}, err
+	}
+	out := ProposalBatch{Errors: []string{}}
+	for _, id := range proposalIDs {
+		var err error
+		if accept {
+			_, err = a.db.AcceptProposal(a.ctx, projectID, id, storage.ProposalEdit{})
+		} else {
+			err = a.db.RejectProposal(a.ctx, projectID, id, note)
+		}
+		if err != nil {
+			out.Errors = append(out.Errors, uiErr(err).Error())
+			continue
+		}
+		out.Done++
+	}
+	return out, nil
+}
+
+// Decisions is what departments wait on a person for, across services.
+type Decisions struct {
+	Questions []storage.Judgment `json:"questions"`
+	Proposals []storage.Proposal `json:"proposals"`
+}
+
+// PendingDecisions lists open questions and undecided proposals of every
+// active service, for the inbox.
+func (a *App) PendingDecisions() (Decisions, error) {
+	if err := a.ready(); err != nil {
+		return Decisions{}, err
+	}
+	qs, err := a.db.Judgments(a.ctx, "", "open,manual")
+	if err != nil {
+		return Decisions{}, uiErr(err)
+	}
+	ps, err := a.db.Proposals(a.ctx, "", "proposed")
+	return Decisions{Questions: qs, Proposals: ps}, uiErr(err)
+}
+
+// RequestDocumentReview asks a department to judge existing documents,
+// for example when it was just created.
+func (a *App) RequestDocumentReview(projectID, departmentID string, versionIDs []string, note string) (int, error) {
+	if err := a.ready(); err != nil {
+		return 0, err
+	}
+	n, err := a.db.RequestDocumentReview(a.ctx, projectID, departmentID, versionIDs, note)
+	return n, uiErr(err)
 }

@@ -10,7 +10,11 @@ import {templates} from '../models';
 
 export function AIActivity(arg1:string,arg2:string,arg3:string,arg4:number):Promise<storage.ActivityPage>;
 
+export function AcceptProposal(arg1:string,arg2:string,arg3:storage.ProposalEdit):Promise<domain.WorkItem>;
+
 export function AddWorkNote(arg1:string,arg2:string,arg3:string):Promise<domain.WorkNote>;
+
+export function AnswerJudgment(arg1:string,arg2:string,arg3:string):Promise<void>;
 
 export function AnswerQuestion(arg1:string,arg2:string,arg3:string):Promise<main.ActionResult>;
 
@@ -30,6 +34,8 @@ export function ClearConnectionKey(arg1:string):Promise<main.ConnectionView>;
 
 export function CloseImpactCheck(arg1:string,arg2:string,arg3:string,arg4:string):Promise<void>;
 
+export function CloseJudgmentQuestion(arg1:string,arg2:string,arg3:string):Promise<void>;
+
 export function ConfirmDocumentVersion(arg1:string,arg2:string,arg3:string):Promise<storage.DocumentVersion>;
 
 export function ConfirmVersion(arg1:string,arg2:string,arg3:number):Promise<main.ConfirmResult>;
@@ -43,6 +49,8 @@ export function CreateWorkflow(arg1:string,arg2:string,arg3:string):Promise<doma
 export function Dashboard(arg1:boolean):Promise<Array<engine.ProjectSummary>>;
 
 export function DecideApproval(arg1:string,arg2:string,arg3:number,arg4:string,arg5:string,arg6:Array<string>):Promise<main.ActionResult>;
+
+export function DecideProposals(arg1:string,arg2:Array<string>,arg3:boolean,arg4:string):Promise<main.ProposalBatch>;
 
 export function DecideToolApproval(arg1:string,arg2:string,arg3:boolean):Promise<main.ActionResult>;
 
@@ -104,7 +112,11 @@ export function ListDocuments(arg1:string,arg2:storage.DocumentFilter):Promise<A
 
 export function ListImpactChecks(arg1:string,arg2:string,arg3:string):Promise<Array<storage.ImpactCheck>>;
 
+export function ListJudgments(arg1:string,arg2:string):Promise<Array<storage.Judgment>>;
+
 export function ListPlanJobs(arg1:string,arg2:string):Promise<Array<main.PlanJobView>>;
+
+export function ListProposals(arg1:string,arg2:string):Promise<Array<storage.Proposal>>;
 
 export function ListRoles():Promise<Array<domain.Role>>;
 
@@ -128,6 +140,8 @@ export function ListWorkflows(arg1:string):Promise<Array<domain.Workflow>>;
 
 export function PauseRun(arg1:string,arg2:string):Promise<void>;
 
+export function PendingDecisions():Promise<main.Decisions>;
+
 export function PerfMark(arg1:string,arg2:string):Promise<void>;
 
 export function Ping(arg1:string):Promise<main.PingResult>;
@@ -142,9 +156,13 @@ export function ReadArtifact(arg1:string,arg2:string):Promise<engine.ArtifactCon
 
 export function ReadDocumentVersion(arg1:string,arg2:string):Promise<engine.DocumentContent>;
 
+export function RejectProposal(arg1:string,arg2:string,arg3:string):Promise<void>;
+
 export function ReparseDesign(arg1:string):Promise<main.DesignView>;
 
 export function RequestDepartmentCheck(arg1:string,arg2:string,arg3:string):Promise<void>;
+
+export function RequestDocumentReview(arg1:string,arg2:string,arg3:Array<string>,arg4:string):Promise<number>;
 
 export function RequestWorkPlan(arg1:string,arg2:string,arg3:string):Promise<storage.AIJob>;
 

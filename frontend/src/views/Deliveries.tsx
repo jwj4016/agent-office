@@ -1,4 +1,4 @@
-import {Inbox, Radio, RotateCcw, Send, SkipForward} from 'lucide-react';
+import {FileSearch, Inbox, Radio, RotateCcw, Send, SkipForward} from 'lucide-react';
 import {useState} from 'react';
 import {api} from '../api';
 import {t} from '../i18n';
@@ -32,8 +32,9 @@ export function DeliveryInbox({project, departments}: { project: Project; depart
     const act = (fn: () => Promise<void>, done: string) => action.run(async () => { await fn(); list.reload(); toast(done); });
     return (
         <Section title={<><Icon icon={Inbox} size={18}/>부서 전달함</>} label="부서 전달함" count={list.data?.length}>
-            <p className="muted small">부서가 구독한 사건과 직접 받은 요청입니다. 부서의 AI 판단은 아직 연결되지 않아 받은 사건은 기록만 됩니다.</p>
+            <p className="muted small">부서가 구독한 사건과 직접 받은 요청입니다. 판단을 맡은 부서는 대표 AI가 할 일이 있는지 살펴 업무를 제안하거나, 대응하지 않는 이유를 남깁니다.</p>
             <CheckRequest project={project} departments={departments} disabled={archived} onSent={list.reload}/>
+            <DocumentReviewRequest project={project} departments={departments} disabled={archived} onSent={list.reload}/>
             <div className="toolbar" role="group" aria-label="전달함 조회 조건">
                 <label className="row nowrap small">부서
                     <select value={filter.departmentId ?? ''} onChange={(e) => setFilter({...filter, departmentId: e.target.value})}>
@@ -115,6 +116,56 @@ function CheckRequest({project, departments, disabled, onSent}: {
                    onChange={(e) => setNote(e.target.value)}/>
             <Button type="submit" size="sm" icon={Send} busy={action.busy} disabled={disabled || !dept}>점검 요청</Button>
             <ErrorBox error={action.error}/>
+        </form>
+    );
+}
+
+// DocumentReviewRequest asks one department to judge documents shared
+// before it subscribed (a new department catching up, for example).
+function DocumentReviewRequest({project, departments, disabled, onSent}: {
+    project: Project; departments: Department[]; disabled: boolean; onSent: () => void;
+}) {
+    const active = departments.filter((d) => d.status === 'active');
+    const [open, setOpen] = useState(false);
+    const [dept, setDept] = useState('');
+    const [picked, setPicked] = useState<string[]>([]);
+    const docs = useLoad(() => open && dept ? api.documents(project.id, {visibleTo: dept}) : Promise.resolve([]), [project.id, open, dept]);
+    const action = useAction();
+    const toast = useToast();
+    // The latest version of each document that has not been withdrawn.
+    const latest = (docs.data ?? []).flatMap((d) => {
+        const v = d.versions.filter((x) => !x.withdrawnAt).at(-1);
+        return d.status === 'active' && v ? [{doc: d, v}] : [];
+    });
+    const send = () => action.run(async () => {
+        const n = await api.requestDocumentReview(project.id, dept, picked, '기존 자료 검토');
+        toast(`${active.find((d) => d.id === dept)?.name ?? '부서'}에 자료 ${n}건 검토를 요청했습니다`);
+        setPicked([]);
+        setOpen(false);
+        onSent();
+    });
+    if (!open) {
+        return <span><Button size="sm" variant="ghost" icon={FileSearch} disabled={disabled} onClick={() => setOpen(true)}>기존 자료 검토 요청</Button></span>;
+    }
+    return (
+        <form className="card stack tight" aria-label="기존 자료 검토 요청" onSubmit={(e) => { e.preventDefault(); if (dept && picked.length) send(); }}>
+            <select value={dept} aria-label="검토할 부서" onChange={(e) => { setDept(e.target.value); setPicked([]); }}>
+                <option value="">검토할 부서 선택</option>
+                {active.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+            </select>
+            {dept && docs.data && latest.length === 0 ? <span className="muted small">이 부서가 볼 수 있는 공유 자료가 없습니다.</span> : null}
+            {latest.map(({doc, v}) => (
+                <label key={v.id} className="check block">
+                    <input type="checkbox" checked={picked.includes(v.id)}
+                           onChange={(e) => setPicked(e.target.checked ? [...picked, v.id] : picked.filter((x) => x !== v.id))}/>
+                    {doc.title} <span className="muted xsmall">{v.number}판{v.stage === 'final' ? ' · 확정' : ''}</span>
+                </label>
+            ))}
+            <ErrorBox error={docs.error || action.error}/>
+            <span className="row nowrap">
+                <Button type="submit" size="sm" icon={Send} busy={action.busy} disabled={!dept || picked.length === 0}>검토 요청 ({picked.length})</Button>
+                <Button size="sm" onClick={() => setOpen(false)}>닫기</Button>
+            </span>
         </form>
     );
 }

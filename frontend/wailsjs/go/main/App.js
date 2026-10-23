@@ -6,8 +6,16 @@ export function AIActivity(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['AIActivity'](arg1, arg2, arg3, arg4);
 }
 
+export function AcceptProposal(arg1, arg2, arg3) {
+  return window['go']['main']['App']['AcceptProposal'](arg1, arg2, arg3);
+}
+
 export function AddWorkNote(arg1, arg2, arg3) {
   return window['go']['main']['App']['AddWorkNote'](arg1, arg2, arg3);
+}
+
+export function AnswerJudgment(arg1, arg2, arg3) {
+  return window['go']['main']['App']['AnswerJudgment'](arg1, arg2, arg3);
 }
 
 export function AnswerQuestion(arg1, arg2, arg3) {
@@ -46,6 +54,10 @@ export function CloseImpactCheck(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['CloseImpactCheck'](arg1, arg2, arg3, arg4);
 }
 
+export function CloseJudgmentQuestion(arg1, arg2, arg3) {
+  return window['go']['main']['App']['CloseJudgmentQuestion'](arg1, arg2, arg3);
+}
+
 export function ConfirmDocumentVersion(arg1, arg2, arg3) {
   return window['go']['main']['App']['ConfirmDocumentVersion'](arg1, arg2, arg3);
 }
@@ -72,6 +84,10 @@ export function Dashboard(arg1) {
 
 export function DecideApproval(arg1, arg2, arg3, arg4, arg5, arg6) {
   return window['go']['main']['App']['DecideApproval'](arg1, arg2, arg3, arg4, arg5, arg6);
+}
+
+export function DecideProposals(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['DecideProposals'](arg1, arg2, arg3, arg4);
 }
 
 export function DecideToolApproval(arg1, arg2, arg3) {
@@ -194,8 +210,16 @@ export function ListImpactChecks(arg1, arg2, arg3) {
   return window['go']['main']['App']['ListImpactChecks'](arg1, arg2, arg3);
 }
 
+export function ListJudgments(arg1, arg2) {
+  return window['go']['main']['App']['ListJudgments'](arg1, arg2);
+}
+
 export function ListPlanJobs(arg1, arg2) {
   return window['go']['main']['App']['ListPlanJobs'](arg1, arg2);
+}
+
+export function ListProposals(arg1, arg2) {
+  return window['go']['main']['App']['ListProposals'](arg1, arg2);
 }
 
 export function ListRoles() {
@@ -242,6 +266,10 @@ export function PauseRun(arg1, arg2) {
   return window['go']['main']['App']['PauseRun'](arg1, arg2);
 }
 
+export function PendingDecisions() {
+  return window['go']['main']['App']['PendingDecisions']();
+}
+
 export function PerfMark(arg1, arg2) {
   return window['go']['main']['App']['PerfMark'](arg1, arg2);
 }
@@ -270,12 +298,20 @@ export function ReadDocumentVersion(arg1, arg2) {
   return window['go']['main']['App']['ReadDocumentVersion'](arg1, arg2);
 }
 
+export function RejectProposal(arg1, arg2, arg3) {
+  return window['go']['main']['App']['RejectProposal'](arg1, arg2, arg3);
+}
+
 export function ReparseDesign(arg1) {
   return window['go']['main']['App']['ReparseDesign'](arg1);
 }
 
 export function RequestDepartmentCheck(arg1, arg2, arg3) {
   return window['go']['main']['App']['RequestDepartmentCheck'](arg1, arg2, arg3);
+}
+
+export function RequestDocumentReview(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['RequestDocumentReview'](arg1, arg2, arg3, arg4);
 }
 
 export function RequestWorkPlan(arg1, arg2, arg3) {

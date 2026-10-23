@@ -516,6 +516,7 @@ func (db *DB) ClaimDelivery(ctx context.Context, id string) (bool, error) {
 
 // FinishDelivery records the outcome of a delivery being processed.
 func (db *DB) FinishDelivery(ctx context.Context, id, status, note, errText string) error {
+	hold := ""
 	switch status {
 	case domain.DeliveryDone, domain.DeliverySkipped, domain.DeliveryWaitingAnswer:
 		errText = ""
@@ -523,14 +524,31 @@ func (db *DB) FinishDelivery(ctx context.Context, id, status, note, errText stri
 		if strings.TrimSpace(errText) == "" {
 			errText = "알 수 없는 오류"
 		}
+	case domain.DeliveryHeld:
+		hold, note = note, ""
+		if hold == "" {
+			hold = "보류됨"
+		}
 	default:
 		return invalid("처리 결과로 쓸 수 없는 상태입니다: %s", status)
 	}
-	return db.changeDelivery(ctx, "", id, []string{domain.DeliveryProcessing}, status, note, errText, "")
+	return db.changeDelivery(ctx, "", id, []string{domain.DeliveryProcessing}, status, note, errText, hold)
 }
 
-// RetryDelivery puts a failed or held delivery back in the queue.
+// RetryDelivery puts a failed or held delivery back in the queue. When its
+// judgment job failed or was held, that job is queued again instead (one
+// more attempt, earlier attempts and their cost kept) and the delivery
+// waits for it.
 func (db *DB) RetryDelivery(ctx context.Context, projectID, id string) error {
+	var jobID, jobStatus string
+	err := db.sql.QueryRowContext(ctx, `SELECT id, status FROM work_ai_jobs WHERE delivery_id = ? AND project_id = ? ORDER BY round DESC LIMIT 1`,
+		id, projectID).Scan(&jobID, &jobStatus)
+	if err == nil && (jobStatus == JobFailed || jobStatus == JobHeld) {
+		if err := db.RetryAIJob(ctx, projectID, jobID); err != nil {
+			return err
+		}
+		return db.changeDelivery(ctx, projectID, id, []string{domain.DeliveryFailed, domain.DeliveryHeld}, domain.DeliveryProcessing, "", "", "")
+	}
 	return db.changeDelivery(ctx, projectID, id, []string{domain.DeliveryFailed, domain.DeliveryHeld}, domain.DeliveryPending, "", "", "")
 }
 
@@ -583,4 +601,56 @@ func (db *DB) RecoverDeliveries(ctx context.Context) (int, error) {
 		return nil
 	})
 	return int(n), err
+}
+
+// MaxReviewDocuments bounds one review of existing documents (plan §4.3).
+const MaxReviewDocuments = 50
+
+// RequestDocumentReview asks a department to judge chosen existing
+// documents, one direct check per version. It is how a department that
+// joined later looks at material shared before it existed; past events
+// are never replayed to it.
+func (db *DB) RequestDocumentReview(ctx context.Context, projectID, departmentID string, versionIDs []string, note string) (int, error) {
+	versionIDs = dedupe(versionIDs)
+	if len(versionIDs) == 0 {
+		return 0, invalid("검토할 자료를 고르세요")
+	}
+	if len(versionIDs) > MaxReviewDocuments {
+		return 0, invalid("한 번에 %d건까지 검토를 요청할 수 있습니다", MaxReviewDocuments)
+	}
+	_, err := db.Change(ctx, func(c *Change) error {
+		if err := writableProjectTx(ctx, c.Tx, projectID); err != nil {
+			return err
+		}
+		d, err := departmentTx(ctx, c.Tx, projectID, departmentID)
+		if err != nil {
+			return err
+		}
+		for _, id := range versionIDs {
+			v, err := versionTx(ctx, c.Tx, projectID, id)
+			if err != nil {
+				return err
+			}
+			doc, err := documentTx(ctx, c.Tx, projectID, v.DocumentID)
+			if err != nil {
+				return err
+			}
+			if v.WithdrawnAt != "" || doc.Status != "active" {
+				return invalid("철회된 자료는 검토를 요청할 수 없습니다: %s", doc.Title)
+			}
+			if !doc.VisibleTo(d.ID) {
+				return invalid("%s는 ‘%s’ 자료를 볼 수 없습니다", d.Name, doc.Title)
+			}
+			if _, err := emitWorkEventTx(ctx, c, projectID, domain.EventDepartmentCheck, WorkEvent{TargetDepartmentID: d.ID,
+				Title: fmt.Sprintf("기존 자료 검토: %s %d판", doc.Title, v.Number), Note: strings.TrimSpace(note), Categories: doc.Categories,
+				DocumentID: doc.ID, DocumentVersionID: v.ID}); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return 0, err
+	}
+	return len(versionIDs), nil
 }

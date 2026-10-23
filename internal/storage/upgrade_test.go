@@ -94,6 +94,9 @@ func TestUpgradeToDiagramArtifactsKeepsArtifacts(t *testing.T) {
 	if !strings.Contains(schema, "REFERENCES \"artifacts\"") && !strings.Contains(schema, "REFERENCES artifacts") {
 		t.Fatalf("self reference not renamed:\n%s", schema)
 	}
+	if props, err := db.Proposals(ctx, "prj-1", ""); err != nil || len(props) != 0 {
+		t.Fatalf("proposals after upgrade: %v %v", props, err)
+	}
 	if rows, _ := db.Read().Query(`PRAGMA foreign_key_check`); rows.Next() {
 		rows.Close()
 		t.Fatal("foreign key violations after upgrade")
@@ -178,6 +181,9 @@ func TestUpgradeToDepartmentsKeepsServices(t *testing.T) {
 	if _, _, err := db.AddDocumentVersion(ctx, "prj-1", NewDocumentVersion{Title: "자료", OwnerDepartmentID: dept.ID, SourceKind: "workspace",
 		SourcePath: "a.md", FileName: "a.md", Path: "projects/prj-1/documents/a.md", Hash: "h", Size: 1}); err != nil {
 		t.Fatalf("document after upgrade: %v", err)
+	}
+	if props, err := db.Proposals(ctx, "prj-1", ""); err != nil || len(props) != 0 {
+		t.Fatalf("proposals after upgrade: %v %v", props, err)
 	}
 	if rows, _ := db.Read().Query(`PRAGMA foreign_key_check`); rows.Next() {
 		rows.Close()

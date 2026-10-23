@@ -22,6 +22,13 @@ type Kind interface {
 	Accept(ctx context.Context, job storage.AIJob, raw []byte) (json.RawMessage, error)
 }
 
+// Completer is a Kind that stores its result with its own records in the
+// same transaction that makes the job ready (a judgment and its
+// proposals, for example).
+type Completer interface {
+	Complete(ctx context.Context, job storage.AIJob, result json.RawMessage) error
+}
+
 // Caller makes one structured call; tests replace it.
 type Caller func(ctx context.Context, prov providers.Provider, c design.JSONCall) ([]byte, error)
 
@@ -183,6 +190,9 @@ func (a *AI) process(ctx context.Context, job storage.AIJob) error {
 	}
 	if err := db.FinishAIAttempt(ctx, attempt, "succeeded", ""); err != nil {
 		return err
+	}
+	if c, ok := kind.(Completer); ok {
+		return c.Complete(ctx, job, result)
 	}
 	return db.FinishAIJob(ctx, job.ID, storage.JobReady, result, "", "")
 }

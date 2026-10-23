@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+
+	"agent-office/internal/domain"
 )
 
 // AI job lanes and statuses (plan §4.3, §4.7).
@@ -238,6 +240,18 @@ func (db *DB) FinishAIJob(ctx context.Context, id, status string, result json.Ra
 		if _, err := c.Tx.ExecContext(ctx, `UPDATE work_ai_jobs SET status = ?, result = ?, error = ?, hold_reason = ?, updated_at = ?
 			WHERE id = ? AND status = 'working'`, status, rawOr(result, string(j.Result)), errText, hold, Now(), id); err != nil {
 			return err
+		}
+		// A delivery waiting on this job follows its failure or hold so the
+		// department inbox shows why, and can retry it.
+		if j.DeliveryID != "" && (status == JobFailed || status == JobHeld) {
+			dStatus := domain.DeliveryFailed
+			if status == JobHeld {
+				dStatus = domain.DeliveryHeld
+			}
+			if _, err := c.Tx.ExecContext(ctx, `UPDATE event_deliveries SET status = ?, error = ?, hold_reason = ?, updated_at = ?
+				WHERE id = ? AND status = 'processing'`, dStatus, errText, hold, Now(), j.DeliveryID); err != nil {
+				return err
+			}
 		}
 		return emitJobUpdate(c, j.ProjectID, id, status)
 	})

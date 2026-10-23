@@ -712,34 +712,53 @@ func (db *DB) CreateWorkItem(ctx context.Context, w domain.WorkItem) (domain.Wor
 	if domain.WorkNeedsReason(w.Status) && strings.TrimSpace(w.StatusReason) == "" {
 		return w, invalid("대기나 막힘 상태에는 이유가 필요합니다")
 	}
-	cats, _ := json.Marshal(w.Categories)
 	_, err := db.Change(ctx, func(c *Change) error {
-		tx := c.Tx
-		if err := writableProjectTx(ctx, tx, w.ProjectID); err != nil {
+		if err := writableProjectTx(ctx, c.Tx, w.ProjectID); err != nil {
 			return err
 		}
-		if err := checkWorkLinks(ctx, tx, w, true); err != nil {
+		if err := checkWorkLinks(ctx, c.Tx, w, true); err != nil {
 			return err
 		}
-		w.ID = NewID("work")
-		now := Now()
-		if _, err := tx.ExecContext(ctx, `INSERT INTO work_items (id, project_id, kind, parent_id, department_id, assignee_assignment_id,
-			title, description, done_criteria, priority, status, status_reason, categories, due_at, created_at, updated_at)
-			VALUES (?, ?, ?, NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), ?, ?, ?, ?, ?, ?, ?, NULLIF(?, ''), ?, ?)`,
-			w.ID, w.ProjectID, w.Kind, w.ParentID, w.DepartmentID, w.AssigneeAssignmentID,
-			w.Title, w.Description, w.DoneCriteria, w.Priority, w.Status, strings.TrimSpace(w.StatusReason), string(cats), w.DueAt, now, now); err != nil {
-			return err
-		}
-		if err := addNoteTx(ctx, tx, w.ProjectID, w.ID, domain.NoteStatus, strings.TrimSpace(w.StatusReason), "", w.Status, domain.LocalOwner, now); err != nil {
-			return err
-		}
-		_, err := emitWorkEventTx(ctx, c, w.ProjectID, domain.EventWorkCreated, workEventFor(w))
+		id, err := insertWorkTx(ctx, c, w, 0, "")
+		w.ID = id
 		return err
 	})
 	if err != nil {
 		return w, err
 	}
 	return db.WorkItem(ctx, w.ProjectID, w.ID)
+}
+
+// insertWorkTx stores a checked new work item with its first history
+// entry and emits work.created. originSeq and originProposal record the
+// event and proposal it came from, if any; the event is then its cause.
+func insertWorkTx(ctx context.Context, c *Change, w domain.WorkItem, originSeq int64, originProposal string) (string, error) {
+	if w.Status == "" {
+		w.Status = domain.WorkReceived
+	}
+	cats, _ := json.Marshal(w.Categories)
+	w.ID = NewID("work")
+	now := Now()
+	var seq any
+	if originSeq > 0 {
+		seq = originSeq
+	}
+	if _, err := c.Tx.ExecContext(ctx, `INSERT INTO work_items (id, project_id, kind, parent_id, department_id, assignee_assignment_id,
+		title, description, done_criteria, priority, status, status_reason, categories, due_at, origin_event_sequence, origin_proposal_id, created_at, updated_at)
+		VALUES (?, ?, ?, NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), ?, ?, ?, ?, ?, ?, ?, NULLIF(?, ''), ?, NULLIF(?, ''), ?, ?)`,
+		w.ID, w.ProjectID, w.Kind, w.ParentID, w.DepartmentID, w.AssigneeAssignmentID,
+		w.Title, w.Description, w.DoneCriteria, w.Priority, w.Status, strings.TrimSpace(w.StatusReason), string(cats), w.DueAt, seq, originProposal, now, now); err != nil {
+		return "", err
+	}
+	if err := addNoteTx(ctx, c.Tx, w.ProjectID, w.ID, domain.NoteStatus, strings.TrimSpace(w.StatusReason), "", w.Status, domain.LocalOwner, now); err != nil {
+		return "", err
+	}
+	ev := workEventFor(w)
+	if originSeq > 0 {
+		ev.CauseSequence = &originSeq
+	}
+	_, err := emitWorkEventTx(ctx, c, w.ProjectID, domain.EventWorkCreated, ev)
+	return w.ID, err
 }
 
 // UpdateWorkItem changes a work item's content. Status changes go

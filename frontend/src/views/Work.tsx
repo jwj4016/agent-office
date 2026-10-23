@@ -9,6 +9,7 @@ import {
     useToast,
 } from '../ui';
 import {DeliveryInbox, WorkEvents} from './Deliveries';
+import {DepartmentDecisions} from './Judgments';
 import {WorkDocuments} from './Documents';
 import {WorkRun} from './WorkRuns';
 
@@ -176,6 +177,7 @@ export function Work({project, onTeam, onOpenRun}: { project: Project; onTeam: (
                 )}
             </Section>
 
+            <DepartmentDecisions project={project}/>
             <DeliveryInbox project={project} departments={departments.data}/>
         </div>
     );

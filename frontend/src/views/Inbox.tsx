@@ -9,11 +9,14 @@ import {
     useDetail, useToast,
 } from '../ui';
 import {ArtifactViewer} from './ArtifactViewer';
+import {InboxDecisions} from './Judgments';
 
 const itemKey = (it: InboxItem) => `${it.kind}:${it.runId}:${it.attemptId}:${it.approvalId ?? ''}:${it.messageId ?? ''}`;
 
 export function Inbox({onOpenRun}: { onOpenRun: (projectId: string, runId: string) => void }) {
     const {data, error, reload} = useLoad(() => api.inbox(), [], '*');
+    const decisions = useLoad(() => api.pendingDecisions(), [], '*');
+    const decisionCount = decisions.data ? decisions.data.questions.length + decisions.data.proposals.length : 0;
     // Oldest first: what has waited longest is handled first.
     const items = [...(data ?? [])].sort((a, b) => a.since.localeCompare(b.since));
     const groups = new Map<string, InboxItem[]>();
@@ -21,11 +24,12 @@ export function Inbox({onOpenRun}: { onOpenRun: (projectId: string, runId: strin
     const card = (it: InboxItem) => <InboxCard key={itemKey(it)} item={it} onDone={reload} onOpenRun={() => onOpenRun(it.projectId, it.runId)}/>;
     return (
         <div className="page narrow" style={{maxWidth: 880}}>
-            <PageHeader title={t.nav.inbox} badges={items.length ? <span className="badge warn count">{items.length}</span> : null}
-                        desc="내가 맡은 작업·리뷰·승인과 AI의 질문입니다. 처리하지 않으면 자동으로 승인되지 않습니다."/>
-            <ErrorBox error={error}/>
+            <PageHeader title={t.nav.inbox} badges={items.length + decisionCount ? <span className="badge warn count">{items.length + decisionCount}</span> : null}
+                        desc="내가 맡은 작업·리뷰·승인, AI의 질문, 부서가 제안한 업무입니다. 처리하지 않으면 자동으로 승인되지 않습니다."/>
+            <ErrorBox error={error || decisions.error}/>
+            {decisions.data ? <InboxDecisions data={decisions.data} onDone={decisions.reload}/> : null}
             {!data && !error ? <Loading/> : null}
-            {data && items.length === 0 ? (
+            {data && items.length === 0 && decisionCount === 0 ? (
                 <EmptyState icon={CheckCircle2} title="지금 처리할 일이 없습니다.">
                     AI가 승인·리뷰·답변을 기다리면 여기에 나타나고, 사이드바에 개수가 표시됩니다.
                 </EmptyState>

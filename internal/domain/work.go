@@ -190,3 +190,7 @@ const WorkStepID = "work"
 
 // DefaultWorkOutputs is what a plan produces when it names nothing.
 func DefaultWorkOutputs() []Output { return []Output{{Key: "result", Type: OutMarkdown}} }
+
+// DefaultChainDepth is how deep automatic follow-up judgment goes in one
+// chain of events (plan §4.7, §9.3).
+const DefaultChainDepth = 3

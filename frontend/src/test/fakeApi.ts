@@ -57,6 +57,11 @@ export const fakeApi = {
     workEvents: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []), subscriptions: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []),
     saveSubscription: vi.fn(), deliveries: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []),
     requestDepartmentCheck: ok(undefined), retryDelivery: ok(undefined), skipDelivery: ok(undefined),
+    judgments: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []), answerJudgment: ok(undefined), closeJudgmentQuestion: ok(undefined),
+    proposals: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []), acceptProposal: vi.fn(), rejectProposal: ok(undefined),
+    decideProposals: vi.fn(async (..._args: unknown[]) => ({done: 0, errors: [] as string[]})),
+    pendingDecisions: vi.fn(async (): Promise<{questions: unknown[]; proposals: unknown[]}> => ({questions: [], proposals: []})),
+    requestDocumentReview: vi.fn(async (..._args: unknown[]) => 0),
     workPlan: vi.fn(async (..._args: unknown[]): Promise<WorkPlanView> => ({
         plan: {workItemId: '', projectId: '', assignmentId: '', instructions: '', materials: '', outputs: [{key: 'result', type: 'markdown'}], updatedAt: ''},
         saved: false, preview: '', problem: '',

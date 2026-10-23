@@ -2107,6 +2107,38 @@ export namespace main {
 		    return a;
 		}
 	}
+	export class Decisions {
+	    questions: storage.Judgment[];
+	    proposals: storage.Proposal[];
+	
+	    static createFrom(source: any = {}) {
+	        return new Decisions(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.questions = this.convertValues(source["questions"], storage.Judgment);
+	        this.proposals = this.convertValues(source["proposals"], storage.Proposal);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class DesignInput {
 	    goal: string;
 	    projectId: string;
@@ -2378,6 +2410,20 @@ export namespace main {
 		    }
 		    return a;
 		}
+	}
+	export class ProposalBatch {
+	    done: number;
+	    errors: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new ProposalBatch(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.done = source["done"];
+	        this.errors = source["errors"];
+	    }
 	}
 	export class StartResult {
 	    runId: string;
@@ -2897,6 +2943,70 @@ export namespace storage {
 	        this.createdAt = source["createdAt"];
 	    }
 	}
+	export class Judgment {
+	    id: string;
+	    projectId: string;
+	    projectName: string;
+	    deliveryId: string;
+	    round: number;
+	    aiJobId: string;
+	    departmentId: string;
+	    departmentName: string;
+	    outcome: string;
+	    reason: string;
+	    evidence: string[];
+	    question: string;
+	    answer: string;
+	    questionStatus: string;
+	    eventSequence: number;
+	    eventKind: string;
+	    event: WorkEvent;
+	    createdAt: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Judgment(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.projectId = source["projectId"];
+	        this.projectName = source["projectName"];
+	        this.deliveryId = source["deliveryId"];
+	        this.round = source["round"];
+	        this.aiJobId = source["aiJobId"];
+	        this.departmentId = source["departmentId"];
+	        this.departmentName = source["departmentName"];
+	        this.outcome = source["outcome"];
+	        this.reason = source["reason"];
+	        this.evidence = source["evidence"];
+	        this.question = source["question"];
+	        this.answer = source["answer"];
+	        this.questionStatus = source["questionStatus"];
+	        this.eventSequence = source["eventSequence"];
+	        this.eventKind = source["eventKind"];
+	        this.event = this.convertValues(source["event"], WorkEvent);
+	        this.createdAt = source["createdAt"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class SharedDocument {
 	    id: string;
 	    projectId: string;
@@ -3007,6 +3117,78 @@ export namespace storage {
 	        this.workItemId = source["workItemId"];
 	        this.scope = source["scope"];
 	        this.scopeDepartments = source["scopeDepartments"];
+	    }
+	}
+	export class Proposal {
+	    id: string;
+	    projectId: string;
+	    projectName: string;
+	    judgmentId: string;
+	    position: number;
+	    departmentId: string;
+	    departmentName: string;
+	    title: string;
+	    description: string;
+	    doneCriteria: string;
+	    categories: string[];
+	    priority: string;
+	    status: string;
+	    workItemId: string;
+	    duplicateOf: string;
+	    decisionNote: string;
+	    reason: string;
+	    eventSequence: number;
+	    eventKind: string;
+	    eventTitle: string;
+	    createdAt: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Proposal(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.projectId = source["projectId"];
+	        this.projectName = source["projectName"];
+	        this.judgmentId = source["judgmentId"];
+	        this.position = source["position"];
+	        this.departmentId = source["departmentId"];
+	        this.departmentName = source["departmentName"];
+	        this.title = source["title"];
+	        this.description = source["description"];
+	        this.doneCriteria = source["doneCriteria"];
+	        this.categories = source["categories"];
+	        this.priority = source["priority"];
+	        this.status = source["status"];
+	        this.workItemId = source["workItemId"];
+	        this.duplicateOf = source["duplicateOf"];
+	        this.decisionNote = source["decisionNote"];
+	        this.reason = source["reason"];
+	        this.eventSequence = source["eventSequence"];
+	        this.eventKind = source["eventKind"];
+	        this.eventTitle = source["eventTitle"];
+	        this.createdAt = source["createdAt"];
+	    }
+	}
+	export class ProposalEdit {
+	    title: string;
+	    description: string;
+	    doneCriteria: string;
+	    categories: string[];
+	    priority: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ProposalEdit(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.title = source["title"];
+	        this.description = source["description"];
+	        this.doneCriteria = source["doneCriteria"];
+	        this.categories = source["categories"];
+	        this.priority = source["priority"];
 	    }
 	}
 	

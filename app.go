@@ -130,7 +130,21 @@ func (a *App) startup(ctx context.Context) {
 		Diagram:   diagram,
 		Ephemeral: a.addDelta,
 	})
-	a.work = work.New(a.db, work.Acknowledge)
+	a.ai = work.NewAI(work.AIConfig{
+		DB: a.db, Providers: a.providerFor,
+		Hold: func(ctx context.Context, projectID string) (string, error) {
+			u, err := a.eng.ProjectUsage(ctx, projectID)
+			return u.HoldReason, err
+		},
+		Kinds: map[string]work.Kind{
+			storage.JobPlan: work.PlanKind{DB: a.db},
+			storage.JobJudgment: work.JudgeKind{DB: a.db, ReadDocument: func(ctx context.Context, projectID, versionID string) (string, error) {
+				c, err := a.eng.ReadDocumentVersion(ctx, projectID, versionID)
+				return c.Content, err
+			}},
+		},
+	})
+	a.work = work.New(a.db, work.Judge(a.db, a.ai.Wake))
 	a.db.Subscribe(func(evs []storage.EventRecord) {
 		a.emit(a.ctx, EventStored, evs)
 		for _, ev := range evs {
@@ -142,14 +156,6 @@ func (a *App) startup(ctx context.Context) {
 	})
 	ectx, cancel := context.WithCancel(context.Background())
 	a.stopEngine, a.engineDone, a.workDone, a.aiDone = cancel, make(chan struct{}), make(chan struct{}), make(chan struct{})
-	a.ai = work.NewAI(work.AIConfig{
-		DB: a.db, Providers: a.providerFor,
-		Hold: func(ctx context.Context, projectID string) (string, error) {
-			u, err := a.eng.ProjectUsage(ctx, projectID)
-			return u.HoldReason, err
-		},
-		Kinds: map[string]work.Kind{storage.JobPlan: work.PlanKind{DB: a.db}},
-	})
 	a.design = &design.Service{DB: a.db, Engine: a.eng, Providers: a.providerFor, Connections: a.designConnections, Ctx: ectx,
 		DataDir: dir, Diagram: diagram}
 	if err := a.design.Recover(ctx); err != nil {

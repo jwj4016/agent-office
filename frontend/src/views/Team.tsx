@@ -1,9 +1,10 @@
-import {Building, Copy, FileText, FlaskConical, GripVertical, LayoutTemplate, Pencil, Plus, UserPlus, Users} from 'lucide-react';
+import {Building, Copy, FileText, FlaskConical, GripVertical, LayoutTemplate, Pencil, Plus, Radio, UserPlus, Users} from 'lucide-react';
 import {type DragEvent, useState} from 'react';
 import {api} from '../api';
 import {t} from '../i18n';
 import {useLoad} from '../live';
 import type {ActiveStatus, ActorKind, Assignment, Department, DepartmentTemplate, Project, Role} from '../types';
+import {SubscriptionPanel} from './Judgments';
 import {ActorBadge, Banner, Button, DetailHeader, EmptyState, ErrorBox, Field, Icon, Loading, Section, StatusBadge, useAction, useDetail, useToast} from '../ui';
 
 type Form = {
@@ -166,8 +167,12 @@ function ServiceDepartments({project, assignments, roles, onChanged}: {
                                     <td className="small">{d.memberIds.map(person).filter(Boolean).join(', ') || <span className="muted">없음</span>}</td>
                                     <td className="small">{person(d.leadAssignmentId) ?? <span className="muted">지정 안 함</span>}</td>
                                     <td><StatusBadge tone={d.status === 'active' ? 'ok' : ''}>{d.status === 'active' ? '사용' : '사용 안 함'}</StatusBadge></td>
-                                    <td className="actions"><Button size="sm" icon={Pencil} disabled={archived}
-                                                                    aria-label={`${d.name} 부서 편집`} onClick={() => edit(d)}>{t.common.edit}</Button></td>
+                                    <td className="actions"><span className="row nowrap" style={{justifyContent: 'flex-end'}}>
+                                        <Button size="sm" icon={Radio} aria-label={`${d.name} 판단 설정`}
+                                                onClick={() => setDetail(<SubscriptionPanel key={`sub-${d.id}`} project={project} department={d}/>)}>판단 설정</Button>
+                                        <Button size="sm" icon={Pencil} disabled={archived}
+                                                aria-label={`${d.name} 부서 편집`} onClick={() => edit(d)}>{t.common.edit}</Button>
+                                    </span></td>
                                 </tr>
                             ))}
                             </tbody>

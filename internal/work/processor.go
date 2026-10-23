@@ -15,9 +15,11 @@ import (
 	"agent-office/internal/storage"
 )
 
-// Result is what handling one delivery produced.
+// Result is what handling one delivery produced. Status processing means
+// the delivery was handed to an AI job that will finish it; held keeps
+// it for a person with Note as the reason.
 type Result struct {
-	Status string // done, skipped or waiting_answer
+	Status string // done, skipped, waiting_answer, held or processing
 	Note   string
 }
 
@@ -25,10 +27,11 @@ type Result struct {
 // marks the delivery failed with the error as its reason.
 type Handler func(ctx context.Context, d storage.Delivery) (Result, error)
 
-// Acknowledge records the delivery without asking anyone. Until AI
-// judgment is connected (stage 5) every delivery ends here.
+// Acknowledge records the delivery without asking anyone. Judge uses it
+// for deliveries that need no judgment (notifications, and collaboration
+// requests until stage 6).
 func Acknowledge(context.Context, storage.Delivery) (Result, error) {
-	return Result{Status: domain.DeliveryDone, Note: "전달을 기록했습니다. 부서 판단은 아직 연결되지 않았습니다."}, nil
+	return Result{Status: domain.DeliveryDone, Note: "전달을 기록했습니다."}, nil
 }
 
 // Processor works through pending deliveries one at a time.
@@ -117,6 +120,9 @@ func (p *Processor) finish(ctx context.Context, d storage.Delivery) error {
 	}
 	if res.Status == "" {
 		res.Status = domain.DeliveryDone
+	}
+	if res.Status == domain.DeliveryProcessing {
+		return nil // handed to an AI job, which finishes the delivery
 	}
 	err = p.db.FinishDelivery(ctx, d.ID, res.Status, res.Note, "")
 	if errors.Is(err, storage.ErrInvalid) { // the handler returned a status it may not set

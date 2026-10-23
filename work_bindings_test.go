@@ -2,6 +2,8 @@ package main
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -77,6 +79,34 @@ func TestBindingsDepartmentsAndWork(t *testing.T) {
 	}
 }
 
+// scriptJudgment makes the test provider answer model with result as its
+// structured output, reporting 30 input and 10 output tokens.
+func scriptJudgment(t *testing.T, a *App, model, result string) {
+	t.Helper()
+	for _, l := range []string{
+		`{"emit":"usage","payload":{"inputTokens":30,"outputTokens":10,"costUsd":0.001}}`,
+		`{"write":{"key":"result","content":` + string(need(json.Marshal(result))) + `}}`,
+		`{"complete":{"status":"succeeded"}}`,
+	} {
+		var s providers.Step
+		if err := json.Unmarshal([]byte(l), &s); err != nil {
+			t.Fatal(err)
+		}
+		a.testProvider.Scripts[model] = append(a.testProvider.Scripts[model], s)
+	}
+}
+
+// aiDepartment is a department led by an AI that answers with model.
+func aiDepartment(t *testing.T, a *App, projectID, name, model string) domain.Department {
+	t.Helper()
+	conn := need(a.EnsureTestConnection())
+	role := need(a.SaveRole(domain.Role{Name: name + " 담당 " + projectID}))
+	asg := need(a.SaveAssignment(domain.Assignment{ProjectID: projectID, RoleID: role.ID, ActorKind: domain.ActorAI,
+		DisplayName: name + " AI", ConnectionID: conn.ID, Model: model}))
+	return need(a.SaveDepartment(domain.Department{ProjectID: projectID, Name: name, Responsibility: name + "의 책임",
+		MemberIDs: []string{asg.ID}, LeadAssignmentID: asg.ID}))
+}
+
 func waitDeliveries(t *testing.T, a *App, projectID string, done int) []storage.Delivery {
 	t.Helper()
 	deadline := time.Now().Add(e2eWait)
@@ -104,9 +134,10 @@ func waitDeliveries(t *testing.T, a *App, projectID string, done int) []storage.
 func TestBindingsWorkEventsReachDepartments(t *testing.T) {
 	a := startApp(t)
 	p := need(a.CreateProject(ProjectInput{Name: "캠페인", Mode: "review"}))
+	scriptJudgment(t, a, "judge-none", `{"outcome":"none","reason":"할 일이 없다"}`)
 	dept := map[string]domain.Department{}
 	for _, name := range []string{"마케팅팀", "개발팀", "재무팀"} {
-		dept[name] = need(a.SaveDepartment(domain.Department{ProjectID: p.ID, Name: name}))
+		dept[name] = aiDepartment(t, a, p.ID, name, "judge-none")
 	}
 	for _, name := range []string{"개발팀", "재무팀"} {
 		need(a.SaveSubscription(domain.Subscription{ProjectID: p.ID, DepartmentID: dept[name].ID,
@@ -128,6 +159,7 @@ func TestBindingsWorkEventsReachDepartments(t *testing.T) {
 	b.emit = a.emit
 	b.startup(t.Context())
 	t.Cleanup(func() { b.shutdown(t.Context()) })
+	scriptJudgment(t, b, "judge-none", `{"outcome":"none","reason":"할 일이 없다"}`)
 	if err := b.RequestDepartmentCheck(p.ID, dept["마케팅팀"].ID, "다음 분기 캠페인 아이디어"); err != nil {
 		t.Fatal(err)
 	}
@@ -325,5 +357,96 @@ func TestBindingsShareDraftWithAnotherDepartment(t *testing.T) {
 	}
 	if w := need(a.GetWorkItem(p.ID, plan.ID)).Item; w.Status == domain.WorkDone {
 		t.Fatal("sharing completed the work")
+	}
+}
+
+// Stage 5 acceptance through the UI-facing API: a shared plan makes
+// development and finance each propose work while legal, which follows
+// nothing, is not asked; accepting a proposal registers the work under
+// the department with its cause, and the judgments show in the usage.
+func TestBindingsDepartmentsProposeWork(t *testing.T) {
+	a := startApp(t)
+	ws := t.TempDir()
+	p := need(a.CreateProject(ProjectInput{Name: "캠페인", Mode: "review"}))
+	p = need(a.UpdateProject(ProjectInput{ID: p.ID, Name: p.Name, Mode: "review", WorkspacePath: ws}))
+	propose := func(title string) string {
+		return string(need(json.Marshal(map[string]any{"outcome": "propose", "reason": "기획안에 필요한 일이 있다",
+			"proposals": []map[string]any{{"title": title, "doneCriteria": title + " 완료", "priority": "high"}}})))
+	}
+	scriptJudgment(t, a, "judge-dev", propose("캠페인 페이지 구현 검토"))
+	scriptJudgment(t, a, "judge-fin", propose("캠페인 예산 검토"))
+	scriptJudgment(t, a, "judge-law", `{"outcome":"none","reason":"계약이 없다"}`)
+	mkt := need(a.SaveDepartment(domain.Department{ProjectID: p.ID, Name: "마케팅팀"}))
+	dev := aiDepartment(t, a, p.ID, "개발팀", "judge-dev")
+	fin := aiDepartment(t, a, p.ID, "재무팀", "judge-fin")
+	law := aiDepartment(t, a, p.ID, "법무팀", "judge-law")
+	for _, d := range []domain.Department{dev, fin} {
+		need(a.SaveSubscription(domain.Subscription{ProjectID: p.ID, DepartmentID: d.ID,
+			EventKinds: []string{domain.EventDocumentShared}, Guidance: d.Name + " 관점", Enabled: true}))
+	}
+	goal := need(a.CreateWorkItem(domain.WorkItem{ProjectID: p.ID, Kind: domain.WorkGoal, Title: "신규 고객 캠페인", DepartmentID: mkt.ID}))
+	plan := need(a.CreateWorkItem(domain.WorkItem{ProjectID: p.ID, ParentID: goal.ID, DepartmentID: mkt.ID, Title: "기획안 작성"}))
+	if err := os.WriteFile(filepath.Join(ws, "plan.md"), []byte("# 캠페인 기획안\n새 페이지와 광고 예산"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	need(a.ShareWorkspaceFile(p.ID, "plan.md", storage.NewDocumentVersion{Title: "캠페인 기획안", WorkItemID: plan.ID}))
+
+	deadline := time.Now().Add(e2eWait)
+	var props []storage.Proposal
+	for {
+		props = need(a.ListProposals(p.ID, "proposed"))
+		if len(props) == 2 || time.Now().After(deadline) {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	byDept := map[string]storage.Proposal{}
+	for _, pr := range props {
+		byDept[pr.DepartmentID] = pr
+	}
+	if len(props) != 2 || byDept[dev.ID].Title != "캠페인 페이지 구현 검토" || byDept[fin.ID].Title != "캠페인 예산 검토" {
+		t.Fatalf("proposals = %+v", props)
+	}
+	for _, d := range need(a.ListDeliveries(p.ID, storage.DeliveryFilter{})) {
+		if d.DepartmentID == law.ID {
+			t.Fatalf("legal was asked: %+v", d)
+		}
+	}
+	if dec := need(a.PendingDecisions()); len(dec.Proposals) != 2 || dec.Proposals[0].ProjectName != "캠페인" {
+		t.Fatalf("inbox decisions = %+v", dec)
+	}
+	if u := need(a.ProjectUsage(p.ID)); u.Attempts != 2 || u.InputTokens != 60 {
+		t.Fatalf("usage = %+v", u)
+	}
+
+	w := need(a.AcceptProposal(p.ID, byDept[dev.ID].ID, storage.ProposalEdit{}))
+	if w.DepartmentID != dev.ID || w.ParentID != goal.ID || w.Priority != "high" {
+		t.Fatalf("work = %+v", w)
+	}
+	if batch := need(a.DecideProposals(p.ID, []string{byDept[dev.ID].ID, byDept[fin.ID].ID}, false, "나중에")); batch.Done != 1 || len(batch.Errors) != 1 {
+		t.Fatalf("batch = %+v", batch)
+	}
+	if left := need(a.ListProposals(p.ID, "proposed")); len(left) != 0 {
+		t.Fatalf("left = %+v", left)
+	}
+
+	// A department created later reviews the shared plan on request.
+	versions := need(a.GetDocument(p.ID, need(a.ListDocuments(p.ID, storage.DocumentFilter{}))[0].ID)).Versions
+	if n := need(a.RequestDocumentReview(p.ID, law.ID, []string{versions[0].ID}, "")); n != 1 {
+		t.Fatalf("review requests = %d", n)
+	}
+	deadline = time.Now().Add(e2eWait)
+	for {
+		list := need(a.ListDeliveries(p.ID, storage.DeliveryFilter{DepartmentID: law.ID}))
+		if len(list) == 1 && list[0].Status == domain.DeliveryDone {
+			if !strings.Contains(list[0].Note, "계약이 없다") {
+				t.Fatalf("legal note = %q", list[0].Note)
+			}
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("legal review = %+v", list)
+		}
+		time.Sleep(20 * time.Millisecond)
 	}
 }
