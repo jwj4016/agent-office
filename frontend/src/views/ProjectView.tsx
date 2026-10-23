@@ -74,7 +74,8 @@ export function ProjectView({route, onRoute, onChanged}: {
             <Tabs label="서비스 메뉴" items={tabs} value={route.tab} onChange={go}/>
             <div role="tabpanel" ref={panel} tabIndex={-1} aria-label={tabs.find((x) => x.id === route.tab)?.label} className="stack loose">
                 {route.tab === 'status' ? <Status project={p} onRoute={onRoute}/> : null}
-                {route.tab === 'work' ? <Work project={p} onTeam={() => go('team')}/> : null}
+                {route.tab === 'work' ? <Work project={p} onTeam={() => go('team')}
+                                              onOpenRun={(runId) => onRoute({view: 'project', projectId: p.id, tab: 'runs', runId})}/> : null}
                 {route.tab === 'office' ? <Office project={p} onRoute={onRoute}/> : null}
                 {route.tab === 'runs' ? (
                     <Runs project={p} runId={route.runId} onInbox={() => onRoute({view: 'inbox'})}

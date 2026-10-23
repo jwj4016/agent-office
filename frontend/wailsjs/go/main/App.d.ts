@@ -16,6 +16,8 @@ export function AnswerQuestion(arg1:string,arg2:string,arg3:string):Promise<main
 
 export function ApplyDesign(arg1:string,arg2:boolean):Promise<design.ApplyResult>;
 
+export function ApplyPlanJob(arg1:string,arg2:string):Promise<domain.WorkPlan>;
+
 export function ApplyWorkflowAssist(arg1:string):Promise<domain.Workflow>;
 
 export function CancelRun(arg1:string,arg2:string):Promise<void>;
@@ -66,6 +68,8 @@ export function GetSettings():Promise<Record<string, string>>;
 
 export function GetWorkItem(arg1:string,arg2:string):Promise<main.WorkDetail>;
 
+export function GetWorkPlan(arg1:string,arg2:string):Promise<main.WorkPlanView>;
+
 export function GetWorkflow(arg1:string,arg2:string):Promise<domain.Workflow>;
 
 export function GetWorkflowAssist(arg1:string):Promise<storage.AssistRecord>;
@@ -88,6 +92,8 @@ export function ListDepartments(arg1:string):Promise<Array<domain.Department>>;
 
 export function ListDesigns():Promise<Array<main.DesignView>>;
 
+export function ListPlanJobs(arg1:string,arg2:string):Promise<Array<main.PlanJobView>>;
+
 export function ListRoles():Promise<Array<domain.Role>>;
 
 export function ListRuns(arg1:string):Promise<Array<engine.RunDetail>>;
@@ -97,6 +103,8 @@ export function ListSubscriptions(arg1:string,arg2:string):Promise<Array<domain.
 export function ListWorkEvents(arg1:string,arg2:string):Promise<Array<storage.WorkEventView>>;
 
 export function ListWorkItems(arg1:string,arg2:storage.WorkFilter):Promise<Array<domain.WorkItem>>;
+
+export function ListWorkRuns(arg1:string,arg2:string):Promise<Array<engine.RunDetail>>;
 
 export function ListWorkflowAssists(arg1:string,arg2:string):Promise<Array<storage.AssistRecord>>;
 
@@ -120,7 +128,11 @@ export function ReparseDesign(arg1:string):Promise<main.DesignView>;
 
 export function RequestDepartmentCheck(arg1:string,arg2:string,arg3:string):Promise<void>;
 
+export function RequestWorkPlan(arg1:string,arg2:string,arg3:string):Promise<storage.AIJob>;
+
 export function ResumeRun(arg1:string,arg2:string):Promise<void>;
+
+export function RetryAIJob(arg1:string,arg2:string):Promise<void>;
 
 export function RetryDelivery(arg1:string,arg2:string):Promise<void>;
 
@@ -141,6 +153,8 @@ export function SaveDepartmentTemplate(arg1:domain.DepartmentTemplate):Promise<d
 export function SaveRole(arg1:domain.Role):Promise<domain.Role>;
 
 export function SaveSubscription(arg1:domain.Subscription):Promise<domain.Subscription>;
+
+export function SaveWorkPlan(arg1:domain.WorkPlan):Promise<domain.WorkPlan>;
 
 export function SaveWorkflowDiagram(arg1:string):Promise<string>;
 
@@ -163,6 +177,8 @@ export function SkipDelivery(arg1:string,arg2:string,arg3:string):Promise<void>;
 export function StartDesign(arg1:main.DesignInput):Promise<main.DesignView>;
 
 export function StartRun(arg1:string,arg2:string):Promise<main.StartResult>;
+
+export function StartWork(arg1:string,arg2:string,arg3:string):Promise<main.StartResult>;
 
 export function StartWorkflowAssist(arg1:design.AssistInput):Promise<storage.AssistRecord>;
 

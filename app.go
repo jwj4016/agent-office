@@ -66,6 +66,9 @@ type App struct {
 	// work handles department deliveries (service operations).
 	work     *work.Processor
 	workDone chan struct{}
+	// ai runs AI work outside runs (work plans) in two lanes.
+	ai     *work.AI
+	aiDone chan struct{}
 
 	deltaMu sync.Mutex
 	deltas  map[string]*Delta
@@ -138,7 +141,15 @@ func (a *App) startup(ctx context.Context) {
 		}
 	})
 	ectx, cancel := context.WithCancel(context.Background())
-	a.stopEngine, a.engineDone, a.workDone = cancel, make(chan struct{}), make(chan struct{})
+	a.stopEngine, a.engineDone, a.workDone, a.aiDone = cancel, make(chan struct{}), make(chan struct{}), make(chan struct{})
+	a.ai = work.NewAI(work.AIConfig{
+		DB: a.db, Providers: a.providerFor,
+		Hold: func(ctx context.Context, projectID string) (string, error) {
+			u, err := a.eng.ProjectUsage(ctx, projectID)
+			return u.HoldReason, err
+		},
+		Kinds: map[string]work.Kind{storage.JobPlan: work.PlanKind{DB: a.db}},
+	})
 	a.design = &design.Service{DB: a.db, Engine: a.eng, Providers: a.providerFor, Connections: a.designConnections, Ctx: ectx,
 		DataDir: dir, Diagram: diagram}
 	if err := a.design.Recover(ctx); err != nil {
@@ -155,6 +166,12 @@ func (a *App) startup(ctx context.Context) {
 			log.Printf("work processor stopped: %v", err)
 		}
 		close(a.workDone)
+	}()
+	go func() {
+		if err := a.ai.Run(ectx); err != nil {
+			log.Printf("work ai stopped: %v", err)
+		}
+		close(a.aiDone)
 	}()
 	go a.flushDeltas(ectx)
 	if perfEnabled() {
@@ -177,6 +194,7 @@ func (a *App) shutdown(ctx context.Context) {
 		a.stopEngine()
 		<-a.engineDone
 		<-a.workDone
+		<-a.aiDone
 		a.design.Wait()
 	}
 	if a.db != nil {

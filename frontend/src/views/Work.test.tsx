@@ -45,7 +45,8 @@ function Shell({children}: { children: ReactNode }) {
 }
 
 const onTeam = vi.fn();
-const renderIt = (p = project) => render(<Shell><Work project={p} onTeam={onTeam}/></Shell>);
+const onOpenRun = vi.fn();
+const renderIt = (p = project) => render(<Shell><Work project={p} onTeam={onTeam} onOpenRun={onOpenRun}/></Shell>);
 
 beforeEach(() => {
     vi.clearAllMocks();

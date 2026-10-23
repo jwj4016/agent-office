@@ -1,6 +1,6 @@
 // A controllable stand-in for ../api used by component tests.
 import {vi} from 'vitest';
-import type {ActionResult, InboxItem, ProjectSummary} from '../types';
+import type {ActionResult, InboxItem, ProjectSummary, WorkPlanView} from '../types';
 
 export const state = {
     summaries: [] as ProjectSummary[],
@@ -57,6 +57,12 @@ export const fakeApi = {
     workEvents: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []), subscriptions: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []),
     saveSubscription: vi.fn(), deliveries: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []),
     requestDepartmentCheck: ok(undefined), retryDelivery: ok(undefined), skipDelivery: ok(undefined),
+    workPlan: vi.fn(async (..._args: unknown[]): Promise<WorkPlanView> => ({
+        plan: {workItemId: '', projectId: '', assignmentId: '', instructions: '', materials: '', outputs: [{key: 'result', type: 'markdown'}], updatedAt: ''},
+        saved: false, preview: '', problem: '',
+    })),
+    saveWorkPlan: vi.fn(), startWork: vi.fn(),
+    requestWorkPlan: vi.fn(), planJobs: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []), applyPlanJob: vi.fn(), retryAIJob: ok(undefined), workRuns: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []),
     onEvents: vi.fn(() => () => {}),
     onDeltas: vi.fn(() => () => {}),
 };

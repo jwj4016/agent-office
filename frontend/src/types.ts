@@ -277,3 +277,27 @@ export type Subscription = {
 };
 
 export type DeliveryFilter = { departmentId?: string; status?: string; limit?: number };
+
+// How one work item is done: who, extra instructions, materials, outputs.
+export type WorkPlan = {
+    workItemId: string; projectId: string; assignmentId: string; instructions: string; materials: string;
+    outputs: WorkflowOutput[]; updatedAt: string;
+};
+
+// saved is false when no plan is stored (plan is then a starting point);
+// preview is what a run would be told; problem says why it cannot run.
+export type WorkPlanView = { plan: WorkPlan; saved: boolean; preview: string; problem: string };
+
+export type AIJobStatus = 'pending' | 'working' | 'waiting_answer' | 'ready' | 'held' | 'failed';
+
+// One AI request made outside a run (a work plan proposal for now).
+export type AIJob = {
+    id: string; projectId: string; kind: string; lane: 'interactive' | 'background'; requestKey: string; workItemId: string;
+    assignmentId: string; status: AIJobStatus; error: string; holdReason: string; maxAttempts: number; attempts: number;
+    appliedAt: string; createdAt: string; updatedAt: string;
+};
+
+export type ProposedPlan = { assignmentId: string; instructions: string; materials: string; outputs: WorkflowOutput[]; notes: string };
+
+// stale: the work changed after the proposal was made, so it cannot apply.
+export type PlanJobView = { job: AIJob; proposal?: ProposedPlan; stale: boolean };

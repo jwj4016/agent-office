@@ -9,6 +9,7 @@ import {
     useToast,
 } from '../ui';
 import {DeliveryInbox, WorkEvents} from './Deliveries';
+import {WorkRun} from './WorkRuns';
 
 export const workStatuses: WorkStatus[] = ['received', 'ready', 'in_progress', 'waiting', 'blocked', 'done', 'cancelled'];
 export const workPriorities: WorkPriority[] = ['urgent', 'high', 'normal', 'low'];
@@ -41,6 +42,7 @@ export function WorkStatusBadge({status, reason}: { status: WorkStatus; reason?:
 
 type Context = {
     project: Project; departments: Department[]; categories: string[]; assignments: Assignment[]; goals: WorkItem[];
+    onOpenRun: (runId: string) => void;
 };
 
 const deptName = (ctx: Context, id: string) => ctx.departments.find((d) => d.id === id)?.name ?? '';
@@ -51,7 +53,7 @@ const defaultFilter: WorkFilter = {status: 'open'};
 
 // Work is the service's work list: shared goals and each department's
 // work, filtered by status, department, priority, category and due date.
-export function Work({project, onTeam}: { project: Project; onTeam: () => void }) {
+export function Work({project, onTeam, onOpenRun}: { project: Project; onTeam: () => void; onOpenRun: (runId: string) => void }) {
     const [filter, setFilter] = useState<WorkFilter>(defaultFilter);
     const departments = useLoad(() => api.departments(project.id), [project.id], project.id);
     const categories = useLoad(() => api.categories(project.id), [project.id], project.id);
@@ -66,7 +68,7 @@ export function Work({project, onTeam}: { project: Project; onTeam: () => void }
     if (!departments.data || !categories.data || !assignments.data || !all.data) return <Loading/>;
 
     const goals = all.data.filter((w) => w.kind === 'goal');
-    const ctx: Context = {project, departments: departments.data, categories: categories.data, assignments: assignments.data, goals};
+    const ctx: Context = {project, departments: departments.data, categories: categories.data, assignments: assignments.data, goals, onOpenRun};
     const refresh = () => { all.reload(); list.reload(); };
     const open = (id: string) => setDetail(<WorkPanel key={id} ctx={ctx} id={id} onChanged={refresh}/>);
     const create = (kind: WorkKind, parentId = '') => setDetail(
@@ -216,6 +218,10 @@ function WorkPanel({ctx, id, onChanged}: { ctx: Context; id: string; onChanged: 
 
             <StatusChanger key={`${w.status}-${w.updatedAt}`} ctx={ctx} item={w} disabled={archived} onChanged={changed}/>
 
+            {w.kind === 'work' ? (
+                <WorkRun project={ctx.project} item={w} assignments={ctx.assignments} onChanged={changed} onOpenRun={ctx.onOpenRun}/>
+            ) : null}
+
             {w.kind === 'goal' ? (
                 <Section title="이 목표의 업무" count={d.data.children.length}
                          actions={<Button size="sm" icon={Plus} disabled={archived} onClick={addChild}>업무 추가</Button>}>
@@ -306,6 +312,7 @@ function History({ctx, itemId, notes, disabled, onAdded}: {
                             <Icon icon={n.kind === 'status' ? Flag : MessageSquarePlus} size={14}/></span>
                         <div className="timeline-body">
                             <span className="timeline-title"><strong className="small">{n.kind === 'status' ? statusLine(n) : '메모'}</strong>
+                                {n.author.startsWith('run:') ? <StatusBadge tone="info">실행에 따라</StatusBadge> : null}
                                 <span className="muted xsmall">{shortTime(n.createdAt)}</span></span>
                             {n.body ? <div className="pre small">{n.body}</div> : null}
                         </div>

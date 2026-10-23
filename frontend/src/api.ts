@@ -8,7 +8,7 @@ import type {
     Organization, Project, ProjectSummary, Role, RunDetail, StartResult, StoredEvent, SystemStatus, Template,
     Validation, Workflow, WorkflowSpec, AssistKind, AssistRecord,
     Department, DepartmentTemplate, WorkDetail, WorkFilter, WorkItem, WorkNote, WorkStatus,
-    Delivery, DeliveryFilter, Subscription, WorkEventView,
+    Delivery, DeliveryFilter, Subscription, WorkEventView, WorkPlan, WorkPlanView, AIJob, PlanJobView,
 } from './types';
 
 // The generated d.ts types differ from the real JSON for raw fields, so
@@ -65,6 +65,15 @@ export const api = {
         call<void>(Go.RequestDepartmentCheck(projectId, departmentId, note)),
     retryDelivery: (projectId: string, id: string) => call<void>(Go.RetryDelivery(projectId, id)),
     skipDelivery: (projectId: string, id: string, reason: string) => call<void>(Go.SkipDelivery(projectId, id, reason)),
+    workPlan: (projectId: string, workItemId: string) => call<WorkPlanView>(Go.GetWorkPlan(projectId, workItemId)),
+    saveWorkPlan: (p: Partial<WorkPlan>) => call<WorkPlan>(Go.SaveWorkPlan(p as never)),
+    startWork: (projectId: string, workItemId: string, feedback: string) => call<StartResult>(Go.StartWork(projectId, workItemId, feedback)),
+    workRuns: (projectId: string, workItemId: string) => call<RunDetail[]>(Go.ListWorkRuns(projectId, workItemId)),
+    requestWorkPlan: (projectId: string, workItemId: string, requestId: string) =>
+        call<AIJob>(Go.RequestWorkPlan(projectId, workItemId, requestId)),
+    planJobs: (projectId: string, workItemId: string) => call<PlanJobView[]>(Go.ListPlanJobs(projectId, workItemId)),
+    applyPlanJob: (projectId: string, jobId: string) => call<WorkPlan>(Go.ApplyPlanJob(projectId, jobId)),
+    retryAIJob: (projectId: string, jobId: string) => call<void>(Go.RetryAIJob(projectId, jobId)),
 
     assignments: (projectId: string) => call<Assignment[]>(Go.ListAssignments(projectId)),
     saveAssignment: (a: Partial<Assignment>) => call<Assignment>(Go.SaveAssignment(a as never)),

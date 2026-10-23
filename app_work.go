@@ -1,8 +1,13 @@
 package main
 
 import (
+	"encoding/json"
+	"errors"
+
 	"agent-office/internal/domain"
+	"agent-office/internal/engine"
 	"agent-office/internal/storage"
+	"agent-office/internal/work"
 )
 
 // ---- department templates (company) ----
@@ -225,4 +230,149 @@ func (a *App) SkipDelivery(projectID, deliveryID, reason string) error {
 		return err
 	}
 	return uiErr(a.db.SkipDelivery(a.ctx, projectID, deliveryID, reason))
+}
+
+// ---- running work ----
+
+// WorkPlanView is a work item's plan (Saved false when none is stored
+// yet: Plan then holds a starting point) and what a run would be told.
+type WorkPlanView struct {
+	Plan    domain.WorkPlan `json:"plan"`
+	Saved   bool            `json:"saved"`
+	Preview string          `json:"preview"`
+	Problem string          `json:"problem"`
+}
+
+// GetWorkPlan returns the plan of a work item. Without a saved plan it
+// suggests the work's department lead as the assignee.
+func (a *App) GetWorkPlan(projectID, workItemID string) (WorkPlanView, error) {
+	if err := a.ready(); err != nil {
+		return WorkPlanView{}, err
+	}
+	plan, saved, err := a.db.WorkPlan(a.ctx, projectID, workItemID)
+	if err != nil {
+		return WorkPlanView{}, uiErr(err)
+	}
+	v := WorkPlanView{Plan: plan, Saved: saved}
+	if !saved {
+		v.Plan.ProjectID, v.Plan.Outputs = projectID, domain.DefaultWorkOutputs()
+		if w, err := a.db.WorkItem(a.ctx, projectID, workItemID); err == nil && w.DepartmentID != "" {
+			if d, err := a.db.Department(a.ctx, projectID, w.DepartmentID); err == nil {
+				v.Plan.AssignmentID = d.LeadAssignmentID
+			}
+		}
+		return v, nil
+	}
+	spec, err := a.db.ComposeWorkSpec(a.ctx, projectID, workItemID, "")
+	if err != nil {
+		v.Problem = uiErr(err).Error()
+	} else {
+		v.Preview = spec.Nodes[0].Instructions
+	}
+	return v, nil
+}
+
+func (a *App) SaveWorkPlan(p domain.WorkPlan) (domain.WorkPlan, error) {
+	if err := a.ready(); err != nil {
+		return p, err
+	}
+	saved, err := a.db.SaveWorkPlan(a.ctx, p)
+	return saved, uiErr(err)
+}
+
+// StartWork runs a work item's saved plan. With feedback, the run is a
+// change request on the latest result. Finishing a run never completes
+// the work: a person checks the result first.
+func (a *App) StartWork(projectID, workItemID, feedback string) (StartResult, error) {
+	if err := a.ready(); err != nil {
+		return StartResult{}, err
+	}
+	id, err := a.eng.StartWork(a.ctx, projectID, workItemID, feedback)
+	var nr *engine.NotRunnableError
+	if errors.As(err, &nr) {
+		return StartResult{Issues: nr.Issues}, nil
+	}
+	return StartResult{RunID: id, Issues: []domain.Issue{}}, uiErr(err)
+}
+
+// ListWorkRuns lists a work item's runs, newest first.
+func (a *App) ListWorkRuns(projectID, workItemID string) ([]engine.RunDetail, error) {
+	if err := a.ready(); err != nil {
+		return nil, err
+	}
+	runs, err := a.eng.WorkRuns(a.ctx, projectID, workItemID)
+	return runs, uiErr(err)
+}
+
+// ---- AI work plans ----
+
+// PlanJobView is one AI plan proposal: the job, the proposal when ready,
+// and whether the work changed since it was made (then it cannot apply).
+type PlanJobView struct {
+	Job      storage.AIJob      `json:"job"`
+	Proposal *work.ProposedPlan `json:"proposal,omitempty"`
+	Stale    bool               `json:"stale"`
+}
+
+// RequestWorkPlan asks the work's AI to propose a plan. requestID is made
+// by the screen for each click, so a repeated click is one request.
+func (a *App) RequestWorkPlan(projectID, workItemID, requestID string) (storage.AIJob, error) {
+	if err := a.ready(); err != nil {
+		return storage.AIJob{}, err
+	}
+	job, err := work.RequestPlan(a.ctx, a.db, projectID, workItemID, requestID)
+	if err == nil {
+		a.ai.Wake(job.Lane)
+	}
+	return job, uiErr(err)
+}
+
+// ListPlanJobs lists a work item's plan proposals, newest first.
+func (a *App) ListPlanJobs(projectID, workItemID string) ([]PlanJobView, error) {
+	if err := a.ready(); err != nil {
+		return nil, err
+	}
+	jobs, err := a.db.AIJobs(a.ctx, projectID, workItemID, storage.JobPlan)
+	if err != nil {
+		return nil, uiErr(err)
+	}
+	out := []PlanJobView{}
+	for _, j := range jobs {
+		v := PlanJobView{Job: j}
+		if j.Status == storage.JobReady {
+			var p work.ProposedPlan
+			if json.Unmarshal(j.Result, &p) == nil {
+				v.Proposal = &p
+			}
+			v.Stale, _ = work.PlanStale(a.ctx, a.db, j)
+		}
+		out = append(out, v)
+	}
+	return out, nil
+}
+
+// ApplyPlanJob saves a ready proposal as the work's plan. It does not
+// start a run: the person checks the plan and runs it.
+func (a *App) ApplyPlanJob(projectID, jobID string) (domain.WorkPlan, error) {
+	if err := a.ready(); err != nil {
+		return domain.WorkPlan{}, err
+	}
+	p, err := work.ApplyPlan(a.ctx, a.db, projectID, jobID)
+	return p, uiErr(err)
+}
+
+// RetryAIJob queues a failed or held AI job again.
+func (a *App) RetryAIJob(projectID, jobID string) error {
+	if err := a.ready(); err != nil {
+		return err
+	}
+	job, err := a.db.AIJob(a.ctx, projectID, jobID)
+	if err != nil {
+		return uiErr(err)
+	}
+	if err := a.db.RetryAIJob(a.ctx, projectID, jobID); err != nil {
+		return uiErr(err)
+	}
+	a.ai.Wake(job.Lane)
+	return nil
 }

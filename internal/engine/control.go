@@ -89,7 +89,10 @@ func (e *Engine) CancelRun(ctx context.Context, projectID, runID string) error {
 		if _, err := c.Tx.ExecContext(ctx, `UPDATE runs SET status = 'cancelled', ended_at = ? WHERE id = ?`, storage.Now(), runID); err != nil {
 			return err
 		}
-		return c.Emit(projectID, runID, "", "run.status", map[string]string{"from": st.run.Status, "to": RunCancelled})
+		if err := c.Emit(projectID, runID, "", "run.status", map[string]string{"from": st.run.Status, "to": RunCancelled}); err != nil {
+			return err
+		}
+		return storage.SyncWorkRunTx(ctx, c, runID, RunCancelled)
 	})
 	e.cancelLive(live)
 	return err

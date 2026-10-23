@@ -1,11 +1,14 @@
 package main
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
 
 	"agent-office/internal/domain"
+	"agent-office/internal/engine"
+	"agent-office/internal/providers"
 	"agent-office/internal/storage"
 )
 
@@ -139,5 +142,132 @@ func TestBindingsWorkEventsReachDepartments(t *testing.T) {
 	}
 	if err := b.RetryDelivery(p.ID, got[0].ID); err == nil || strings.Contains(err.Error(), "invalid input") {
 		t.Fatalf("retry of a done delivery: %v", err)
+	}
+}
+
+// Stage 3 acceptance: a development work item is planned, run, its
+// result read, and only then completed by the person. A finished run
+// alone leaves the work waiting for that check.
+func TestBindingsRunWorkThenComplete(t *testing.T) {
+	a := startApp(t)
+	p := need(a.CreateProject(ProjectInput{Name: "캠페인", Mode: "review"}))
+	conn := need(a.EnsureTestConnection())
+	role := need(a.SaveRole(domain.Role{Name: "개발자"}))
+	asg := need(a.SaveAssignment(domain.Assignment{ProjectID: p.ID, RoleID: role.ID, ActorKind: domain.ActorAI,
+		DisplayName: "개발 AI", ConnectionID: conn.ID, Model: "auto"}))
+	dev := need(a.SaveDepartment(domain.Department{ProjectID: p.ID, Name: "개발팀", MemberIDs: []string{asg.ID}, LeadAssignmentID: asg.ID}))
+	item := need(a.CreateWorkItem(domain.WorkItem{ProjectID: p.ID, DepartmentID: dev.ID, Title: "구현 검토", DoneCriteria: "일정이 정리되어 있다"}))
+
+	// Without a saved plan the lead is suggested and nothing runs.
+	view := need(a.GetWorkPlan(p.ID, item.ID))
+	if view.Saved || view.Plan.AssignmentID != asg.ID || len(view.Plan.Outputs) != 1 {
+		t.Fatalf("starting plan = %+v", view)
+	}
+	if _, err := a.StartWork(p.ID, item.ID, ""); err == nil {
+		t.Fatal("ran without a plan")
+	}
+	plan := view.Plan
+	plan.WorkItemID, plan.Instructions = item.ID, "기존 화면을 먼저 본다"
+	need(a.SaveWorkPlan(plan))
+	view = need(a.GetWorkPlan(p.ID, item.ID))
+	if !view.Saved || !strings.Contains(view.Preview, "## 완료 조건\n일정이 정리되어 있다") || view.Problem != "" {
+		t.Fatalf("plan view = %+v", view)
+	}
+
+	res := need(a.StartWork(p.ID, item.ID, ""))
+	if res.RunID == "" {
+		t.Fatalf("start = %+v", res)
+	}
+	deadline := time.Now().Add(e2eWait)
+	var run engine.RunDetail
+	for {
+		runs := need(a.ListWorkRuns(p.ID, item.ID))
+		if len(runs) == 1 && runs[0].Status == "succeeded" {
+			run = runs[0]
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("work run did not finish: %+v", runs)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if w := need(a.GetWorkItem(p.ID, item.ID)).Item; w.Status != domain.WorkWaiting {
+		t.Fatalf("work after a successful run = %s", w.Status)
+	}
+	art := run.Steps[0].Artifacts[0]
+	if content := need(a.ReadArtifact(p.ID, art.ID)); content.Content == "" {
+		t.Fatalf("empty result: %+v", content)
+	}
+	done := need(a.SetWorkStatus(p.ID, item.ID, domain.WorkDone, "결과 확인함"))
+	if done.Status != domain.WorkDone || done.ClosedAt == "" {
+		t.Fatalf("completed = %+v", done)
+	}
+	// The run tab still lists the run; the workflow list does not show
+	// the work's own workflow.
+	if wfs := need(a.ListWorkflows(p.ID)); len(wfs) != 0 {
+		t.Fatalf("workflows = %+v", wfs)
+	}
+	if runs := need(a.ListRuns(p.ID)); len(runs) != 1 || runs[0].ID != res.RunID {
+		t.Fatalf("runs = %+v", runs)
+	}
+}
+
+// Stage 3-2: the department's AI proposes a plan for a click (a repeated
+// click is one request), the proposal is paid from the service budget,
+// and applying it saves the plan without starting a run.
+func TestBindingsAIPlanProposal(t *testing.T) {
+	a := startApp(t)
+	p := need(a.CreateProject(ProjectInput{Name: "캠페인", Mode: "review"}))
+	conn := need(a.EnsureTestConnection())
+	role := need(a.SaveRole(domain.Role{Name: "개발자"}))
+	asg := need(a.SaveAssignment(domain.Assignment{ProjectID: p.ID, RoleID: role.ID, ActorKind: domain.ActorAI,
+		DisplayName: "개발 AI", ConnectionID: conn.ID, Model: "plan-proposal"}))
+	proposal, _ := json.Marshal(map[string]any{"assignmentId": asg.ID, "instructions": "화면별로 난이도를 나눈다",
+		"outputs": []map[string]string{{"key": "review", "type": "markdown"}}, "notes": "화면 3개 가정"})
+	steps := []string{
+		`{"emit":"usage","payload":{"inputTokens":50,"outputTokens":20,"costUsd":null}}`,
+		`{"write":{"key":"result","content":` + string(need(json.Marshal(string(proposal)))) + `}}`,
+		`{"complete":{"status":"succeeded"}}`,
+	}
+	for _, l := range steps {
+		var s providers.Step
+		if err := json.Unmarshal([]byte(l), &s); err != nil {
+			t.Fatal(err)
+		}
+		a.testProvider.Scripts["plan-proposal"] = append(a.testProvider.Scripts["plan-proposal"], s)
+	}
+	dev := need(a.SaveDepartment(domain.Department{ProjectID: p.ID, Name: "개발팀", MemberIDs: []string{asg.ID}, LeadAssignmentID: asg.ID}))
+	item := need(a.CreateWorkItem(domain.WorkItem{ProjectID: p.ID, DepartmentID: dev.ID, Title: "구현 검토"}))
+
+	first := need(a.RequestWorkPlan(p.ID, item.ID, "click-1"))
+	if again := need(a.RequestWorkPlan(p.ID, item.ID, "click-1")); again.ID != first.ID {
+		t.Fatal("a repeated click made a second request")
+	}
+	deadline := time.Now().Add(e2eWait)
+	var view PlanJobView
+	for {
+		jobs := need(a.ListPlanJobs(p.ID, item.ID))
+		if len(jobs) == 1 && jobs[0].Job.Status == "ready" {
+			view = jobs[0]
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("no proposal: %+v", jobs)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if view.Stale || view.Proposal == nil || view.Proposal.Instructions != "화면별로 난이도를 나눈다" {
+		t.Fatalf("proposal = %+v", view)
+	}
+	if u := need(a.ProjectUsage(p.ID)); u.InputTokens != 50 || u.UnknownCostAttempts != 1 {
+		t.Fatalf("usage = %+v", u)
+	}
+	need(a.ApplyPlanJob(p.ID, view.Job.ID))
+	plan := need(a.GetWorkPlan(p.ID, item.ID))
+	if !plan.Saved || plan.Plan.Instructions != "화면별로 난이도를 나눈다" || plan.Plan.Outputs[0].Key != "review" {
+		t.Fatalf("plan = %+v", plan)
+	}
+	if runs := need(a.ListWorkRuns(p.ID, item.ID)); len(runs) != 0 {
+		t.Fatalf("applying started a run: %+v", runs)
 	}
 }

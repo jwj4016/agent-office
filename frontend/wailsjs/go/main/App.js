@@ -18,6 +18,10 @@ export function ApplyDesign(arg1, arg2) {
   return window['go']['main']['App']['ApplyDesign'](arg1, arg2);
 }
 
+export function ApplyPlanJob(arg1, arg2) {
+  return window['go']['main']['App']['ApplyPlanJob'](arg1, arg2);
+}
+
 export function ApplyWorkflowAssist(arg1) {
   return window['go']['main']['App']['ApplyWorkflowAssist'](arg1);
 }
@@ -118,6 +122,10 @@ export function GetWorkItem(arg1, arg2) {
   return window['go']['main']['App']['GetWorkItem'](arg1, arg2);
 }
 
+export function GetWorkPlan(arg1, arg2) {
+  return window['go']['main']['App']['GetWorkPlan'](arg1, arg2);
+}
+
 export function GetWorkflow(arg1, arg2) {
   return window['go']['main']['App']['GetWorkflow'](arg1, arg2);
 }
@@ -162,6 +170,10 @@ export function ListDesigns() {
   return window['go']['main']['App']['ListDesigns']();
 }
 
+export function ListPlanJobs(arg1, arg2) {
+  return window['go']['main']['App']['ListPlanJobs'](arg1, arg2);
+}
+
 export function ListRoles() {
   return window['go']['main']['App']['ListRoles']();
 }
@@ -180,6 +192,10 @@ export function ListWorkEvents(arg1, arg2) {
 
 export function ListWorkItems(arg1, arg2) {
   return window['go']['main']['App']['ListWorkItems'](arg1, arg2);
+}
+
+export function ListWorkRuns(arg1, arg2) {
+  return window['go']['main']['App']['ListWorkRuns'](arg1, arg2);
 }
 
 export function ListWorkflowAssists(arg1, arg2) {
@@ -226,8 +242,16 @@ export function RequestDepartmentCheck(arg1, arg2, arg3) {
   return window['go']['main']['App']['RequestDepartmentCheck'](arg1, arg2, arg3);
 }
 
+export function RequestWorkPlan(arg1, arg2, arg3) {
+  return window['go']['main']['App']['RequestWorkPlan'](arg1, arg2, arg3);
+}
+
 export function ResumeRun(arg1, arg2) {
   return window['go']['main']['App']['ResumeRun'](arg1, arg2);
+}
+
+export function RetryAIJob(arg1, arg2) {
+  return window['go']['main']['App']['RetryAIJob'](arg1, arg2);
 }
 
 export function RetryDelivery(arg1, arg2) {
@@ -268,6 +292,10 @@ export function SaveRole(arg1) {
 
 export function SaveSubscription(arg1) {
   return window['go']['main']['App']['SaveSubscription'](arg1);
+}
+
+export function SaveWorkPlan(arg1) {
+  return window['go']['main']['App']['SaveWorkPlan'](arg1);
 }
 
 export function SaveWorkflowDiagram(arg1) {
@@ -312,6 +340,10 @@ export function StartDesign(arg1) {
 
 export function StartRun(arg1, arg2) {
   return window['go']['main']['App']['StartRun'](arg1, arg2);
+}
+
+export function StartWork(arg1, arg2, arg3) {
+  return window['go']['main']['App']['StartWork'](arg1, arg2, arg3);
 }
 
 export function StartWorkflowAssist(arg1) {

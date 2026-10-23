@@ -730,7 +730,7 @@ func (db *DB) CreateWorkItem(ctx context.Context, w domain.WorkItem) (domain.Wor
 			w.Title, w.Description, w.DoneCriteria, w.Priority, w.Status, strings.TrimSpace(w.StatusReason), string(cats), w.DueAt, now, now); err != nil {
 			return err
 		}
-		if err := addNoteTx(ctx, tx, w.ProjectID, w.ID, domain.NoteStatus, strings.TrimSpace(w.StatusReason), "", w.Status, now); err != nil {
+		if err := addNoteTx(ctx, tx, w.ProjectID, w.ID, domain.NoteStatus, strings.TrimSpace(w.StatusReason), "", w.Status, domain.LocalOwner, now); err != nil {
 			return err
 		}
 		_, err := emitWorkEventTx(ctx, c, w.ProjectID, domain.EventWorkCreated, workEventFor(w))
@@ -791,49 +791,14 @@ func (db *DB) SetWorkStatus(ctx context.Context, projectID, id, status, reason s
 		return domain.WorkItem{}, invalid("대기나 막힘 상태에는 이유가 필요합니다")
 	}
 	_, err := db.Change(ctx, func(c *Change) error {
-		tx := c.Tx
-		if err := writableProjectTx(ctx, tx, projectID); err != nil {
+		if err := writableProjectTx(ctx, c.Tx, projectID); err != nil {
 			return err
 		}
-		cur, err := workTx(ctx, tx, projectID, id)
+		cur, err := workTx(ctx, c.Tx, projectID, id)
 		if err != nil {
 			return err
 		}
-		if cur.Status == status && cur.StatusReason == reason {
-			return nil
-		}
-		now := Now()
-		closed := sql.NullString{String: cur.ClosedAt, Valid: cur.ClosedAt != ""}
-		switch {
-		case domain.WorkClosed(status) && !domain.WorkClosed(cur.Status):
-			closed = sql.NullString{String: now, Valid: true}
-		case !domain.WorkClosed(status):
-			closed = sql.NullString{}
-		}
-		// Only waiting and blocked keep a reason on the item itself; the
-		// history keeps every reason.
-		stored := ""
-		if domain.WorkNeedsReason(status) {
-			stored = reason
-		}
-		if _, err := tx.ExecContext(ctx, `UPDATE work_items SET status = ?, status_reason = ?, closed_at = ?, updated_at = ? WHERE id = ? AND project_id = ?`,
-			status, stored, closed, now, id, projectID); err != nil {
-			return err
-		}
-		if err := addNoteTx(ctx, tx, projectID, id, domain.NoteStatus, reason, cur.Status, status, now); err != nil {
-			return err
-		}
-		// Completing and reopening are events other departments may react
-		// to; other status changes stay in the item's history only.
-		ev := workEventFor(cur)
-		ev.Note = reason
-		switch {
-		case status == domain.WorkDone && cur.Status != domain.WorkDone:
-			_, err = emitWorkEventTx(ctx, c, projectID, domain.EventWorkCompleted, ev)
-		case domain.WorkClosed(cur.Status) && !domain.WorkClosed(status):
-			_, err = emitWorkEventTx(ctx, c, projectID, domain.EventWorkReopened, ev)
-		}
-		return err
+		return setWorkStatusTx(ctx, c, cur, status, reason, domain.LocalOwner)
 	})
 	if err != nil {
 		return domain.WorkItem{}, err
@@ -872,8 +837,50 @@ func (db *DB) AddWorkNote(ctx context.Context, projectID, id, body string) (doma
 	return domain.WorkNote{}, err
 }
 
-func addNoteTx(ctx context.Context, tx *sql.Tx, projectID, workID, kind, body, from, to, now string) error {
+// setWorkStatusTx moves cur to status, keeps the change in the history
+// with its author, and emits the completed or reopened event. It is a
+// no-op when nothing changes.
+func setWorkStatusTx(ctx context.Context, c *Change, cur domain.WorkItem, status, reason, author string) error {
+	if cur.Status == status && cur.StatusReason == reason {
+		return nil
+	}
+	now := Now()
+	closed := sql.NullString{String: cur.ClosedAt, Valid: cur.ClosedAt != ""}
+	switch {
+	case domain.WorkClosed(status) && !domain.WorkClosed(cur.Status):
+		closed = sql.NullString{String: now, Valid: true}
+	case !domain.WorkClosed(status):
+		closed = sql.NullString{}
+	}
+	// Only waiting and blocked keep a reason on the item itself; the
+	// history keeps every reason.
+	stored := ""
+	if domain.WorkNeedsReason(status) {
+		stored = reason
+	}
+	if _, err := c.Tx.ExecContext(ctx, `UPDATE work_items SET status = ?, status_reason = ?, closed_at = ?, updated_at = ? WHERE id = ? AND project_id = ?`,
+		status, stored, closed, now, cur.ID, cur.ProjectID); err != nil {
+		return err
+	}
+	if err := addNoteTx(ctx, c.Tx, cur.ProjectID, cur.ID, domain.NoteStatus, reason, cur.Status, status, author, now); err != nil {
+		return err
+	}
+	// Completing and reopening are events other departments may react
+	// to; other status changes stay in the item's history only.
+	ev := workEventFor(cur)
+	ev.Note = reason
+	var err error
+	switch {
+	case status == domain.WorkDone && cur.Status != domain.WorkDone:
+		_, err = emitWorkEventTx(ctx, c, cur.ProjectID, domain.EventWorkCompleted, ev)
+	case domain.WorkClosed(cur.Status) && !domain.WorkClosed(status):
+		_, err = emitWorkEventTx(ctx, c, cur.ProjectID, domain.EventWorkReopened, ev)
+	}
+	return err
+}
+
+func addNoteTx(ctx context.Context, tx *sql.Tx, projectID, workID, kind, body, from, to, author, now string) error {
 	_, err := tx.ExecContext(ctx, `INSERT INTO work_item_notes (id, project_id, work_item_id, kind, body, from_status, to_status, author, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, NewID("wnote"), projectID, workID, kind, body, from, to, domain.LocalOwner, now)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, NewID("wnote"), projectID, workID, kind, body, from, to, author, now)
 	return err
 }

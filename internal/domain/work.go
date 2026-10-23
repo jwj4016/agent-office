@@ -171,3 +171,22 @@ const (
 // DefaultJudgeFanout is how many departments one event may send to AI
 // judgment through subscriptions; the rest are held (plan §4.3, §9.3).
 const DefaultJudgeFanout = 5
+
+// WorkPlan is how one work item will be done: who does it, extra
+// instructions, materials to read, and the outputs to produce. Running it
+// makes a one-step workflow version (plan §4.6).
+type WorkPlan struct {
+	WorkItemID   string   `json:"workItemId"`
+	ProjectID    string   `json:"projectId"`
+	AssignmentID string   `json:"assignmentId"`
+	Instructions string   `json:"instructions"`
+	Materials    string   `json:"materials"`
+	Outputs      []Output `json:"outputs"`
+	UpdatedAt    string   `json:"updatedAt"`
+}
+
+// WorkStepID is the id of the single step in a work item's workflow.
+const WorkStepID = "work"
+
+// DefaultWorkOutputs is what a plan produces when it names nothing.
+func DefaultWorkOutputs() []Output { return []Output{{Key: "result", Type: OutMarkdown}} }

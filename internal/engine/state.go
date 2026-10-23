@@ -234,7 +234,10 @@ func saveRunStatus(ctx context.Context, c *storage.Change, s *runState) error {
 	}
 	prev := s.run.Status
 	s.run.Status = next
-	return c.Emit(s.run.ProjectID, s.run.ID, "", "run.status", map[string]string{"from": prev, "to": next})
+	if err := c.Emit(s.run.ProjectID, s.run.ID, "", "run.status", map[string]string{"from": prev, "to": next}); err != nil {
+		return err
+	}
+	return storage.SyncWorkRunTx(ctx, c, s.run.ID, next)
 }
 
 func saveGens(ctx context.Context, c *storage.Change, s *runState) error {

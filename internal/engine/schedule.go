@@ -42,6 +42,12 @@ func (e *Engine) connectionReady(ctx context.Context, connID string) (domain.Pro
 // StartRun starts a confirmed workflow version. AI work with a missing or
 // unverified connection blocks the start with an explanation (T04).
 func (e *Engine) StartRun(ctx context.Context, projectID, versionID string) (string, error) {
+	return e.startRun(ctx, projectID, versionID, "")
+}
+
+// startRun starts a version, linked to a work item when workItemID is
+// set (service operations plan §4.6).
+func (e *Engine) startRun(ctx context.Context, projectID, versionID, workItemID string) (string, error) {
 	if err := e.db.CheckScope(ctx, projectID, storage.Ref{Kind: storage.RefVersion, ID: versionID}); err != nil {
 		return "", err
 	}
@@ -85,6 +91,11 @@ func (e *Engine) StartRun(ctx context.Context, projectID, versionID string) (str
 		}
 		if err := insertRunRepo(ctx, c, projectID, runID, repo); err != nil {
 			return err
+		}
+		if workItemID != "" {
+			if err := storage.StartWorkRunTx(ctx, c, projectID, workItemID, runID); err != nil {
+				return err
+			}
 		}
 		return c.Emit(projectID, runID, "", "run.started", map[string]any{"versionId": versionID, "versionNumber": v.Number,
 			"workspace": map[string]string{"kind": repo.Kind, "base": repo.Base, "note": repo.Note}})

@@ -1192,6 +1192,48 @@ export namespace domain {
 	        this.createdAt = source["createdAt"];
 	    }
 	}
+	export class WorkPlan {
+	    workItemId: string;
+	    projectId: string;
+	    assignmentId: string;
+	    instructions: string;
+	    materials: string;
+	    outputs: Output[];
+	    updatedAt: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new WorkPlan(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.workItemId = source["workItemId"];
+	        this.projectId = source["projectId"];
+	        this.assignmentId = source["assignmentId"];
+	        this.instructions = source["instructions"];
+	        this.materials = source["materials"];
+	        this.outputs = this.convertValues(source["outputs"], Output);
+	        this.updatedAt = source["updatedAt"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class Workflow {
 	    id: string;
 	    projectId: string;
@@ -2207,6 +2249,40 @@ export namespace main {
 	        this.at = source["at"];
 	    }
 	}
+	export class PlanJobView {
+	    job: storage.AIJob;
+	    proposal?: work.ProposedPlan;
+	    stale: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new PlanJobView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.job = this.convertValues(source["job"], storage.AIJob);
+	        this.proposal = this.convertValues(source["proposal"], work.ProposedPlan);
+	        this.stale = source["stale"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class ProjectInput {
 	    id: string;
 	    name: string;
@@ -2337,11 +2413,101 @@ export namespace main {
 		    return a;
 		}
 	}
+	export class WorkPlanView {
+	    plan: domain.WorkPlan;
+	    saved: boolean;
+	    preview: string;
+	    problem: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new WorkPlanView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.plan = this.convertValues(source["plan"], domain.WorkPlan);
+	        this.saved = source["saved"];
+	        this.preview = source["preview"];
+	        this.problem = source["problem"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 
 }
 
 export namespace storage {
 	
+	export class AIJob {
+	    id: string;
+	    projectId: string;
+	    kind: string;
+	    lane: string;
+	    requestKey: string;
+	    workItemId: string;
+	    deliveryId: string;
+	    round: number;
+	    assignmentId: string;
+	    connectionId: string;
+	    model: string;
+	    status: string;
+	    inputSnapshot: number[];
+	    inputHash: string;
+	    result: number[];
+	    error: string;
+	    holdReason: string;
+	    maxAttempts: number;
+	    attempts: number;
+	    appliedAt: string;
+	    createdAt: string;
+	    updatedAt: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AIJob(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.projectId = source["projectId"];
+	        this.kind = source["kind"];
+	        this.lane = source["lane"];
+	        this.requestKey = source["requestKey"];
+	        this.workItemId = source["workItemId"];
+	        this.deliveryId = source["deliveryId"];
+	        this.round = source["round"];
+	        this.assignmentId = source["assignmentId"];
+	        this.connectionId = source["connectionId"];
+	        this.model = source["model"];
+	        this.status = source["status"];
+	        this.inputSnapshot = source["inputSnapshot"];
+	        this.inputHash = source["inputHash"];
+	        this.result = source["result"];
+	        this.error = source["error"];
+	        this.holdReason = source["holdReason"];
+	        this.maxAttempts = source["maxAttempts"];
+	        this.attempts = source["attempts"];
+	        this.appliedAt = source["appliedAt"];
+	        this.createdAt = source["createdAt"];
+	        this.updatedAt = source["updatedAt"];
+	    }
+	}
 	export class EventRecord {
 	    sequence: number;
 	    id: string;
@@ -2698,6 +2864,49 @@ export namespace templates {
 	        this.description = source["description"];
 	        this.workflow = source["workflow"];
 	    }
+	}
+
+}
+
+export namespace work {
+	
+	export class ProposedPlan {
+	    assignmentId: string;
+	    instructions: string;
+	    materials: string;
+	    outputs: domain.Output[];
+	    notes: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ProposedPlan(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.assignmentId = source["assignmentId"];
+	        this.instructions = source["instructions"];
+	        this.materials = source["materials"];
+	        this.outputs = this.convertValues(source["outputs"], domain.Output);
+	        this.notes = source["notes"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 
 }

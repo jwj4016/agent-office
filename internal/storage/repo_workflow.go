@@ -25,7 +25,8 @@ func (db *DB) Workflows(ctx context.Context, projectID string) ([]domain.Workflo
 	if err := db.CheckScope(ctx, projectID); err != nil {
 		return nil, err
 	}
-	rows, err := db.sql.QueryContext(ctx, `SELECT `+workflowCols+` FROM workflows WHERE project_id = ? ORDER BY title`, projectID)
+	// A work item's own workflow is internal to that item (plan §4.6).
+	rows, err := db.sql.QueryContext(ctx, `SELECT `+workflowCols+` FROM workflows WHERE project_id = ? AND work_item_id IS NULL ORDER BY title`, projectID)
 	if err != nil {
 		return nil, err
 	}
