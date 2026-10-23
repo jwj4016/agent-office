@@ -1,7 +1,7 @@
 # Agent Office 개선 구현 계획서 — 사건과 산출물로 협업하는 작은 회사
 
 작성일·수정일: 2026-10-22  
-상태: 구현 중(2단계 완료), 6차 개정  
+상태: 구현 중(3단계 완료), 6차 개정  
 관련 파일: [진행 체크리스트](progress.md) · [현재/개선 후 업무 흐름](asis-tobe.html)
 
 ## 1. 목표와 설계 방향
@@ -432,19 +432,32 @@ Agent Office는 Go·Wails·React·TypeScript·SQLite 기반 데스크톱 앱이�
 
 **화면에서 보이는 변화:** 업무 상세에서 작업 계획을 확인하고 실행해 결과를 본다.
 
-- [ ] `workflows.work_item_id`, `runs.work_item_id`를 추가하고 업무 전용 워크플로를 일반 목록에서 숨긴다.
-- [ ] 업무 하나에 활성 실행 하나만 허용하는 부분 고유 색인을 추가한다.
+- [x] `workflows.work_item_id`, `runs.work_item_id`를 추가하고 업무 전용 워크플로를 일반 목록에서 숨긴다.
+- [x] 업무 하나에 활성 실행 하나만 허용하는 부분 고유 색인을 추가한다.
 먼저 사람이 직접 쓴 계획으로 실행 흐름을 완성한 뒤 AI 계획 생성을 붙인다.
 
-- [ ] **3-1** 사람이 작은 작업 계획(지침·입력·산출물·완료 기준)을 작성·확정하면 단일 단계 워크플로 버전으로 만든다.
-- [ ] **3-1** 부서 책임·업무·완료 조건을 실행 입력에 넣는다.
-- [ ] **3-1** 실행 시작·종료와 업무 상태를 연결하고, 늦게 도착한 과거 실행 사건이 업무 상태를 바꾸지 못하게 한다.
-- [ ] **3-1** 결과 확인·수정 요청·재실행·업무 완료를 제공한다. 이 단계는 검토 모드만 지원한다.
-- [ ] **3-2** 실행 밖의 공통 AI 작업·호출 시도 구조와 사용자 작업·백그라운드 슬롯을 만든다. 예산 검사와 시도별 사용량 집계를 `projectUsage`에 적용한다.
-- [ ] **3-2** 담당 AI가 작업 계획을 제안하고 사람이 수정·확정한다. 요청 ID로 같은 클릭의 중복 작업을 막는다.
-- [ ] **3-2** 계획 생성 실패·중단·재시도 비용을 보존하고, 이전 입력으로 만든 계획을 변경된 업무에 확정하지 못하게 한다.
+- [x] **3-1** 사람이 작은 작업 계획(지침·입력·산출물·완료 기준)을 작성·확정하면 단일 단계 워크플로 버전으로 만든다.
+- [x] **3-1** 부서 책임·업무·완료 조건을 실행 입력에 넣는다.
+- [x] **3-1** 실행 시작·종료와 업무 상태를 연결하고, 늦게 도착한 과거 실행 사건이 업무 상태를 바꾸지 못하게 한다.
+- [x] **3-1** 결과 확인·수정 요청·재실행·업무 완료를 제공한다. 이 단계는 검토 모드만 지원한다.
+- [x] **3-2** 실행 밖의 공통 AI 작업·호출 시도 구조와 사용자 작업·백그라운드 슬롯을 만든다. 예산 검사와 시도별 사용량 집계를 `projectUsage`에 적용한다.
+- [x] **3-2** 담당 AI가 작업 계획을 제안하고 사람이 수정·확정한다. 요청 ID로 같은 클릭의 중복 작업을 막는다.
+- [x] **3-2** 계획 생성 실패·중단·재시도 비용을 보존하고, 이전 입력으로 만든 계획을 변경된 업무에 확정하지 못하게 한다.
 
 **완료 기준:** 개발팀 업무 하나를 계획 확인 후 실행하고, 결과를 확인한 뒤 사람이 업무를 완료할 수 있다. 실행 성공만으로 업무가 완료되지 않는다.
+
+구현 메모(3단계):
+- 3-1:
+  - 마이그레이션 `0010_work_runs.sql`(`workflows.work_item_id`, `runs.work_item_id`, 업무당 활성 실행 하나의 부분 고유 색인, `work_plans`).
+  - 저장소 `internal/storage/repo_work_runs.go`, 엔진 `internal/engine/work.go`(`StartWork`, `WorkRuns`).
+  - 계획은 업무별 `work_plans`에 저장한다. 실행할 때마다 업무 제목·설명·완료 조건·(담당자가 부서 구성원이 아니면) 부서 책임·작업 지침·참고 자료를 합친 단일 단계 버전을 새로 만든다.
+  - 실행 상태는 엔진의 `saveRunStatus`·`CancelRun`과 같은 트랜잭션에서 업무 상태로 옮긴다(실행 중 → 진행, 사람 대기·일시 정지 → 대기, 성공 → 대기 ‘결과를 확인’, 실패·중단 → 막힘, 취소 → 준비). 그 업무의 가장 최근 실행이 아니거나 업무가 닫혀 있으면 바꾸지 않는다.
+  - 수정 요청은 요청 내용과 이전 결과(최대 16KB)를 지침에 덧붙여 새로 실행한다.
+- 3-2:
+  - 마이그레이션 `0011_work_ai.sql`(`work_ai_jobs`, `work_ai_attempts`).
+  - 처리기 `internal/work/ai.go`(사용자 작업·백그라운드 두 줄, 각 줄 한 번에 1건), 계획 종류 `internal/work/plan.go`.
+  - 공급자 호출은 `design.RunJSONCall`을 쓴다.
+  - 시도 사용량은 `engine.projectUsage`에 합산한다. 계획 제안은 업무 입력(제목·설명·완료 조건·분류·부서·책임·제안자)의 해시로 낡음을 판단한다.
 
 ### 4단계 — 공유 자료함과 중간 산출물
 
@@ -659,8 +672,9 @@ Agent Office는 Go·Wails·React·TypeScript·SQLite 기반 데스크톱 앱이�
 | `subscriptions` | 2 | `project_id`, `department_id`, `event_kinds`(JSON), `categories`(JSON), `guidance`, `enabled` | 부서는 `(department_id, project_id)`로 참조. 지우지 않고 끈다(전달이 참조함) |
 | `event_deliveries` | 2 | `project_id`, `event_sequence`, `department_id`, `subscription_id`, `purpose`(`judge`/`notify`/`collab_request`), `status`(`pending`/`processing`/`waiting_answer`/`done`/`skipped`/`held`/`failed`), `note`, `error`, `hold_reason` | `UNIQUE(event_sequence, department_id, purpose)`; AI 호출 시도 수는 별도 시도 행에서 관리 |
 | `workflows.work_item_id` | 3 | 업무 전용 워크플로 표시 | 일반 목록에서 제외 |
+| `work_plans` | 3 | `work_item_id`(기본 키), `project_id`, `assignment_id`, `instructions`, `materials`, `outputs`(JSON) | 업무·담당자를 같은 서비스로 참조 |
 | `runs.work_item_id` | 3 | 실행과 업무 연결 | 부분 고유 색인: `status IN ('running','waiting','paused')`인 실행은 업무당 하나 |
-| `work_ai_jobs` | 3 | `project_id`, `kind`(`plan`/`judgment`/`collab_decision`), `lane`(`interactive`/`background`), `request_key`, `work_item_id`, `delivery_id`, `round`, `status`(`pending`/`working`/`waiting_answer`/`ready`/`held`/`failed`), `input_snapshot`, `input_hash`, `result`(JSON), `error`, `hold_reason` | `UNIQUE(project_id, request_key)`, `UNIQUE(delivery_id, round)`; `plan`은 업무 필수·전달/회차 없음·키 `plan:{work_item_id}:{요청 ID 또는 전달 ID}`, `judgment`·`collab_decision`은 전달 필수·회차 1 또는 2(`collab_decision`은 7단계에 추가) |
+| `work_ai_jobs` | 3 | `project_id`, `kind`(`plan`/`judgment`/`collab_decision`), `lane`(`interactive`/`background`), `request_key`, `assignment_id`, `connection_id`, `model`, `max_attempts`(기본 3, 사람의 재시도마다 +1), `applied_at`, `work_item_id`, `delivery_id`, `round`, `status`(`pending`/`working`/`waiting_answer`/`ready`/`held`/`failed`), `input_snapshot`, `input_hash`, `result`(JSON), `error`, `hold_reason` | `UNIQUE(project_id, request_key)`, `UNIQUE(delivery_id, round)`; `plan`은 업무 필수·전달/회차 없음·키 `plan:{work_item_id}:{요청 ID 또는 전달 ID}`, `judgment`·`collab_decision`은 전달 필수·회차 1 또는 2(`collab_decision`은 7단계에 추가) |
 | `work_ai_attempts` | 3 | `project_id`, `job_id`, `number`, `connection_id`, `model`, `status`(`working`/`succeeded`/`failed`/`interrupted`), `usage`(JSON), `usage_reported`, `started_at`, `ended_at`, `error` | `UNIQUE(job_id, number)`; 시도별 최신 누적 사용량을 저장하고 다른 시도는 합산 |
 | `shared_documents` | 4 | `project_id`, `title`, `categories`(JSON), `owner_department_id`, `work_item_id`, `scope`(`service`/`departments`), `scope_departments`(JSON), `status`(`active`/`withdrawn`) | — |
 | `shared_document_versions` | 4 | `document_id`, `project_id`, `number`, `stage`(`draft`/`final`), `confirmed_by`, `confirmed_at`, `confirmation_note`, `source_kind`(`artifact`/`workspace`), `source_artifact_id`, `source_path`, `path`, `hash`, `size`, `withdrawn_at`, `event_sequence` | `UNIQUE(document_id, number)`; 내용은 고정하고 확정 상태와 이력은 별도로 관리 |
