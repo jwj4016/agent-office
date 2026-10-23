@@ -1,7 +1,7 @@
 # Agent Office 개선 구현 계획서 — 사건과 산출물로 협업하는 작은 회사
 
 작성일·수정일: 2026-10-22  
-상태: 구현 중(1단계 완료), 6차 개정  
+상태: 구현 중(2단계 완료), 6차 개정  
 관련 파일: [진행 체크리스트](progress.md) · [현재/개선 후 업무 흐름](asis-tobe.html)
 
 ## 1. 목표와 설계 방향
@@ -180,7 +180,7 @@ Agent Office는 Go·Wails·React·TypeScript·SQLite 기반 데스크톱 앱이�
 | 업무 재개됨 | `work.reopened` | 완료 업무를 다시 열었을 때 |
 | 부서 점검 요청됨 | `department.check_requested` | 사용자가 제안을 요청하거나 정기 일정에 도달했을 때 |
 
-사건 내용(`payload`)에는 발생 부서, 관련 업무·공동 목표, 분류, 원인 사건 번호, 연쇄의 최초 사건 번호와 깊이, 공유 문서 버전을 기록한다. 발생 시각과 서비스는 기존 열을 쓴다. 사건은 사실이며 곧바로 다른 부서에 대한 실행 명령이 되는 것은 아니다.
+사건 내용(`payload`)에는 사건이 속한 부서(업무·자료의 부서), 관련 업무·공동 목표, 분류, 원인 사건 번호, 연쇄의 최초 사건 번호와 깊이, 공유 문서 버전을 기록한다. 발생 시각과 서비스는 기존 열을 쓴다. 사건은 사실이며 곧바로 다른 부서에 대한 실행 명령이 되는 것은 아니다.
 
 **지정한 부서에 직접 전달하는 사건**
 
@@ -414,17 +414,19 @@ Agent Office는 Go·Wails·React·TypeScript·SQLite 기반 데스크톱 앱이�
 
 **화면에서 보이는 변화:** 업무 상세에서 발생 사건을 보고, 부서가 받은 사건을 확인한다.
 
-- [ ] 4.2절의 사건을 `execution_events`에 저장하고 원인·연쇄·목표·업무 정보를 내용에 기록한다.
-- [ ] 실행 화면이 `work.*`·`document.*`·`department.*` 사건을 무시하는지 프론트 테스트로 확인한다.
-- [ ] 구독(사건 종류·분류·관점 문장)을 저장한다. 이 단계에서는 화면 없이 테스트로 설정한다.
-- [ ] 사건 저장 트랜잭션에서 부서별 전달을 만들고, 중복 방지 고유 제약을 둔다.
-- [ ] 구독이 꺼진 부서에도 직접 점검·협업 요청은 지정 대상에게만 전달한다. 일반 후속 사건은 구독 조건으로 거른다.
-- [ ] `internal/work` 처리 루프를 만든다. 기존 콜백은 신호만 보낸다.
-- [ ] 앱 재시작·중복 통지·처리 중 종료 후에도 이어서 처리한다.
-- [ ] 부서 전달함에 상태·실패 이유·재시도 동작을 만든다. 이 단계에서는 AI 판단 없이 전달을 `done`으로 표시하는 것까지만 검증한다.
-- [ ] 다른 서비스나 비활성 부서에는 전달하지 않는다.
+- [x] 4.2절의 사건을 `execution_events`에 저장하고 원인·연쇄·목표·업무 정보를 내용에 기록한다.
+- [x] 실행 화면이 `work.*`·`document.*`·`department.*` 사건을 무시하는지 프론트 테스트로 확인한다.
+- [x] 구독(사건 종류·분류·관점 문장)을 저장한다. 이 단계에서는 화면 없이 테스트로 설정한다.
+- [x] 사건 저장 트랜잭션에서 부서별 전달을 만들고, 중복 방지 고유 제약을 둔다.
+- [x] 구독이 꺼진 부서에도 직접 점검·협업 요청은 지정 대상에게만 전달한다. 일반 후속 사건은 구독 조건으로 거른다.
+- [x] `internal/work` 처리 루프를 만든다. 기존 콜백은 신호만 보낸다.
+- [x] 앱 재시작·중복 통지·처리 중 종료 후에도 이어서 처리한다.
+- [x] 부서 전달함에 상태·실패 이유·재시도 동작을 만든다. 이 단계에서는 AI 판단 없이 전달을 `done`으로 표시하는 것까지만 검증한다.
+- [x] 다른 서비스나 비활성 부서에는 전달하지 않는다.
 
 **완료 기준:** 한 업무 사건을 두 부서에 전달하고, 앱을 재시작해도 누락·중복 없이 확인할 수 있다.
+
+구현 메모(2단계): 마이그레이션 `0009_work_events.sql`, 저장소 `internal/storage/repo_events.go`, 처리 루프 `internal/work/processor.go`, 바인딩 `app_work.go`, 화면 `views/Deliveries.tsx`(‘업무’ 탭의 부서 전달함·점검 요청, 업무 상세의 사건 목록). 이 단계에서 실제로 생기는 사건은 `work.created`·`work.completed`·`work.reopened`·`department.check_requested`다. 처리 루프의 기본 처리기(`work.Acknowledge`)는 전달을 `done`으로 기록만 하며 5단계에서 부서 판단으로 바뀐다. 전달 상태가 바뀔 때마다 화면 갱신용 `delivery.updated` 사건을 남긴다. 사건당 판단 부서 상한은 아직 서비스 설정이 아닌 기본값 5(`domain.DefaultJudgeFanout`)를 쓴다.
 
 ### 3단계 — 업무 실행 최소판
 
@@ -654,8 +656,8 @@ Agent Office는 Go·Wails·React·TypeScript·SQLite 기반 데스크톱 앱이�
 | `project_categories` | 1 | `project_id`, `name`, `position` | `UNIQUE(project_id, name)` |
 | `work_items` | 1 | `project_id`, `kind`(`goal`/`work`), `parent_id`, `department_id`, `assignee_assignment_id`, `title`, `description`, `done_criteria`, `priority`, `status`, `status_reason`, `categories`(JSON), `due_at`, `origin_event_sequence`, `origin_proposal_id`, `closed_at` | `parent_id`는 같은 서비스의 `goal`만, 공동 목표는 결과 책임 부서 필수 |
 | `work_item_notes` | 1 | `work_item_id`, `kind`(`note`/`status`), `body`, `from_status`, `to_status`, `author` | 상태 변경은 모두 `kind='status'` 기록으로 남김(사건 저장은 2단계) |
-| `subscriptions` | 2 | `department_id`, `event_kinds`(JSON), `categories`(JSON), `guidance`, `enabled` | — |
-| `event_deliveries` | 2 | `project_id`, `event_sequence`, `department_id`, `purpose`(`judge`/`notify`/`collab_request`), `status`(`pending`/`processing`/`waiting_answer`/`done`/`skipped`/`held`/`failed`), `error`, `hold_reason` | `UNIQUE(event_sequence, department_id, purpose)`; AI 호출 시도 수는 별도 시도 행에서 관리 |
+| `subscriptions` | 2 | `project_id`, `department_id`, `event_kinds`(JSON), `categories`(JSON), `guidance`, `enabled` | 부서는 `(department_id, project_id)`로 참조. 지우지 않고 끈다(전달이 참조함) |
+| `event_deliveries` | 2 | `project_id`, `event_sequence`, `department_id`, `subscription_id`, `purpose`(`judge`/`notify`/`collab_request`), `status`(`pending`/`processing`/`waiting_answer`/`done`/`skipped`/`held`/`failed`), `note`, `error`, `hold_reason` | `UNIQUE(event_sequence, department_id, purpose)`; AI 호출 시도 수는 별도 시도 행에서 관리 |
 | `workflows.work_item_id` | 3 | 업무 전용 워크플로 표시 | 일반 목록에서 제외 |
 | `runs.work_item_id` | 3 | 실행과 업무 연결 | 부분 고유 색인: `status IN ('running','waiting','paused')`인 실행은 업무당 하나 |
 | `work_ai_jobs` | 3 | `project_id`, `kind`(`plan`/`judgment`/`collab_decision`), `lane`(`interactive`/`background`), `request_key`, `work_item_id`, `delivery_id`, `round`, `status`(`pending`/`working`/`waiting_answer`/`ready`/`held`/`failed`), `input_snapshot`, `input_hash`, `result`(JSON), `error`, `hold_reason` | `UNIQUE(project_id, request_key)`, `UNIQUE(delivery_id, round)`; `plan`은 업무 필수·전달/회차 없음·키 `plan:{work_item_id}:{요청 ID 또는 전달 ID}`, `judgment`·`collab_decision`은 전달 필수·회차 1 또는 2(`collab_decision`은 7단계에 추가) |
@@ -677,10 +679,12 @@ Agent Office는 Go·Wails·React·TypeScript·SQLite 기반 데스크톱 앱이�
 
 ```json
 {
-  "departmentId": "발생 부서, 사람의 직접 행동이면 빈 값",
+  "departmentId": "사건이 속한 부서(업무·자료의 부서). 이 부서는 자기 사건을 판단하지 않는다",
   "targetDepartmentId": "점검·협업 직접 요청의 받는 부서, 이 두 종류에 필수",
   "collabRequestId": "협업 요청 사건일 때의 요청 ID",
   "workItemId": "관련 업무",
+  "title": "전달함에 보일 제목(업무 제목 등)",
+  "note": "사람이 남긴 이유나 요청 내용",
   "goalId": "관련 공동 목표",
   "categories": ["개발"],
   "causeSequence": null,

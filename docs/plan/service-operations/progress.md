@@ -5,9 +5,9 @@
 
 ## 현재 상태
 
-- 현재 단계: 1단계 완료. 다음은 2단계 — 업무 사건 저장과 부서 전달함.
+- 현재 단계: 2단계 완료. 다음은 3단계 — 업무 실행 최소판.
 - 계획 버전: 6차 개정. 부서는 서비스 소속, 회사 공통은 부서 템플릿.
-- 기능 구현: 1단계 완료(부서 템플릿·서비스 부서·업무·공동 목표). 2단계부터 남음.
+- 기능 구현: 2단계까지 완료(부서·업무·공동 목표, 업무 사건과 부서 전달함). 3단계부터 남음.
 - 핵심 변경: 회사 전체의 고정 워크플로 대신 업무 사건·공유 문서·부서 구독으로 협업을 연결한다. 기존 엔진은 개별 업무 실행에 재사용한다.
 
 ## 단계별 완료 확인
@@ -16,7 +16,7 @@
 
 - [x] 0단계: 기준 상태·진행 기록·기존 테스트 확인.
 - [x] 1단계: 부서·업무·공동 목표.
-- [ ] 2단계: 업무 사건 저장과 부서 전달함.
+- [x] 2단계: 업무 사건 저장과 부서 전달함.
 - [ ] 3단계: 업무 실행 최소판.
 - [ ] 4단계: 공유 자료함과 중간 산출물.
 - [ ] 5단계: 사건을 보고 후속 업무 제안.
@@ -186,6 +186,60 @@
 ```text
 미검증 항목과 막힌 이유: 실제 앱 창에서의 화면 확인(이 세션에서는 GUI를 볼 수 없음). 화면 동작은 컴포넌트 시험으로만 확인했다.
 다음에 할 구체적인 작업: 2단계 — 4.2절 업무 사건(work.*, document.*, department.*)을 execution_events에 저장하고 구독·부서별 전달(event_deliveries)과 internal/work 처리 루프를 만든다. 1단계의 상태 변경·등록 지점(CreateWorkItem, SetWorkStatus)에서 사건을 함께 기록한다.
+```
+
+## 2026-10-23 — 2단계 완료: 업무 사건 저장과 부서 전달함
+
+```text
+날짜: 2026-10-23
+현재 단계: 2단계 완료 → 다음은 3단계
+완료한 체크리스트: 2단계 전체 9개 항목
+```
+
+**변경한 코드**
+
+- 저장 구조: `internal/storage/migrations/0009_work_events.sql`
+  - `subscriptions`(부서별 사건 종류·분류·관점, 켜고 끄기)
+  - `event_deliveries`(사건·부서·목적당 하나, `UNIQUE(event_sequence, department_id, purpose)`. 실패·보류에는 이유가 있어야 함)
+  - `execution_events (project_id, kind)` 색인.
+- 사건 저장: `Change.EmitEvent`가 저장한 사건과 순서 번호를 돌려준다. 기존 `Emit`은 그대로 쓴다.
+- 저장소: `internal/storage/repo_events.go`
+  - `emitWorkEventTx`가 사건을 저장한 트랜잭션에서 전달을 만든다.
+  - 직접 요청(점검·협업)은 구독과 관계없이 대상 부서에만 간다.
+  - 일반 사건은 사용 중인 부서의 켜진 구독 중 종류·분류가 맞는 것에 간다. 사건이 속한 부서 자신은 받지 않는다.
+  - 구독 판단 전달이 사건당 5개를 넘으면 나머지는 보류한다.
+  - 구독 저장, 전달함 조회·건너뛰기·다시 시도, 업무별 사건 목록, 처리 루프용 선점·완료·복구를 구현했다.
+- 업무 사건: `CreateWorkItem`은 `work.created`를 남긴다. `SetWorkStatus`는 완료로 바뀌면 `work.completed`, 닫힌 업무를 다시 열면 `work.reopened`를 남긴다. 부서 점검 요청은 `department.check_requested`다.
+- 처리 루프: `internal/work/processor.go`
+  - 시작할 때 `processing` 상태로 남은 전달을 `pending`으로 되돌린다.
+  - 신호나 2초 틱에 깨어나 전달을 하나씩 선점해 처리한다.
+  - 중단되면 해당 전달을 `processing`으로 남겨 다음 시작 때 이어서 처리한다.
+  - 처리기 오류는 `failed`와 이유로 남기고, 스스로 다시 시도하지 않는다.
+  - 기본 처리기 `Acknowledge`는 `done`으로 기록만 한다.
+- 앱: `app.go`가 처리 루프를 엔진과 함께 시작하고 함께 멈춘다. 저장 구독 콜백은 업무 사건이 있을 때 처리 루프에 신호만 보낸다.
+- 바인딩: `app_work.go`에 사건 목록, 구독 조회·저장, 전달함 조회, 점검 요청, 다시 시도, 건너뛰기 7개를 추가했다. `frontend/wailsjs`를 다시 생성했다.
+- 화면:
+  - `views/Deliveries.tsx`: ‘업무’ 탭 아래 부서 전달함(부서·상태 조회, 실패·보류 다시 시도, 건너뛰기)과 부서 점검 요청.
+  - 업무 상세: 이 업무의 사건과 받은 부서·상태.
+  - 구독 화면은 계획대로 이 단계에서 만들지 않았다(5단계).
+- `docs/decisions.md`에 결정 3건을 기록했다: 사건의 `departmentId` 의미, `delivery.updated` 사건, 구독은 끄기만 함.
+
+**실행한 검증과 결과**
+
+| 명령 | 결과 |
+|---|---|
+| `go vet`, `go test`(`build/` 제외 전체) | 통과 |
+| 새 Go 시험 | `repo_events_test.go` 6건, `TestDeliverySchemaConstraints`, v7→v9 업그레이드 시험에 전달 생성 추가, `internal/work` 4건, `TestBindingsWorkEventsReachDepartments` |
+| `npm run typecheck`, `npm run build` | 통과 |
+| `npm test` | 통과(25개 파일, 116개 시험). 새 시험: `Deliveries.test.tsx` 3건, `AIActivity.test.tsx`의 업무 사건 제외 1건 |
+
+- 완료 기준 확인: `TestBindingsWorkEventsReachDepartments`가 업무 하나를 등록하면 구독한 개발·재무 두 부서에 전달되어 처리되는 것을 확인한다. 앱을 다시 시작한 뒤에도 전달은 2건 그대로이고, 새 점검 요청을 포함해 3건으로 늘어난다.
+- 중복 통지와 중단: `TestDrainHandlesEachDeliveryOnce`는 처리 루프 둘이 동시에 깨어나도 전달마다 한 번만 처리하는지 확인한다. `TestRestartFinishesInterruptedDelivery`는 처리 중 멈춘 전달을 다시 열린 DB에서 한 번 더 처리해 끝내는지 확인한다.
+- 흔들린 시험: Go 전체 시험과 동시에 돌린 첫 `npm test`에서 기존 `WorkflowEditor.test.tsx`의 ‘opens the assistant from the toolbar…’가 한 번 실패했다. 단독 3회, 프론트 전체 단독 1회는 모두 통과했다. 이번 변경과 관련 없는 파일이며 부하가 클 때 시간에 민감한 것으로 보인다.
+
+```text
+미검증 항목과 막힌 이유: 실제 앱 창에서의 화면 확인(GUI를 볼 수 없음). CI의 Windows 작업은 기존 문제(‘Claude bridge’ 단계에서 6시간 제한)로 멈춰 있어 Windows CI 결과는 아직 없다.
+다음에 할 구체적인 작업: 3단계 3-1 — workflows.work_item_id, runs.work_item_id와 업무당 활성 실행 하나의 부분 고유 색인을 추가하고, 사람이 쓴 작은 작업 계획을 단일 단계 워크플로 버전으로 만들어 실행한다.
 ```
 
 ## 작업 기록 양식
