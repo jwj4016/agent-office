@@ -21,6 +21,7 @@ import {DeskDetail, Office, OfficeList, useOffice} from './Office';
 import {Runs} from './Runs';
 import {Team} from './Team';
 import {Documents} from './Documents';
+import {pendingCount} from './Judgments';
 import {Work} from './Work';
 import {Workflows} from './Workflows';
 
@@ -49,7 +50,7 @@ export function ProjectView({route, onRoute, onChanged}: {
     // button that had focus; land on the panel instead of the page body.
     // Tab changes from the tab list keep focus on the tab.
     const panel = useRef<HTMLDivElement>(null);
-    const sub = `${route.tab}/${route.runId ?? ''}/${route.workflowId ?? ''}`;
+    const sub = `${route.tab}/${route.runId ?? ''}/${route.workflowId ?? ''}/${route.workItemId ?? ''}`;
     useEffect(() => {
         const id = window.requestAnimationFrame(() => {
             const a = document.activeElement;
@@ -76,7 +77,7 @@ export function ProjectView({route, onRoute, onChanged}: {
             <Tabs label="서비스 메뉴" items={tabs} value={route.tab} onChange={go}/>
             <div role="tabpanel" ref={panel} tabIndex={-1} aria-label={tabs.find((x) => x.id === route.tab)?.label} className="stack loose">
                 {route.tab === 'status' ? <Status project={p} onRoute={onRoute}/> : null}
-                {route.tab === 'work' ? <Work project={p} onTeam={() => go('team')}
+                {route.tab === 'work' ? <Work project={p} workItemId={route.workItemId} onTeam={() => go('team')}
                                               onOpenRun={(runId) => onRoute({view: 'project', projectId: p.id, tab: 'runs', runId})}/> : null}
                 {route.tab === 'docs' ? <Documents project={p}/> : null}
                 {route.tab === 'office' ? <Office project={p} onRoute={onRoute}/> : null}
@@ -101,12 +102,15 @@ export function ProjectView({route, onRoute, onChanged}: {
 function Status({project, onRoute}: { project: Project; onRoute: (r: Route) => void }) {
     const runs = useLoad(() => api.runs(project.id), [project.id], project.id);
     const inbox = useLoad(() => api.inbox(), [], '*');
+    const decisions = useLoad(() => api.pendingDecisions(), [], '*');
     const {office} = useOffice(project.id);
     const setDetail = useDetail();
     if (runs.error) return <ErrorBox error={runs.error}/>;
     if (!runs.data) return <Loading/>;
     const all = runs.data;
     const mine = (inbox.data ?? []).filter((i) => i.projectId === project.id);
+    const decided = pendingCount(decisions.data, project.id);
+    const waiting = mine.length + decided;
     const stopped = all.filter((r) => runStopped(r.status));
     const live = all.filter((r) => r.status === 'running' || r.status === 'waiting' || r.status === 'paused');
     const openRun = (r: RunDetail) => onRoute({view: 'project', projectId: project.id, tab: 'runs', runId: r.id});
@@ -127,7 +131,7 @@ function Status({project, onRoute}: { project: Project; onRoute: (r: Route) => v
 
     return (
         <>
-            {stopped.length || mine.length ? (
+            {stopped.length || waiting ? (
                 <Section title="확인이 필요한 일">
                     {stopped.map((r) => {
                         const blocked = blockedSteps(r);
@@ -140,10 +144,11 @@ function Status({project, onRoute}: { project: Project; onRoute: (r: Route) => v
                             </Banner>
                         );
                     })}
-                    {mine.length ? (
-                        <Banner tone="warn" icon={InboxIcon} title={`내 할 일 ${mine.length}건이 기다리고 있습니다`}
+                    {waiting ? (
+                        <Banner tone="warn" icon={InboxIcon} title={`내 할 일 ${waiting}건이 기다리고 있습니다`}
                                 actions={<Button size="sm" onClick={() => onRoute({view: 'inbox'})}>처리하기</Button>}>
-                            {mine.slice(0, 3).map((i) => `${t.inboxKind[i.kind]}: ${i.stepTitle}`).join(' · ')}
+                            {[...mine.slice(0, 3).map((i) => `${t.inboxKind[i.kind]}: ${i.stepTitle}`),
+                                ...(decided ? [`부서 간 협업과 결정 ${decided}건`] : [])].join(' · ')}
                         </Banner>
                     ) : null}
                 </Section>

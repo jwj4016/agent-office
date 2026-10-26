@@ -27,7 +27,7 @@ const plan: WorkItem = {
 const request = (over: Partial<CollabRequest>): CollabRequest => ({
     id: 'c1', projectId: 'prj-1', projectName: '캠페인', fromWorkItemId: 'w1', fromWorkTitle: '캠페인 기획', fromWorkStatus: 'in_progress', goalId: 'g1',
     fromDepartmentId: 'mkt', fromDepartmentName: '마케팅팀', toDepartmentId: 'dev', toDepartmentName: '개발팀', question: '페이지를 검토해 주세요',
-    inputVersionIds: [], requirement: 'required', requirementReason: '', status: 'requested', followUp: '', decidedBy: '', decisionJobId: '', decisionReason: '', reviewedAt: '', revertedAt: '', revertReason: '',
+    inputVersionIds: [], requirement: 'required', requirementReason: '', status: 'requested', followUp: '', decidedBy: '', decisionJobId: '', decisionReason: '', reviewedAt: '', revertedAt: '', revertReason: '', aiStatus: '', aiProblem: '',
     decidedAt: '', resultWorkItemId: '', resultWorkTitle: '', resultWorkStatus: '', replacesId: '', replacedById: '', dueAt: '', eventSequence: 9,
     satisfied: false, overdue: false, history: [{action: 'requested', body: '페이지를 검토해 주세요', asDepartmentId: 'mkt', author: 'local-owner', createdAt: ''}],
     createdAt: '', updatedAt: '', ...over,
@@ -166,6 +166,16 @@ describe('inbox collaboration', () => {
         fireEvent.change(screen.getByLabelText('답변'), {target: {value: '다음 주 금요일'}});
         fireEvent.click(screen.getByRole('button', {name: '마케팅팀으로서 답하기'}));
         await waitFor(() => expect(fakeApi.answerCollab).toHaveBeenCalledWith('prj-1', 'c1', '다음 주 금요일'));
+    });
+
+    it('says when the lead AI could not decide and opens the work items', () => {
+        const openWork = vi.fn();
+        render(<Shell><InboxCollaboration collabs={[request({requirement: 'reference', aiStatus: 'failed', aiProblem: '협업 결정에 이유가 없습니다'})]}
+                                          notices={[]} onDone={() => {}} onOpenWork={openWork}/></Shell>);
+        expect(screen.getByText('개발팀 대표 AI가 결정하지 못했습니다')).toBeInTheDocument();
+        expect(screen.getByText(/협업 결정에 이유가 없습니다/)).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', {name: '캠페인 기획'}));
+        expect(openWork).toHaveBeenCalledWith('prj-1', 'w1');
     });
 
     it('shows nothing when no collaboration waits', () => {

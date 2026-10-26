@@ -210,6 +210,13 @@ export function CollabCard({r, onDone, onOpenWork, showFrom, showProject, readOn
             ) : null}
             <p className="pre small" style={{margin: 0}}>{r.question}</p>
             {r.requirementReason ? <span className="muted xsmall">{required ? '필수 이유' : '필수 해제 이유'}: {r.requirementReason}</span> : null}
+            {r.aiStatus ? (
+                <Banner tone={r.aiStatus === 'failed' ? 'bad' : 'warn'} icon={Bot}
+                        title={r.aiStatus === 'failed' ? `${to} 대표 AI가 결정하지 못했습니다` : `${to} 대표 AI의 결정이 보류되었습니다`}>
+                    <div>{r.aiProblem}</div>
+                    <div>직접 결정하거나 서비스의 ‘업무’ 탭 부서 전달함에서 다시 시도하세요.</div>
+                </Banner>
+            ) : null}
             {r.status === 'question' ? <Banner tone="warn" icon={CircleHelp} title={`${to}의 질문`}>{r.followUp}</Banner> : null}
             {r.status === 'requested' && lastAnswer ? <span className="muted xsmall">{from}의 답변: {lastAnswer.body}</span> : null}
             {r.status === 'declined' ? <span className="small">거절 이유: {r.decisionReason}</span> : null}
@@ -372,8 +379,9 @@ function ReplaceForm({r, busy, onReplace, onCancel}: {
 // InboxCollaboration is every service's collaboration waiting on the
 // person, required work that changed after something was finished, what
 // the lead AIs decided, and automatic starts that need the person.
-export function InboxCollaboration({collabs, notices, aiDecisions = [], autoReviews = [], onDone}: {
+export function InboxCollaboration({collabs, notices, aiDecisions = [], autoReviews = [], onDone, onOpenWork}: {
     collabs: CollabRequest[]; notices: RequiredNotice[]; aiDecisions?: CollabRequest[]; autoReviews?: AutoStart[]; onDone: () => void;
+    onOpenWork?: (projectId: string, workItemId: string) => void;
 }) {
     const action = useAction();
     const count = collabs.length + notices.length + aiDecisions.length + autoReviews.length;
@@ -386,14 +394,16 @@ export function InboxCollaboration({collabs, notices, aiDecisions = [], autoRevi
                 {notices.map((n) => (
                     <Banner key={n.id} tone="warn" title={`${n.projectName} · ${n.workKind === 'goal' ? '공동 목표' : '업무'} ‘${n.workTitle}’`}
                             actions={<span className="row nowrap">
+                                {onOpenWork ? <Button size="sm" variant="ghost" icon={ExternalLink} onClick={() => onOpenWork(n.projectId, n.workItemId)}>업무 열기</Button> : null}
                                 <Button size="sm" busy={action.busy} onClick={() => close(n, 'resolved')}>확인함</Button>
                                 <Button size="sm" variant="ghost" busy={action.busy} onClick={() => close(n, 'dismissed')}>무시</Button>
                             </span>}>{n.summary}</Banner>
                 ))}
                 <ErrorBox error={action.error}/>
-                {autoReviews.map((a) => <AutoStartBanner key={a.id} a={a} onDone={onDone} showProject/>)}
-                {collabs.map((r) => <CollabCard key={r.id} r={r} onDone={onDone} showProject/>)}
-                {aiDecisions.map((r) => <CollabCard key={r.id} r={r} onDone={onDone} showProject/>)}
+                {autoReviews.map((a) => <AutoStartBanner key={a.id} a={a} onDone={onDone} showProject
+                                                         onOpenWork={onOpenWork ? () => onOpenWork(a.projectId, a.workItemId) : undefined}/>)}
+                {[...collabs, ...aiDecisions].map((r) => <CollabCard key={r.id} r={r} onDone={onDone} showProject
+                                                                     onOpenWork={onOpenWork ? (id) => onOpenWork(r.projectId, id) : undefined}/>)}
             </div>
         </Section>
     );

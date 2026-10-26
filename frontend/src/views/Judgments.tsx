@@ -256,6 +256,14 @@ export function DepartmentDecisions({project}: { project: Project }) {
     );
 }
 
+// pendingCount is how many decisions wait for the person, in one service
+// or (no projectId) in all of them.
+export function pendingCount(d: Decisions | undefined, projectId?: string): number {
+    if (!d) return 0;
+    const lists: { projectId: string }[][] = [d.questions, d.proposals, d.collabs, d.notices, d.aiDecisions, d.autoReviews];
+    return lists.reduce((n, list) => n + list.filter((x) => !projectId || x.projectId === projectId).length, 0);
+}
+
 // InboxDecisions shows every service's department questions and
 // proposals at the top of the inbox.
 export function InboxDecisions({data, onDone}: { data: Decisions; onDone: () => void }) {

@@ -115,8 +115,8 @@ function PlanForm({project, itemId, initial, assignments, choices, disabled, onS
                 {plan.outputs.map((o, i) => (
                     <div key={i} className="row nowrap">
                         <input value={o.key} disabled={disabled} aria-label={`산출물 ${i + 1} 이름`} placeholder="이름 (예: result)"
-                               onChange={(e) => setOutput(i, {key: e.target.value})}/>
-                        <select value={o.type} disabled={disabled} aria-label={`산출물 ${i + 1} 형식`}
+                               style={{flex: 1, minWidth: 0}} onChange={(e) => setOutput(i, {key: e.target.value})}/>
+                        <select value={o.type} disabled={disabled} aria-label={`산출물 ${i + 1} 형식`} style={{flex: 1, minWidth: 0}}
                                 onChange={(e) => setOutput(i, {type: e.target.value as OutputType})}>
                             {outputTypes.map((ty) => <option key={ty} value={ty}>{t.outputType[ty]}</option>)}
                         </select>

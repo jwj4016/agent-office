@@ -404,7 +404,7 @@ export type CollabRequest = {
     fromDepartmentId: string; fromDepartmentName: string; toDepartmentId: string; toDepartmentName: string; question: string;
     inputVersionIds: string[]; requirement: CollabRequirement; requirementReason: string; status: CollabStatus; followUp: string;
     decidedBy: '' | 'user' | 'ai'; decisionJobId: string; decisionReason: string; decidedAt: string; reviewedAt: string; revertedAt: string;
-    revertReason: string; resultWorkItemId: string; resultWorkTitle: string;
+    revertReason: string; aiStatus: '' | 'failed' | 'held'; aiProblem: string; resultWorkItemId: string; resultWorkTitle: string;
     resultWorkStatus: WorkStatus | ''; replacesId: string; replacedById: string; dueAt: string; eventSequence: number;
     satisfied: boolean; overdue: boolean; history: CollabHistory[]; createdAt: string; updatedAt: string;
 };

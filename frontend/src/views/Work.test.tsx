@@ -120,6 +120,14 @@ describe('Work', () => {
         expect(await screen.findByRole('heading', {name: '봄 행사'})).toBeInTheDocument();
     });
 
+    it('opens the work item it was sent to, e.g. from the inbox', async () => {
+        fakeApi.workItem.mockResolvedValue({item: items[2], notes: [], children: []} satisfies WorkDetail);
+        render(<Shell><Work project={project} workItemId="w2" onTeam={onTeam} onOpenRun={onOpenRun}/></Shell>);
+        const pane = await screen.findByRole('complementary', {name: '상세'});
+        expect(await within(pane).findByRole('heading', {name: '페이지 구현 검토'})).toBeInTheDocument();
+        expect(fakeApi.workItem).toHaveBeenCalledWith('prj-1', 'w2');
+    });
+
     it('needs a reason to block work and keeps the history', async () => {
         const item = items[2];
         fakeApi.workItem.mockResolvedValue({

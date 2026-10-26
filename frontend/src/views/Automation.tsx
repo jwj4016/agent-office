@@ -1,4 +1,4 @@
-import {Bot, RotateCcw, X} from 'lucide-react';
+import {Bot, ExternalLink, RotateCcw, X} from 'lucide-react';
 import {useState} from 'react';
 import {api} from '../api';
 import {t} from '../i18n';
@@ -105,18 +105,21 @@ const autoTone: Record<AutoStart['status'], Tone> = {
 
 // AutoStartBanner is the auto starter's state for one work item, with
 // what the person can do when it needs them.
-export function AutoStartBanner({a, onDone, showProject}: { a: AutoStart; onDone: () => void; showProject?: boolean }) {
+export function AutoStartBanner({a, onDone, showProject, onOpenWork}: { a: AutoStart; onDone: () => void; showProject?: boolean; onOpenWork?: () => void }) {
     const action = useAction();
     const toast = useToast();
     const review = a.status === 'review';
     return (
         <Banner tone={review ? 'warn' : 'info'} icon={Bot}
                 title={<>{showProject ? `${a.projectName} · ‘${a.workTitle}’ ` : '자동 시작 '}<StatusBadge tone={autoTone[a.status]}>{t.autoStartStatus[a.status]}</StatusBadge></>}
-                actions={review ? <span className="row nowrap">
+                actions={review || onOpenWork ? <span className="row nowrap">
+                    {onOpenWork ? <Button size="sm" variant="ghost" icon={ExternalLink} onClick={onOpenWork}>업무 열기</Button> : null}
+                    {review ? <>
                     <Button size="sm" icon={RotateCcw} busy={action.busy}
                             onClick={() => action.run(async () => { await api.retryAutoStart(a.projectId, a.id); toast('자동 시작 조건을 다시 확인합니다'); onDone(); })}>다시 확인</Button>
                     <Button size="sm" variant="ghost" icon={X} busy={action.busy}
                             onClick={() => action.run(async () => { await api.dismissAutoStart(a.projectId, a.id, '사람이 직접 진행'); onDone(); })}>직접 진행</Button>
+                    </> : null}
                 </span> : null}>
             {review ? a.reason : a.note}
             <ErrorBox error={action.error}/>

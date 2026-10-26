@@ -96,6 +96,21 @@ describe('App shell', () => {
     });
 });
 
+describe('Department decisions as to-dos', () => {
+    it('counts waiting collaboration on the home screen, the sidebar and the service', async () => {
+        state.summaries = [{project: {id: 'prj-1', organizationId: 'org-default', name: '게임', goal: '', instructions: '', workspacePath: '',
+            budget: {}, mode: 'auto', status: 'active', createdAt: '', updatedAt: ''}, activeRuns: 0, waitingRuns: 0, failedRuns: 0,
+            pausedRuns: 0, inbox: 0, lastRun: null}];
+        fakeApi.pendingDecisions.mockResolvedValue({questions: [], proposals: [], collabs: [{projectId: 'prj-1'}], notices: [], aiDecisions: [],
+            autoReviews: [{projectId: 'prj-1'}]});
+        render(<App/>);
+        expect(await screen.findByText('부서 간 협업과 결정 2건')).toBeInTheDocument();
+        expect(screen.getByText('확인이 필요한 일이 2건 있습니다.')).toBeInTheDocument();
+        expect(screen.getByLabelText('2건')).toBeInTheDocument(); // sidebar inbox badge
+        expect(screen.getByText('대기 2')).toBeInTheDocument(); // the service's state
+    });
+});
+
 describe('App start-up errors', () => {
     it('explains when another instance holds the data folder', async () => {
         fakeApi.systemStatus.mockResolvedValueOnce({dataDir: '/data', schemaVersion: 0, secretsPersistent: true, version: 'test',

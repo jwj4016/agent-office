@@ -57,6 +57,8 @@ type CollabRequest struct {
 	ReviewedAt         string          `json:"reviewedAt"` // when the person looked at an AI decision
 	RevertedAt         string          `json:"revertedAt"`
 	RevertReason       string          `json:"revertReason"`
+	AIStatus           string          `json:"aiStatus"`  // failed | held: the lead AI did not decide this undecided request
+	AIProblem          string          `json:"aiProblem"` // why; the person decides instead
 	ResultWorkItemID   string          `json:"resultWorkItemId"`
 	ResultWorkTitle    string          `json:"resultWorkTitle"`
 	ResultWorkStatus   string          `json:"resultWorkStatus"`
@@ -116,12 +118,15 @@ const collabSelect = `SELECT r.id, r.project_id, p.name, r.from_work_item_id, fw
 	r.from_department_id, fd.name, r.to_department_id, td.name, r.question, r.input_versions, r.requirement, r.requirement_reason,
 	r.status, r.follow_up, r.decided_by, COALESCE(r.decision_job_id, ''), r.decision_reason, COALESCE(r.decided_at, ''),
 	COALESCE(r.reviewed_at, ''), COALESCE(r.reverted_at, ''), r.revert_reason,
+	COALESCE(ad.status, ''), COALESCE(CASE ad.status WHEN 'failed' THEN ad.error ELSE ad.hold_reason END, ''),
 	COALESCE(r.result_work_item_id, ''), COALESCE(rw.title, ''), COALESCE(rw.status, ''), COALESCE(r.replaces_id, ''),
 	COALESCE((SELECT n.id FROM collab_requests n WHERE n.replaces_id = r.id ORDER BY n.created_at DESC LIMIT 1), ''),
 	COALESCE(r.due_at, ''), COALESCE(r.event_sequence, 0), r.created_at, r.updated_at
 	FROM collab_requests r JOIN projects p ON p.id = r.project_id JOIN work_items fw ON fw.id = r.from_work_item_id
 	JOIN departments fd ON fd.id = r.from_department_id JOIN departments td ON td.id = r.to_department_id
-	LEFT JOIN work_items rw ON rw.id = r.result_work_item_id`
+	LEFT JOIN work_items rw ON rw.id = r.result_work_item_id
+	LEFT JOIN event_deliveries ad ON ad.event_sequence = r.event_sequence AND ad.department_id = r.to_department_id
+		AND ad.purpose = 'collab_request' AND ad.status IN ('failed', 'held') AND r.status = 'requested'`
 
 func scanCollab(s interface{ Scan(...any) error }) (CollabRequest, error) {
 	var r CollabRequest
@@ -129,7 +134,7 @@ func scanCollab(s interface{ Scan(...any) error }) (CollabRequest, error) {
 	err := s.Scan(&r.ID, &r.ProjectID, &r.ProjectName, &r.FromWorkItemID, &r.FromWorkTitle, &r.FromWorkStatus, &r.GoalID,
 		&r.FromDepartmentID, &r.FromDepartmentName, &r.ToDepartmentID, &r.ToDepartmentName, &r.Question, &versions, &r.Requirement,
 		&r.RequirementReason, &r.Status, &r.FollowUp, &r.DecidedBy, &r.DecisionJobID, &r.DecisionReason, &r.DecidedAt,
-		&r.ReviewedAt, &r.RevertedAt, &r.RevertReason,
+		&r.ReviewedAt, &r.RevertedAt, &r.RevertReason, &r.AIStatus, &r.AIProblem,
 		&r.ResultWorkItemID, &r.ResultWorkTitle, &r.ResultWorkStatus, &r.ReplacesID, &r.ReplacedByID,
 		&r.DueAt, &r.EventSequence, &r.CreatedAt, &r.UpdatedAt)
 	json.Unmarshal([]byte(versions), &r.InputVersionIDs)
@@ -546,7 +551,14 @@ func (db *DB) changeCollab(ctx context.Context, projectID, id string, fn func(c 
 		if err != nil {
 			return err
 		}
-		if err := fn(c, r, Now()); err != nil {
+		now := Now()
+		if err := fn(c, r, now); err != nil {
+			return err
+		}
+		if r, err = collabTx(ctx, c.Tx, projectID, id); err != nil {
+			return err
+		}
+		if err := settleCollabDeliveryTx(ctx, c, r, now); err != nil {
 			return err
 		}
 		return c.Emit(projectID, "", "", "collab.updated", map[string]string{"collabRequestId": id})
@@ -555,6 +567,33 @@ func (db *DB) changeCollab(ctx context.Context, projectID, id string, fn func(c 
 		return CollabRequest{}, err
 	}
 	return db.CollabRequest(ctx, projectID, id)
+}
+
+// settleCollabDeliveryTx closes a request's failed or held lead-AI
+// decision once the person decided the request or made it required:
+// nothing is left for the AI, and a retry would only spend a call.
+func settleCollabDeliveryTx(ctx context.Context, c *Change, r CollabRequest, now string) error {
+	if r.Status == CollabRequested && r.Requirement != CollabRequired {
+		return nil
+	}
+	note := "사람이 결정해 AI 결정이 필요 없습니다"
+	if r.Status == CollabRequested {
+		note = "완료에 필요한 협업이 되어 사람이 결정합니다"
+	}
+	var id string
+	err := c.Tx.QueryRowContext(ctx, `SELECT id FROM event_deliveries WHERE event_sequence = ? AND department_id = ? AND purpose = 'collab_request'
+		AND status IN ('failed', 'held')`, r.EventSequence, r.ToDepartmentID).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if _, err := c.Tx.ExecContext(ctx, `UPDATE event_deliveries SET status = ?, note = ?, error = '', hold_reason = '', updated_at = ? WHERE id = ?`,
+		domain.DeliveryDone, note, now, id); err != nil {
+		return err
+	}
+	return c.Emit(r.ProjectID, "", "", "delivery.updated", map[string]string{"deliveryId": id, "status": domain.DeliveryDone})
 }
 
 func undecided(r CollabRequest) error {

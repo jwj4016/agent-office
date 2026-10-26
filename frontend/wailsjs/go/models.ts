@@ -2929,6 +2929,8 @@ export namespace storage {
 	    reviewedAt: string;
 	    revertedAt: string;
 	    revertReason: string;
+	    aiStatus: string;
+	    aiProblem: string;
 	    resultWorkItemId: string;
 	    resultWorkTitle: string;
 	    resultWorkStatus: string;
@@ -2972,6 +2974,8 @@ export namespace storage {
 	        this.reviewedAt = source["reviewedAt"];
 	        this.revertedAt = source["revertedAt"];
 	        this.revertReason = source["revertReason"];
+	        this.aiStatus = source["aiStatus"];
+	        this.aiProblem = source["aiProblem"];
 	        this.resultWorkItemId = source["resultWorkItemId"];
 	        this.resultWorkTitle = source["resultWorkTitle"];
 	        this.resultWorkStatus = source["resultWorkStatus"];

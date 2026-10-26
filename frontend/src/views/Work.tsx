@@ -1,5 +1,5 @@
 import {CalendarClock, Flag, ListTodo, MessageSquarePlus, Pencil, Plus, Target} from 'lucide-react';
-import {useState} from 'react';
+import {useEffect, useState} from 'react';
 import {api} from '../api';
 import {t} from '../i18n';
 import {useLoad} from '../live';
@@ -39,6 +39,12 @@ export function goalProgress(goalId: string, all: WorkItem[]) {
     return {total: children.length, done: children.filter((w) => w.status === 'done').length, open: children.filter((w) => !isClosed(w.status)).length};
 }
 
+// OpenOnce opens a detail panel when it first shows (keyed by what it opens).
+function OpenOnce({open}: { open: () => void }) {
+    useEffect(open, []);
+    return null;
+}
+
 export function WorkStatusBadge({status, reason}: { status: WorkStatus; reason?: string }) {
     return <StatusBadge tone={workTone[status]}>{t.workStatus[status]}{reason ? ` · ${reason}` : ''}</StatusBadge>;
 }
@@ -56,7 +62,10 @@ const defaultFilter: WorkFilter = {status: 'open'};
 
 // Work is the service's work list: shared goals and each department's
 // work, filtered by status, department, priority, category and due date.
-export function Work({project, onTeam, onOpenRun}: { project: Project; onTeam: () => void; onOpenRun: (runId: string) => void }) {
+// workItemId opens that item's panel, e.g. when coming from the inbox.
+export function Work({project, workItemId, onTeam, onOpenRun}: {
+    project: Project; workItemId?: string; onTeam: () => void; onOpenRun: (runId: string) => void;
+}) {
     const [filter, setFilter] = useState<WorkFilter>(defaultFilter);
     const departments = useLoad(() => api.departments(project.id), [project.id], project.id);
     const categories = useLoad(() => api.categories(project.id), [project.id], project.id);
@@ -84,6 +93,7 @@ export function Work({project, onTeam, onOpenRun}: { project: Project; onTeam: (
 
     return (
         <div className="stack loose">
+            {workItemId ? <OpenOnce key={workItemId} open={() => open(workItemId)}/> : null}
             <div className="row between">
                 <p className="muted">부서가 맡은 일과 여러 부서의 일을 묶는 공동 목표입니다. 업무는 사람이 완료를 확인할 때까지 남습니다.</p>
                 <span className="row nowrap">

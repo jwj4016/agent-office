@@ -2,6 +2,7 @@ package work_test
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -498,5 +499,53 @@ func TestAICollabDecisions(t *testing.T) {
 	}
 	if len(f.calls) != 3 {
 		t.Fatalf("AI calls = %v", f.calls)
+	}
+}
+
+// A lead AI decision that keeps failing shows on the request; once the
+// person decides, the failed delivery closes and a retry calls nothing.
+func TestFailedAICollabDecisionGoesToThePerson(t *testing.T) {
+	f := newAutoFixture(t, domain.ModeAuto)
+	ctx := context.Background()
+	f.rules(t, f.dev, domain.DepartmentAutomation{AutoCollab: true})
+	plan, _ := f.db.CreateWorkItem(ctx, domain.WorkItem{ProjectID: f.p.ID, DepartmentID: f.mkt.ID, Title: "기획"})
+	f.answer = func(string, string) (string, error) { return `{"decision":"accept"}`, nil } // no reason
+	req := f.request(t, plan, f.dev, storage.CollabReference)
+	f.settle(t, nil)
+
+	r, _ := f.db.CollabRequest(ctx, f.p.ID, req.ID)
+	if r.Status != storage.CollabRequested || r.AIStatus != domain.DeliveryFailed || !strings.Contains(r.AIProblem, "이유") {
+		t.Fatalf("request after the failed decision = %+v", r)
+	}
+	calls := len(f.calls)
+	r, err := f.db.AcceptCollab(ctx, f.p.ID, req.ID, storage.CollabAcceptance{Title: "사람이 정한 업무"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.AIStatus != "" || r.AIProblem != "" {
+		t.Fatalf("decided request still shows the AI problem: %+v", r)
+	}
+	list, _ := f.db.Deliveries(ctx, f.p.ID, storage.DeliveryFilter{DepartmentID: f.dev.ID})
+	if len(list) != 1 || list[0].Status != domain.DeliveryDone || list[0].Error != "" || !strings.Contains(list[0].Note, "사람이 결정") {
+		t.Fatalf("delivery after the person decided = %+v", list)
+	}
+
+	// A delivery left failed by an older version closes on retry, without a call.
+	if err := f.db.Write(ctx, func(tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, `UPDATE event_deliveries SET status = 'failed', error = '협업 결정에 이유가 없습니다' WHERE id = ?`, list[0].ID)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.db.RetryDelivery(ctx, f.p.ID, list[0].ID); err != nil {
+		t.Fatal(err)
+	}
+	f.settle(t, nil)
+	list, _ = f.db.Deliveries(ctx, f.p.ID, storage.DeliveryFilter{DepartmentID: f.dev.ID})
+	if list[0].Status != domain.DeliveryDone || len(f.calls) != calls {
+		t.Fatalf("retry of a decided request: %+v, calls %d → %d", list[0], calls, len(f.calls))
+	}
+	if err := f.db.RetryDelivery(ctx, f.p.ID, list[0].ID); err == nil {
+		t.Fatal("retried a finished delivery")
 	}
 }

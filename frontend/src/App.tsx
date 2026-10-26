@@ -9,6 +9,7 @@ import {applyMotion, applyTheme, Banner, DetailPane, DetailProvider, Icon, REDUC
 import {Dashboard} from './views/Dashboard';
 import {Design} from './views/Design';
 import {Inbox} from './views/Inbox';
+import {pendingCount} from './views/Judgments';
 import {Organization} from './views/Organization';
 import {ProjectView, type ProjectTab} from './views/ProjectView';
 import {Settings} from './views/Settings';
@@ -20,7 +21,7 @@ export type Route =
     | { view: 'design' }
     | { view: 'org' }
     | { view: 'settings' }
-    | { view: 'project'; projectId: string; tab: ProjectTab; workflowId?: string; runId?: string };
+    | { view: 'project'; projectId: string; tab: ProjectTab; workflowId?: string; runId?: string; workItemId?: string };
 
 const LAST_PROJECT = 'ui.lastProjectId';
 
@@ -72,6 +73,9 @@ function Workspace({perf}: { perf: boolean | undefined }) {
     const toast = useToast();
     const dash = useLoad(() => api.dashboard(false), [], '*');
     const inbox = useLoad(() => api.inbox(), [], '*');
+    // Department questions, proposals, collaboration and automatic-start
+    // reviews also wait for the person; they count as their to-dos.
+    const decisions = useLoad(() => api.pendingDecisions(), [], '*');
 
     // Measurement runs only (perf.go): first screen and screen lag.
     const readyMarked = useRef(false);
@@ -123,8 +127,8 @@ function Workspace({perf}: { perf: boolean | undefined }) {
         if (r.view === 'project') api.setSetting(LAST_PROJECT, r.projectId).catch(() => {});
     };
 
-    const projects = dash.data ?? [];
-    const current = route.view === 'project' ? projects.find((p) => p.project.id === route.projectId) : undefined;
+    const projects = (dash.data ?? []).map((s) => ({...s, inbox: s.inbox + pendingCount(decisions.data, s.project.id)}));
+    const current = route.view === 'project' ? dash.data?.find((p) => p.project.id === route.projectId) : undefined;
     // A remembered project that no longer exists (or is archived) falls back.
     useEffect(() => {
         if (route.view === 'project' && dash.data && !current) {
@@ -134,7 +138,8 @@ function Workspace({perf}: { perf: boolean | undefined }) {
         }
     }, [route, dash.data, current]);
 
-    const inboxCount = inbox.data?.length ?? 0;
+    const decisionCount = pendingCount(decisions.data);
+    const inboxCount = (inbox.data?.length ?? 0) + decisionCount;
     const navButton = (label: string, icon: typeof Home, r: Route, active: boolean, extra?: ReactNode) => (
         <button className="nav-item" aria-current={active ? 'page' : undefined} onClick={() => go(r)} title={label}>
             <Icon icon={icon} size={18}/><span className="nav-label">{label}</span>{extra}
@@ -144,10 +149,11 @@ function Workspace({perf}: { perf: boolean | undefined }) {
     let main: ReactNode;
     switch (route.view) {
         case 'dashboard':
-            main = <Dashboard summaries={projects} inbox={inbox.data ?? []} loaded={dash.data !== undefined} onRoute={go} onCreated={dash.reload}/>;
+            main = <Dashboard summaries={projects} inbox={inbox.data ?? []} decisions={decisionCount} loaded={dash.data !== undefined} onRoute={go} onCreated={dash.reload}/>;
             break;
         case 'inbox':
-            main = <Inbox onOpenRun={(projectId, runId) => go({view: 'project', projectId, tab: 'runs', runId})}/>;
+            main = <Inbox onOpenRun={(projectId, runId) => go({view: 'project', projectId, tab: 'runs', runId})}
+                          onOpenWork={(projectId, workItemId) => go({view: 'project', projectId, tab: 'work', workItemId})}/>;
             break;
         case 'design':
             main = <Design onOpenWorkflow={(projectId, workflowId) => go({view: 'project', projectId, tab: 'workflows', workflowId})}

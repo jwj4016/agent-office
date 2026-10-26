@@ -540,6 +540,9 @@ func (db *DB) FinishDelivery(ctx context.Context, id, status, note, errText stri
 // more attempt, earlier attempts and their cost kept) and the delivery
 // waits for it.
 func (db *DB) RetryDelivery(ctx context.Context, projectID, id string) error {
+	if settled, err := db.settleDecidedCollab(ctx, projectID, id); err != nil || settled {
+		return err
+	}
 	var jobID, jobStatus string
 	err := db.sql.QueryRowContext(ctx, `SELECT id, status FROM work_ai_jobs WHERE delivery_id = ? AND project_id = ? ORDER BY round DESC LIMIT 1`,
 		id, projectID).Scan(&jobID, &jobStatus)
@@ -550,6 +553,37 @@ func (db *DB) RetryDelivery(ctx context.Context, projectID, id string) error {
 		return db.changeDelivery(ctx, projectID, id, []string{domain.DeliveryFailed, domain.DeliveryHeld}, domain.DeliveryProcessing, "", "", "")
 	}
 	return db.changeDelivery(ctx, projectID, id, []string{domain.DeliveryFailed, domain.DeliveryHeld}, domain.DeliveryPending, "", "", "")
+}
+
+// settleDecidedCollab closes, instead of retrying, the failed lead-AI
+// decision of a request the person has decided since.
+func (db *DB) settleDecidedCollab(ctx context.Context, projectID, id string) (bool, error) {
+	settled := false
+	_, err := db.Change(ctx, func(c *Change) error {
+		var purpose, status string
+		err := c.Tx.QueryRowContext(ctx, `SELECT purpose, status FROM event_deliveries WHERE id = ? AND project_id = ?`, id, projectID).Scan(&purpose, &status)
+		if errors.Is(err, sql.ErrNoRows) || purpose != domain.PurposeCollabRequest || (status != domain.DeliveryFailed && status != domain.DeliveryHeld) {
+			return nil // RetryDelivery reports what cannot be retried
+		}
+		if err != nil {
+			return err
+		}
+		var reqID string
+		if err := c.Tx.QueryRowContext(ctx, `SELECT r.id FROM collab_requests r JOIN event_deliveries d
+			ON d.event_sequence = r.event_sequence AND d.department_id = r.to_department_id WHERE d.id = ?`, id).Scan(&reqID); err != nil {
+			return err
+		}
+		r, err := collabTx(ctx, c.Tx, projectID, reqID)
+		if err != nil {
+			return err
+		}
+		settled = r.Status != CollabRequested || r.Requirement == CollabRequired
+		if !settled {
+			return nil
+		}
+		return settleCollabDeliveryTx(ctx, c, r, Now())
+	})
+	return settled, err
 }
 
 // SkipDelivery closes a delivery a person decided not to act on.
