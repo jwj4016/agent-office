@@ -1,8 +1,12 @@
 import '@testing-library/jest-dom/vitest';
-import {cleanup} from '@testing-library/react';
+import {cleanup, configure} from '@testing-library/react';
 import {afterEach} from 'vitest';
 
 afterEach(() => cleanup());
+
+// CI machines run test files in parallel and can take over the default
+// 1 second to show a screen; stay under vitest's 5-second test limit.
+configure({asyncUtilTimeout: 3000});
 
 // React Flow measures its container; jsdom has no ResizeObserver.
 class ResizeObserverStub {
