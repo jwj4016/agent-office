@@ -127,11 +127,16 @@ func (a *AI) Drain(ctx context.Context, lane string) (int, error) {
 	return n, ctx.Err()
 }
 
-// process runs one claimed job: budget and connection checks, one
+// process runs one claimed job: service, budget and connection checks, one
 // provider call recorded as an attempt, then ready, a retry or failure.
 func (a *AI) process(ctx context.Context, job storage.AIJob) error {
 	db := a.cfg.DB
 	fail := func(err error) error { return db.FinishAIJob(ctx, job.ID, storage.JobFailed, nil, err.Error(), "") }
+	if p, err := db.Project(ctx, job.ProjectID); err != nil {
+		return err
+	} else if p.Status == "archived" {
+		return db.FinishAIJob(ctx, job.ID, storage.JobHeld, nil, "", "보관된 서비스여서 AI를 부르지 않았습니다")
+	}
 	if a.cfg.Hold != nil {
 		hold, err := a.cfg.Hold(ctx, job.ProjectID)
 		if err != nil {

@@ -120,6 +120,8 @@ export function ListConnections():Promise<Array<main.ConnectionView>>;
 
 export function ListDeliveries(arg1:string,arg2:storage.DeliveryFilter):Promise<Array<storage.Delivery>>;
 
+export function ListDepartmentSchedules(arg1:string):Promise<Array<storage.ScheduleView>>;
+
 export function ListDepartmentTemplates():Promise<Array<domain.DepartmentTemplate>>;
 
 export function ListDepartments(arg1:string):Promise<Array<domain.Department>>;
@@ -213,6 +215,8 @@ export function SaveConnection(arg1:main.ConnectionInput):Promise<main.Connectio
 export function SaveDepartment(arg1:domain.Department):Promise<domain.Department>;
 
 export function SaveDepartmentAsTemplate(arg1:string,arg2:string,arg3:string):Promise<domain.DepartmentTemplate>;
+
+export function SaveDepartmentSchedule(arg1:domain.DepartmentSchedule):Promise<domain.DepartmentSchedule>;
 
 export function SaveDepartmentTemplate(arg1:domain.DepartmentTemplate):Promise<domain.DepartmentTemplate>;
 

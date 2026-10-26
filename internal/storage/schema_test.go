@@ -264,3 +264,25 @@ func TestAutoStartSchemaConstraints(t *testing.T) {
 	f.mustFail(t, "UNIQUE", as, "s5", "game", "pending", nil, "", now, now)
 	f.mustFail(t, "FOREIGN KEY", `UPDATE auto_starts SET run_id = 'run-estate' WHERE id = 's4'`)
 }
+
+// A department has one schedule in its own service; a weekly schedule
+// names its day and a daily one does not; a slot runs once.
+func TestScheduleSchemaConstraints(t *testing.T) {
+	f := newSchemaFixture(t)
+	now := Now()
+	f.mustExec(t, `INSERT INTO departments (id, project_id, name, created_at, updated_at) VALUES ('d-game', 'game', '개발팀', ?, ?)`, now, now)
+	sch := `INSERT INTO department_schedules (id, project_id, department_id, frequency, time_of_day, weekday, timezone, active_from, created_at, updated_at)
+		VALUES (?, ?, 'd-game', ?, ?, ?, 'Asia/Seoul', ?, ?, ?)`
+	f.mustFail(t, "FOREIGN KEY", sch, "s0", "estate", "daily", "09:00", nil, now, now, now)
+	f.mustFail(t, "CHECK", sch, "s1", "game", "weekly", "09:00", nil, now, now, now)
+	f.mustFail(t, "CHECK", sch, "s2", "game", "daily", "09:00", 1, now, now, now)
+	f.mustFail(t, "CHECK", sch, "s3", "game", "daily", "24:00", nil, now, now, now)
+	f.mustFail(t, "CHECK", sch, "s4", "game", "daily", "9:00", nil, now, now, now)
+	f.mustExec(t, sch, "s5", "game", "weekly", "09:00", 1, now, now, now)
+	f.mustFail(t, "UNIQUE", sch, "s6", "game", "daily", "10:00", nil, now, now, now)
+	f.mustExec(t, `INSERT INTO execution_events (sequence, id, project_id, kind, payload, created_at) VALUES (900, 'ev-c', 'game', 'department.check_requested', '{}', ?)`, now)
+	slot := `INSERT INTO schedule_slots (schedule_id, project_id, slot_key, due_at, event_sequence, created_at) VALUES ('s5', ?, ?, ?, 900, ?)`
+	f.mustExec(t, slot, "game", "weekly:2026-W44", now, now)
+	f.mustFail(t, "UNIQUE", slot, "game", "weekly:2026-W44", now, now)
+	f.mustFail(t, "FOREIGN KEY", slot, "estate", "weekly:2026-W45", now, now)
+}

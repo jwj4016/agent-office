@@ -279,6 +279,16 @@ export type Subscription = {
     updatedAt: string;
 };
 
+// A department's regular check: every day or week at a time, in the time
+// zone of the PC it was saved on. weekday 0 is Sunday (weekly only).
+export type DepartmentSchedule = {
+    id: string; projectId: string; departmentId: string; frequency: 'daily' | 'weekly'; timeOfDay: string; weekday: number | null;
+    timezone: string; note: string; enabled: boolean; activeFrom: string; createdAt: string; updatedAt: string;
+};
+
+// lastSlotAt / nextDueAt are empty when it never ran / cannot run now.
+export type ScheduleView = DepartmentSchedule & { departmentName: string; lastSlotAt: string; lastSequence: number; nextDueAt: string };
+
 export type DeliveryFilter = { departmentId?: string; status?: string; limit?: number };
 
 // How one work item is done: who, extra instructions, materials, outputs.

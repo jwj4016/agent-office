@@ -774,6 +774,40 @@ export namespace domain {
 	        this.autoCollab = source["autoCollab"];
 	    }
 	}
+	export class DepartmentSchedule {
+	    id: string;
+	    projectId: string;
+	    departmentId: string;
+	    frequency: string;
+	    timeOfDay: string;
+	    weekday?: number;
+	    timezone: string;
+	    note: string;
+	    enabled: boolean;
+	    activeFrom: string;
+	    createdAt: string;
+	    updatedAt: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DepartmentSchedule(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.projectId = source["projectId"];
+	        this.departmentId = source["departmentId"];
+	        this.frequency = source["frequency"];
+	        this.timeOfDay = source["timeOfDay"];
+	        this.weekday = source["weekday"];
+	        this.timezone = source["timezone"];
+	        this.note = source["note"];
+	        this.enabled = source["enabled"];
+	        this.activeFrom = source["activeFrom"];
+	        this.createdAt = source["createdAt"];
+	        this.updatedAt = source["updatedAt"];
+	    }
+	}
 	export class DepartmentTemplate {
 	    id: string;
 	    organizationId: string;
@@ -3023,6 +3057,7 @@ export namespace storage {
 	    automated: boolean;
 	    documentId?: string;
 	    documentVersionId?: string;
+	    scheduleSlot?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new WorkEvent(source);
@@ -3044,6 +3079,7 @@ export namespace storage {
 	        this.automated = source["automated"];
 	        this.documentId = source["documentId"];
 	        this.documentVersionId = source["documentVersionId"];
+	        this.scheduleSlot = source["scheduleSlot"];
 	    }
 	}
 	export class Delivery {
@@ -3543,6 +3579,48 @@ export namespace storage {
 	        this.projectName = source["projectName"];
 	        this.workTitle = source["workTitle"];
 	        this.workKind = source["workKind"];
+	    }
+	}
+	export class ScheduleView {
+	    id: string;
+	    projectId: string;
+	    departmentId: string;
+	    frequency: string;
+	    timeOfDay: string;
+	    weekday?: number;
+	    timezone: string;
+	    note: string;
+	    enabled: boolean;
+	    activeFrom: string;
+	    createdAt: string;
+	    updatedAt: string;
+	    departmentName: string;
+	    lastSlotAt: string;
+	    lastSequence: number;
+	    nextDueAt: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ScheduleView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.projectId = source["projectId"];
+	        this.departmentId = source["departmentId"];
+	        this.frequency = source["frequency"];
+	        this.timeOfDay = source["timeOfDay"];
+	        this.weekday = source["weekday"];
+	        this.timezone = source["timezone"];
+	        this.note = source["note"];
+	        this.enabled = source["enabled"];
+	        this.activeFrom = source["activeFrom"];
+	        this.createdAt = source["createdAt"];
+	        this.updatedAt = source["updatedAt"];
+	        this.departmentName = source["departmentName"];
+	        this.lastSlotAt = source["lastSlotAt"];
+	        this.lastSequence = source["lastSequence"];
+	        this.nextDueAt = source["nextDueAt"];
 	    }
 	}
 	

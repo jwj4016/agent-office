@@ -72,6 +72,9 @@ type App struct {
 	// auto starts work made from events in auto-mode services.
 	auto     *work.AutoStarter
 	autoDone chan struct{}
+	// sched runs departments' regular checks.
+	sched     *work.Scheduler
+	schedDone chan struct{}
 
 	deltaMu sync.Mutex
 	deltas  map[string]*Delta
@@ -158,6 +161,7 @@ func (a *App) startup(ctx context.Context) {
 		WakeAI: a.ai.Wake,
 	})
 	a.work = work.New(a.db, work.Judge(a.db, a.ai.Wake))
+	a.sched = work.NewScheduler(a.db, nil)
 	a.db.Subscribe(func(evs []storage.EventRecord) {
 		a.emit(a.ctx, EventStored, evs)
 		a.auto.Wake() // runs, plans and new work move auto starts on
@@ -170,6 +174,7 @@ func (a *App) startup(ctx context.Context) {
 	})
 	ectx, cancel := context.WithCancel(context.Background())
 	a.stopEngine, a.engineDone, a.workDone, a.aiDone, a.autoDone = cancel, make(chan struct{}), make(chan struct{}), make(chan struct{}), make(chan struct{})
+	a.schedDone = make(chan struct{})
 	a.design = &design.Service{DB: a.db, Engine: a.eng, Providers: a.providerFor, Connections: a.designConnections, Ctx: ectx,
 		DataDir: dir, Diagram: diagram}
 	if err := a.design.Recover(ctx); err != nil {
@@ -199,6 +204,12 @@ func (a *App) startup(ctx context.Context) {
 		}
 		close(a.autoDone)
 	}()
+	go func() {
+		if err := a.sched.Run(ectx); err != nil {
+			log.Printf("work schedule stopped: %v", err)
+		}
+		close(a.schedDone)
+	}()
 	go a.flushDeltas(ectx)
 	if perfEnabled() {
 		perfLog("startup", map[string]any{"version": appVersion})
@@ -222,6 +233,7 @@ func (a *App) shutdown(ctx context.Context) {
 		<-a.workDone
 		<-a.aiDone
 		<-a.autoDone
+		<-a.schedDone
 		a.design.Wait()
 	}
 	if a.db != nil {

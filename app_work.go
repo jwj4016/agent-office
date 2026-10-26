@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"agent-office/internal/domain"
 	"agent-office/internal/engine"
@@ -193,6 +194,29 @@ func (a *App) SaveSubscription(s domain.Subscription) (domain.Subscription, erro
 		return s, err
 	}
 	saved, err := a.db.SaveSubscription(a.ctx, s)
+	return saved, uiErr(err)
+}
+
+// ListDepartmentSchedules lists a service's regular checks with their
+// last and next slot.
+func (a *App) ListDepartmentSchedules(projectID string) ([]storage.ScheduleView, error) {
+	if err := a.ready(); err != nil {
+		return nil, err
+	}
+	list, err := a.db.DepartmentSchedules(a.ctx, projectID, time.Now())
+	return list, uiErr(err)
+}
+
+// SaveDepartmentSchedule creates or changes a department's regular check.
+// The screen sends the PC's time zone with it.
+func (a *App) SaveDepartmentSchedule(s domain.DepartmentSchedule) (domain.DepartmentSchedule, error) {
+	if err := a.ready(); err != nil {
+		return s, err
+	}
+	saved, err := a.db.SaveDepartmentSchedule(a.ctx, s)
+	if err == nil {
+		a.sched.Wake()
+	}
 	return saved, uiErr(err)
 }
 

@@ -39,8 +39,8 @@ type judgeInput struct {
 // RequestJudgment queues the department's AI judgment of a delivery: the
 // round-1 job, or the round-2 job once a question was answered. The same
 // delivery handled twice returns the job already queued. A direct check
-// made by a person goes to the interactive lane; everything else to the
-// background lane.
+// made by a person goes to the interactive lane; everything else (a
+// regular check included) to the background lane.
 func RequestJudgment(ctx context.Context, db *storage.DB, d storage.Delivery) (storage.AIJob, error) {
 	if existing, ok, err := latestDeliveryJob(ctx, db, d); err != nil || ok {
 		return existing, err
@@ -73,7 +73,7 @@ func RequestJudgment(ctx context.Context, db *storage.DB, d storage.Delivery) (s
 		}
 	}
 	lane := storage.LaneBackground
-	if d.EventKind == domain.EventDepartmentCheck && !d.Event.Automated {
+	if d.EventKind == domain.EventDepartmentCheck && !d.Event.Automated && d.Event.ScheduleSlot == "" {
 		lane = storage.LaneInteractive
 	}
 	snap, _ := json.Marshal(in)
@@ -101,9 +101,13 @@ func latestDeliveryJob(ctx context.Context, db *storage.DB, d storage.Delivery) 
 // finishes it later; notices are recorded. A collaboration request is
 // recorded for the person to decide, or, in auto mode, handed to the lead
 // AI as a decision job. Automatic chains stop at the depth limit, held
-// for a person.
+// for a person. Nothing new starts for an archived service or a
+// department no longer in use.
 func Judge(db *storage.DB, wake func(lane string)) Handler {
 	return func(ctx context.Context, d storage.Delivery) (Result, error) {
+		if why, err := stopped(ctx, db, d); err != nil || why != "" {
+			return Result{Status: domain.DeliverySkipped, Note: why}, err
+		}
 		switch d.Purpose {
 		case domain.PurposeCollabRequest:
 			return decideCollab(ctx, db, d, wake)
@@ -131,6 +135,26 @@ func Judge(db *storage.DB, wake func(lane string)) Handler {
 		}
 		return Result{Status: domain.DeliveryProcessing}, nil
 	}
+}
+
+// stopped says why a delivery's service or department takes no new work,
+// or "".
+func stopped(ctx context.Context, db *storage.DB, d storage.Delivery) (string, error) {
+	p, err := db.Project(ctx, d.ProjectID)
+	if err != nil {
+		return "", err
+	}
+	if p.Status == "archived" {
+		return "보관된 서비스여서 처리하지 않았습니다", nil
+	}
+	dept, err := db.Department(ctx, d.ProjectID, d.DepartmentID)
+	if err != nil {
+		return "", err
+	}
+	if dept.Status != domain.StatusActive {
+		return "사용하지 않는 부서(" + dept.Name + ")여서 처리하지 않았습니다", nil
+	}
+	return "", nil
 }
 
 // JudgeKind writes a department's judgment prompt, checks the answer and

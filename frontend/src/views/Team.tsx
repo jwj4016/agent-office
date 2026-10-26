@@ -1,4 +1,4 @@
-import {Bot, Building, Copy, FileText, FlaskConical, GripVertical, LayoutTemplate, Pencil, Plus, Radio, UserPlus, Users} from 'lucide-react';
+import {Bot, Building, CalendarClock, Copy, FileText, FlaskConical, GripVertical, LayoutTemplate, Pencil, Plus, Radio, UserPlus, Users} from 'lucide-react';
 import {type DragEvent, useState} from 'react';
 import {api} from '../api';
 import {t} from '../i18n';
@@ -6,6 +6,7 @@ import {useLoad} from '../live';
 import type {ActiveStatus, ActorKind, Assignment, Department, DepartmentTemplate, Project, Role} from '../types';
 import {AutomationPanel, rulesOf} from './Automation';
 import {SubscriptionPanel} from './Judgments';
+import {scheduleLabel} from './Schedule';
 import {ActorBadge, Banner, Button, DetailHeader, EmptyState, ErrorBox, Field, Icon, Loading, Section, StatusBadge, useAction, useDetail, useToast} from '../ui';
 
 type Form = {
@@ -116,6 +117,7 @@ function ServiceDepartments({project, assignments, roles, onChanged}: {
     project: Project; assignments: Assignment[]; roles: Role[]; onChanged: () => void;
 }) {
     const list = useLoad(() => api.departments(project.id), [project.id], project.id);
+    const schedules = useLoad(() => api.schedules(project.id), [project.id], project.id);
     const templates = useLoad(() => api.departmentTemplates(), []);
     const setDetail = useDetail();
     const action = useAction();
@@ -170,6 +172,9 @@ function ServiceDepartments({project, assignments, roles, onChanged}: {
                                     <td><span className="row nowrap">
                                         <StatusBadge tone={d.status === 'active' ? 'ok' : ''}>{d.status === 'active' ? '사용' : '사용 안 함'}</StatusBadge>
                                         {rulesOf(d).autoStart || rulesOf(d).autoCollab ? <StatusBadge tone="ai" icon={Bot}>자동화</StatusBadge> : null}
+                                        {(schedules.data ?? []).filter((s) => s.departmentId === d.id && s.enabled).map((s) => (
+                                            <StatusBadge key={s.id} tone="info" icon={CalendarClock}>{scheduleLabel(s)}</StatusBadge>
+                                        ))}
                                     </span></td>
                                     <td className="actions"><span className="row nowrap" style={{justifyContent: 'flex-end'}}>
                                         <Button size="sm" icon={Radio} aria-label={`${d.name} 판단 설정`}

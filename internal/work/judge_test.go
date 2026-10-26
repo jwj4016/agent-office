@@ -378,7 +378,7 @@ func TestReviewExistingDocuments(t *testing.T) {
 
 func TestDeepAutomaticChainsAreHeld(t *testing.T) {
 	f := newJudgeFixture(t)
-	res, err := work.Judge(f.db, nil)(context.Background(), storage.Delivery{Purpose: domain.PurposeJudge,
+	res, err := work.Judge(f.db, nil)(context.Background(), storage.Delivery{ProjectID: f.p.ID, DepartmentID: f.dev.ID, Purpose: domain.PurposeJudge,
 		Event: storage.WorkEvent{Automated: true, ChainDepth: domain.DefaultChainDepth}})
 	if err != nil || res.Status != domain.DeliveryHeld || res.Note == "" {
 		t.Fatalf("result = %+v %v", res, err)

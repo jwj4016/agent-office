@@ -226,6 +226,10 @@ export function ListDeliveries(arg1, arg2) {
   return window['go']['main']['App']['ListDeliveries'](arg1, arg2);
 }
 
+export function ListDepartmentSchedules(arg1) {
+  return window['go']['main']['App']['ListDepartmentSchedules'](arg1);
+}
+
 export function ListDepartmentTemplates() {
   return window['go']['main']['App']['ListDepartmentTemplates']();
 }
@@ -412,6 +416,10 @@ export function SaveDepartment(arg1) {
 
 export function SaveDepartmentAsTemplate(arg1, arg2, arg3) {
   return window['go']['main']['App']['SaveDepartmentAsTemplate'](arg1, arg2, arg3);
+}
+
+export function SaveDepartmentSchedule(arg1) {
+  return window['go']['main']['App']['SaveDepartmentSchedule'](arg1);
 }
 
 export function SaveDepartmentTemplate(arg1) {

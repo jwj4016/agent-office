@@ -122,12 +122,14 @@ function CheckRequest({project, departments, disabled, onSent}: {
 
 // DocumentReviewRequest asks one department to judge documents shared
 // before it subscribed (a new department catching up, for example).
-function DocumentReviewRequest({project, departments, disabled, onSent}: {
-    project: Project; departments: Department[]; disabled: boolean; onSent: () => void;
+// DocumentReviewRequest asks a department to judge documents shared
+// before it joined. departmentId fixes the department (its own settings).
+export function DocumentReviewRequest({project, departments, disabled, onSent, departmentId}: {
+    project: Project; departments: Department[]; disabled: boolean; onSent: () => void; departmentId?: string;
 }) {
     const active = departments.filter((d) => d.status === 'active');
     const [open, setOpen] = useState(false);
-    const [dept, setDept] = useState('');
+    const [dept, setDept] = useState(departmentId ?? '');
     const [picked, setPicked] = useState<string[]>([]);
     const docs = useLoad(() => open && dept ? api.documents(project.id, {visibleTo: dept}) : Promise.resolve([]), [project.id, open, dept]);
     const action = useAction();
@@ -149,10 +151,12 @@ function DocumentReviewRequest({project, departments, disabled, onSent}: {
     }
     return (
         <form className="card stack tight" aria-label="기존 자료 검토 요청" onSubmit={(e) => { e.preventDefault(); if (dept && picked.length) send(); }}>
-            <select value={dept} aria-label="검토할 부서" onChange={(e) => { setDept(e.target.value); setPicked([]); }}>
-                <option value="">검토할 부서 선택</option>
-                {active.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-            </select>
+            {departmentId ? null : (
+                <select value={dept} aria-label="검토할 부서" onChange={(e) => { setDept(e.target.value); setPicked([]); }}>
+                    <option value="">검토할 부서 선택</option>
+                    {active.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+                </select>
+            )}
             {dept && docs.data && latest.length === 0 ? <span className="muted small">이 부서가 볼 수 있는 공유 자료가 없습니다.</span> : null}
             {latest.map(({doc, v}) => (
                 <label key={v.id} className="check block">

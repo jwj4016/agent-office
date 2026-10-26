@@ -239,13 +239,16 @@ func (s *AutoStarter) reviewOrErr(ctx context.Context, a storage.AutoStart, issu
 }
 
 // workIssue checks what does not depend on the plan: the service is in
-// auto mode with a budget and room in it, the department starts work on
+// use and in auto mode with a budget and room in it, the department starts work on
 // its own for these categories, and the work does not ask for review.
 func (s *AutoStarter) workIssue(ctx context.Context, w domain.WorkItem) (string, error) {
 	db := s.cfg.DB
 	p, err := db.Project(ctx, w.ProjectID)
 	if err != nil {
 		return "", err
+	}
+	if p.Status == "archived" {
+		return "보관된 서비스의 업무는 자동으로 시작하지 않습니다", nil
 	}
 	if p.Mode != domain.ModeAuto {
 		return "서비스가 자동 모드가 아니어서 사람이 시작합니다", nil

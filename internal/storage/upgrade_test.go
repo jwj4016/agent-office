@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"agent-office/internal/domain"
 )
@@ -261,5 +262,47 @@ func TestUpgradeToAutomationKeepsCollabHistory(t *testing.T) {
 	if rows, _ := db.Read().Query(`PRAGMA foreign_key_check`); rows.Next() {
 		rows.Close()
 		t.Fatal("foreign key violations after upgrade")
+	}
+}
+
+// Stage 8 adds schedules to a stage 7 database without touching its data.
+func TestUpgradeToSchedulesKeepsDepartments(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "v15.db")
+	raw, err := sql.Open("sqlite", "file:"+path+"?_pragma=foreign_keys(1)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ms, _ := loadMigrations()
+	exec := func(q string, args ...any) {
+		t.Helper()
+		if _, err := raw.Exec(q, args...); err != nil {
+			t.Fatalf("%s: %v", q, err)
+		}
+	}
+	exec(`CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at TEXT NOT NULL)`)
+	for _, m := range ms {
+		if m.version > 15 {
+			break
+		}
+		exec(m.sql)
+		exec(`INSERT INTO schema_migrations VALUES (?, ?, ?)`, m.version, m.name, Now())
+	}
+	now := Now()
+	exec(`INSERT INTO projects (id, organization_id, name, created_at, updated_at) VALUES ('prj-1', 'org-default', '서비스', ?, ?)`, now, now)
+	exec(`INSERT INTO departments (id, project_id, name, created_at, updated_at) VALUES ('d-mkt', 'prj-1', '마케팅팀', ?, ?)`, now, now)
+	raw.Close()
+
+	db := openTemp(t, path)
+	defer db.Close()
+	ctx := context.Background()
+	if d, err := db.Department(ctx, "prj-1", "d-mkt"); err != nil || d.Name != "마케팅팀" {
+		t.Fatalf("department after upgrade: %+v %v", d, err)
+	}
+	if list, err := db.DepartmentSchedules(ctx, "prj-1", time.Now()); err != nil || len(list) != 0 {
+		t.Fatalf("schedules after upgrade: %+v %v", list, err)
+	}
+	if _, err := db.SaveDepartmentSchedule(ctx, domain.DepartmentSchedule{ProjectID: "prj-1", DepartmentID: "d-mkt",
+		Frequency: domain.ScheduleDaily, TimeOfDay: "09:00", Timezone: "Asia/Seoul", Enabled: true}); err != nil {
+		t.Fatalf("schedule after upgrade: %v", err)
 	}
 }

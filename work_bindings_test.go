@@ -548,3 +548,33 @@ func TestBindingsCollaborationCompletesGoal(t *testing.T) {
 		t.Fatalf("goal checks = %+v", checks)
 	}
 }
+
+// Stage 8: a department's regular check is saved through the app with the
+// PC's time zone, lists its next slot, and refuses what cannot run.
+func TestBindingsDepartmentSchedule(t *testing.T) {
+	a := startApp(t)
+	p := need(a.CreateProject(ProjectInput{Name: "캠페인"}))
+	mkt := aiDepartment(t, a, p.ID, "마케팅팀", "auto")
+	friday := 5
+	saved := need(a.SaveDepartmentSchedule(domain.DepartmentSchedule{ProjectID: p.ID, DepartmentID: mkt.ID, Frequency: domain.ScheduleWeekly,
+		TimeOfDay: "10:30", Weekday: &friday, Timezone: "Asia/Seoul", Note: "이번 주 자료를 본다", Enabled: true}))
+	list := need(a.ListDepartmentSchedules(p.ID))
+	if len(list) != 1 || list[0].ID != saved.ID || list[0].NextDueAt == "" || list[0].DepartmentName != "마케팅팀" {
+		t.Fatalf("schedules = %+v", list)
+	}
+	next, _ := time.Parse(time.RFC3339, list[0].NextDueAt)
+	seoul, _ := time.LoadLocation("Asia/Seoul")
+	if l := next.In(seoul); l.Weekday() != time.Friday || l.Format("15:04") != "10:30" {
+		t.Fatalf("next slot = %s", l)
+	}
+	if _, err := a.SaveDepartmentSchedule(domain.DepartmentSchedule{ProjectID: p.ID, DepartmentID: mkt.ID, Frequency: domain.ScheduleDaily,
+		TimeOfDay: "10:30", Timezone: "Mars/Base"}); err == nil || !strings.Contains(err.Error(), "시간대") {
+		t.Fatalf("unknown zone: %v", err)
+	}
+	if err := a.SetProjectArchived(p.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.SaveDepartmentSchedule(saved); err == nil {
+		t.Fatal("saved a schedule in an archived service")
+	}
+}

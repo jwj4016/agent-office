@@ -5,7 +5,8 @@ import {t} from '../i18n';
 import {useLoad} from '../live';
 import type {Decisions, Department, Judgment, Project, Proposal, Subscription, WorkPriority} from '../types';
 import {Button, DetailHeader, ErrorBox, Field, Icon, Loading, Section, StatusBadge, relativeTime, useAction, useDetail, useToast} from '../ui';
-import {eventLabel} from './Deliveries';
+import {DocumentReviewRequest, eventLabel} from './Deliveries';
+import {ScheduleSection} from './Schedule';
 
 // The kinds a department can follow, in the order shown. A confirmed
 // document only notifies by default (plan decision 4A), so it starts
@@ -27,7 +28,8 @@ export function SubscriptionPanel({project, department}: { project: Project; dep
         <div className="stack">
             <DetailHeader title={`${department.name} 판단 설정`} onClose={() => setDetail(null)}/>
             <p className="muted small">고른 사건이 생기면 이 부서의 대표 AI가 할 일이 있는지 판단해 업무를 제안합니다.
-                사건의 분류가 하나라도 겹칠 때만 받으려면 분류를 고르세요. 부서 점검 요청은 구독 없이도 받습니다.</p>
+                사건의 분류가 하나라도 겹칠 때만 받으려면 분류를 고르세요. 부서 점검 요청은 구독 없이도 받습니다.
+                구독은 저장한 뒤에 생기는 사건부터 받습니다. 그전에 공유된 자료는 아래에서 골라 검토시키세요.</p>
             {department.leadAssignmentId ? null : <p className="small" role="note">대표 담당자가 없으면 판단하지 못합니다. 부서 편집에서 지정하세요.</p>}
             {list.data.map((s) => <SubscriptionForm key={s.id} project={project} department={department} initial={s}
                                                     categories={categories.data ?? []} onSaved={list.reload}/>)}
@@ -35,6 +37,9 @@ export function SubscriptionPanel({project, department}: { project: Project; dep
                 <SubscriptionForm key={`new-${list.data.length}`} project={project} department={department} categories={categories.data}
                                   onSaved={() => { setAdding(false); list.reload(); }}/>
             ) : <Button size="sm" icon={Radio} onClick={() => setAdding(true)}>구독 추가</Button>}
+            <DocumentReviewRequest project={project} departments={[department]} departmentId={department.id}
+                                   disabled={project.status === 'archived' || department.status !== 'active'} onSent={() => {}}/>
+            <ScheduleSection project={project} department={department}/>
         </div>
     );
 }

@@ -8,7 +8,7 @@ import type {
     Organization, Project, ProjectSummary, Role, RunDetail, StartResult, StoredEvent, SystemStatus, Template,
     Validation, Workflow, WorkflowSpec, AssistKind, AssistRecord,
     Department, DepartmentTemplate, WorkDetail, WorkFilter, WorkItem, WorkNote, WorkStatus,
-    Delivery, DeliveryFilter, Subscription, WorkEventView, WorkPlan, WorkPlanView, AIJob, PlanJobView,
+    Delivery, DeliveryFilter, DepartmentSchedule, ScheduleView, Subscription, WorkEventView, WorkPlan, WorkPlanView, AIJob, PlanJobView,
     DocumentContent, DocumentFilter, DocumentVersion, ImpactCheck, LinkedDocument, NewDocumentVersion, SharedDocument,
     Decisions, Judgment, Proposal, ProposalBatch, ProposalEdit,
     CollabAcceptance, CollabRequest, CollabRequirement, NewCollabRequest, WorkCollab,
@@ -64,6 +64,8 @@ export const api = {
     workEvents: (projectId: string, workItemId: string) => call<WorkEventView[]>(Go.ListWorkEvents(projectId, workItemId)),
     subscriptions: (projectId: string, departmentId = '') => call<Subscription[]>(Go.ListSubscriptions(projectId, departmentId)),
     saveSubscription: (s: Partial<Subscription>) => call<Subscription>(Go.SaveSubscription(s as never)),
+    schedules: (projectId: string) => call<ScheduleView[]>(Go.ListDepartmentSchedules(projectId)),
+    saveSchedule: (s: Partial<DepartmentSchedule>) => call<DepartmentSchedule>(Go.SaveDepartmentSchedule(s as never)),
     deliveries: (projectId: string, filter: DeliveryFilter = {}) => call<Delivery[]>(Go.ListDeliveries(projectId, filter as never)),
     requestDepartmentCheck: (projectId: string, departmentId: string, note: string) =>
         call<void>(Go.RequestDepartmentCheck(projectId, departmentId, note)),

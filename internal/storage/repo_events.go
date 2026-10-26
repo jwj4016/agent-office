@@ -32,6 +32,9 @@ type WorkEvent struct {
 	Automated          bool     `json:"automated"`
 	DocumentID         string   `json:"documentId,omitempty"`
 	DocumentVersionID  string   `json:"documentVersionId,omitempty"`
+	// ScheduleSlot names the regular check slot that asked for this
+	// check; such a check is nobody's waiting request.
+	ScheduleSlot string `json:"scheduleSlot,omitempty"`
 }
 
 // ChainRoot is the sequence of the event that started this event's chain.
