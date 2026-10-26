@@ -365,6 +365,9 @@ label.check.block { display: flex; }
 .segmented { display: inline-flex; padding: 2px; gap: 2px; background: var(--surface-3); border-radius: var(--r-md); }
 .segmented .btn { border: none; box-shadow: none; background: transparent; min-height: 26px; }
 .segmented .btn[aria-pressed="true"] { background: var(--surface); box-shadow: var(--shadow-sm); color: var(--text); }
+.segmented.wrap { flex-wrap: wrap; align-self: flex-start; }
+/* a small heading for one kind of item inside a group */
+.kind-head { font-size: var(--fs-sm); font-weight: 600; color: var(--text-2); }
 
 /* ---------- tables ---------- */
 

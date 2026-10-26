@@ -96,6 +96,8 @@ export function GetWorkCollab(arg1:string,arg2:string):Promise<main.WorkCollab>;
 
 export function GetWorkItem(arg1:string,arg2:string):Promise<main.WorkDetail>;
 
+export function GetWorkLineage(arg1:string,arg2:string):Promise<storage.WorkLineage>;
+
 export function GetWorkPlan(arg1:string,arg2:string):Promise<main.WorkPlanView>;
 
 export function GetWorkflow(arg1:string,arg2:string):Promise<domain.Workflow>;
@@ -159,6 +161,8 @@ export function ListWorkflowAssists(arg1:string,arg2:string):Promise<Array<stora
 export function ListWorkflowChoices(arg1:string):Promise<Array<storage.WorkflowChoice>>;
 
 export function ListWorkflows(arg1:string):Promise<Array<domain.Workflow>>;
+
+export function OperationsOverview(arg1:string):Promise<main.Operations>;
 
 export function PauseRun(arg1:string,arg2:string):Promise<void>;
 

@@ -9,8 +9,8 @@ import {
     useDetail, useToast,
 } from '../ui';
 import {ArtifactViewer} from './ArtifactViewer';
-import {InboxCollaboration} from './Collab';
-import {InboxDecisions, pendingCount} from './Judgments';
+import {decisionKindCounts, decisionKindLabel, decisionKinds, type DecisionKind, InboxGroups} from './InboxGroups';
+import {pendingCount} from './Judgments';
 
 const itemKey = (it: InboxItem) => `${it.kind}:${it.runId}:${it.attemptId}:${it.approvalId ?? ''}:${it.messageId ?? ''}`;
 
@@ -25,25 +25,46 @@ export function Inbox({onOpenRun, onOpenWork}: {
     const groups = new Map<string, InboxItem[]>();
     for (const it of items) groups.set(it.projectName, [...(groups.get(it.projectName) ?? []), it]);
     const card = (it: InboxItem) => <InboxCard key={itemKey(it)} item={it} onDone={reload} onOpenRun={() => onOpenRun(it.projectId, it.runId)}/>;
+    // One kind at a time, or everything ('all'); 'run' is what runs wait for.
+    const [show, setShow] = useState<'all' | 'run' | DecisionKind>('all');
+    const counts = decisions.data ? decisionKindCounts(decisions.data) : undefined;
+    const kinds = decisionKinds.filter((k) => counts && counts[k] > 0);
+    const total = items.length + decisionCount;
     return (
         <div className="page narrow" style={{maxWidth: 880}}>
             <PageHeader title={t.nav.inbox} badges={items.length + decisionCount ? <span className="badge warn count">{items.length + decisionCount}</span> : null}
-                        desc="내가 맡은 작업·리뷰·승인, AI의 질문, 부서가 제안한 업무와 협업 요청입니다. 처리하지 않으면 자동으로 승인되지 않습니다."/>
+                        desc="부서의 결과 검토·협업·제안·질문과 실행이 기다리는 승인·리뷰입니다. 공동 목표별로 묶어 보여 주고, 처리하지 않으면 자동으로 승인되지 않습니다."/>
             <ErrorBox error={error || decisions.error}/>
-            {decisions.data ? <InboxCollaboration collabs={decisions.data.collabs} notices={decisions.data.notices} aiDecisions={decisions.data.aiDecisions}
-                                                  autoReviews={decisions.data.autoReviews} onDone={decisions.reload} onOpenWork={onOpenWork}/> : null}
-            {decisions.data ? <InboxDecisions data={decisions.data} onDone={decisions.reload}/> : null}
+            {kinds.length + (items.length ? 1 : 0) > 1 ? (
+                <div className="segmented wrap" role="group" aria-label="할 일 종류">
+                    <button type="button" className="btn small" aria-pressed={show === 'all'} onClick={() => setShow('all')}>전체 {total}</button>
+                    {kinds.map((k) => (
+                        <button key={k} type="button" className="btn small" aria-pressed={show === k} onClick={() => setShow(k)}>
+                            {decisionKindLabel[k]} {counts![k]}</button>
+                    ))}
+                    {items.length ? <button type="button" className="btn small" aria-pressed={show === 'run'} onClick={() => setShow('run')}>
+                        실행 확인 {items.length}</button> : null}
+                </div>
+            ) : null}
+            {decisions.data && show !== 'run' ? (
+                <InboxGroups data={decisions.data} kind={show === 'all' ? undefined : show} onDone={decisions.reload} onOpenWork={onOpenWork} onOpenRun={onOpenRun}/>
+            ) : null}
             {!data && !error ? <Loading/> : null}
             {data && items.length === 0 && decisionCount === 0 ? (
                 <EmptyState icon={CheckCircle2} title="지금 처리할 일이 없습니다.">
                     AI가 승인·리뷰·답변을 기다리면 여기에 나타나고, 사이드바에 개수가 표시됩니다.
                 </EmptyState>
             ) : null}
-            {groups.size > 1
-                ? [...groups].map(([name, list]) => (
-                    <Section key={name} title={name} count={list.length}><div className="stack">{list.map(card)}</div></Section>
-                ))
-                : <div className="stack">{items.map(card)}</div>}
+            {items.length && (show === 'all' || show === 'run') ? (
+                <Section title="실행 확인" count={items.length}>
+                    {groups.size > 1
+                        ? [...groups].map(([name, list]) => (
+                            <div key={name} className="stack" role="group" aria-label={name}>
+                                <span className="kind-head">{name} <span className="muted">{list.length}</span></span>{list.map(card)}</div>
+                        ))
+                        : <div className="stack">{items.map(card)}</div>}
+                </Section>
+            ) : null}
         </div>
     );
 }

@@ -1,17 +1,17 @@
-import {CalendarClock, Flag, ListTodo, MessageSquarePlus, Pencil, Plus, Target} from 'lucide-react';
-import {useEffect, useState} from 'react';
+import {ArrowRight, CalendarClock, Flag, GitBranch, ListTodo, MessageSquarePlus, Pencil, Plus, Target} from 'lucide-react';
+import {type ReactNode, useEffect, useState} from 'react';
 import {api} from '../api';
 import {t} from '../i18n';
 import {useLoad} from '../live';
-import type {Assignment, Project, Department, WorkFilter, WorkItem, WorkKind, WorkNote, WorkPriority, WorkStatus} from '../types';
+import type {Assignment, Project, Department, WorkCause, WorkFilter, WorkItem, WorkKind, WorkNote, WorkPriority, WorkStatus} from '../types';
 import {
     Banner, Button, DetailHeader, EmptyState, ErrorBox, Field, Icon, Loading, Section, StatusBadge, type Tone, shortTime, useAction, useDetail,
     useToast,
 } from '../ui';
 import {WorkCollaboration} from './Collab';
-import {DeliveryInbox, WorkEvents} from './Deliveries';
+import {DeliveryInbox, eventLabel, WorkEvents} from './Deliveries';
 import {DepartmentDecisions} from './Judgments';
-import {WorkDocuments} from './Documents';
+import {VersionBadge, WorkDocuments} from './Documents';
 import {WorkRun} from './WorkRuns';
 
 export const workStatuses: WorkStatus[] = ['received', 'ready', 'in_progress', 'waiting', 'blocked', 'done', 'cancelled'];
@@ -47,6 +47,92 @@ function OpenOnce({open}: { open: () => void }) {
 
 export function WorkStatusBadge({status, reason}: { status: WorkStatus; reason?: string }) {
     return <StatusBadge tone={workTone[status]}>{t.workStatus[status]}{reason ? ` · ${reason}` : ''}</StatusBadge>;
+}
+
+// GoalResults lists what the goal and its work shared: drafts while the
+// departments work, final versions once confirmed.
+function GoalResults({project, goal, items, onOpenWork}: {
+    project: Project; goal: WorkItem; items: WorkItem[]; onOpenWork: (id: string) => void;
+}) {
+    const docs = useLoad(() => api.documents(project.id), [project.id], project.id);
+    if (docs.error) return <ErrorBox error={docs.error}/>;
+    if (!docs.data) return null;
+    const works = new Map([goal, ...items].map((w) => [w.id, w]));
+    const shared = docs.data.filter((doc) => works.has(doc.workItemId) && doc.status === 'active');
+    return (
+        <Section title="공유 자료와 결과" count={shared.length}>
+            {shared.length === 0 ? <p className="muted small">이 목표의 업무가 공유한 자료가 아직 없습니다.</p> : (
+                <ul className="stack tight" style={{listStyle: 'none', padding: 0, margin: 0}}>
+                    {shared.map((doc) => {
+                        const v = doc.versions.filter((x) => !x.withdrawnAt).at(-1);
+                        const from = works.get(doc.workItemId)!;
+                        return (
+                            <li key={doc.id} className="row between nowrap">
+                                <span className="truncate">{doc.title}</span>
+                                <span className="row nowrap">
+                                    {from.id !== goal.id ? <button className="btn ghost small" onClick={() => onOpenWork(from.id)}>{from.title}</button> : null}
+                                    {v ? <VersionBadge v={v}/> : null}
+                                </span>
+                            </li>
+                        );
+                    })}
+                </ul>
+            )}
+        </Section>
+    );
+}
+
+// WorkLineageSection says why the work started (the event a department
+// judged, or the request it took on) and which work came of it.
+function WorkLineageSection({project, item, onOpenWork}: { project: Project; item: WorkItem; onOpenWork: (id: string) => void }) {
+    const l = useLoad(() => api.workLineage(project.id, item.id), [project.id, item.id, item.updatedAt], project.id);
+    if (l.error) return <ErrorBox error={l.error}/>;
+    if (!l.data) return null;
+    const {causes, next} = l.data;
+    const link = (id: string | undefined, title: string | undefined) =>
+        id ? <button className="btn ghost small" onClick={() => onOpenWork(id)}>{title || '업무'}</button> : null;
+    return (
+        <Section title={<><Icon icon={GitBranch} size={18}/>시작한 이유와 이어진 업무</>} label="시작한 이유와 이어진 업무">
+            {causes.length === 0 ? <p className="muted small">사람이 직접 만든 업무입니다.</p> : null}
+            {causes.map((c, i) => <CauseCard key={i} c={c} link={link}/>)}
+            {next.length ? (
+                <div className="stack tight" role="group" aria-label="이어진 업무">
+                    <span className="kind-head">이 업무에서 이어진 업무 <span className="muted">{next.length}</span></span>
+                    {next.map((n) => (
+                        <span key={`${n.via}-${n.id}`} className="row small">
+                            <Icon icon={ArrowRight} size={14}/>{link(n.id, n.title)}
+                            <span className="muted">{n.departmentName || '부서 없음'} · {n.via === 'collab' ? '협업 요청' : '부서 제안'}</span>
+                            <WorkStatusBadge status={n.status}/>
+                        </span>
+                    ))}
+                </div>
+            ) : null}
+        </Section>
+    );
+}
+
+function CauseCard({c, link}: { c: WorkCause; link: (id: string | undefined, title: string | undefined) => ReactNode }) {
+    if (c.via === 'collab') {
+        return (
+            <div className="card subtle tight stack tight small">
+                <strong>{c.fromDepartmentName} → {c.departmentName} 협업 요청으로 맡은 업무</strong>
+                <span>요청한 업무: {link(c.fromWorkItemId, c.fromWorkTitle)}</span>
+                <span className="pre">요청: {c.reason}</span>
+                <span className="muted">결정: {c.decidedBy === 'ai' ? `${c.departmentName} 대표 AI` : '사람'}</span>
+            </div>
+        );
+    }
+    return (
+        <div className="card subtle tight stack tight small">
+            <strong>{c.departmentName} 제안으로 등록한 업무</strong>
+            <span>사건: {eventLabel(c.eventKind)}{c.eventTitle ? ` · ‘${c.eventTitle}’` : ''} <span className="muted">#{c.eventSequence}</span>
+                {c.scheduleSlot ? <StatusBadge tone="info" icon={CalendarClock}>정기 점검</StatusBadge> : null}</span>
+            {c.eventNote ? <span className="pre">요청 내용: {c.eventNote}</span> : null}
+            {c.documentTitle ? <span>자료: {c.documentTitle}</span> : null}
+            {c.fromWorkItemId ? <span>관련 업무: {link(c.fromWorkItemId, c.fromWorkTitle)}</span> : null}
+            <span className="pre">판단 이유: {c.reason}</span>
+        </div>
+    );
 }
 
 type Context = {
@@ -229,6 +315,10 @@ function WorkPanel({ctx, id, onChanged}: { ctx: Context; id: string; onChanged: 
                 <dt>설명</dt><dd className="pre">{w.description || <span className="muted">적지 않음</span>}</dd>
             </dl>
             <div><Button size="sm" icon={Pencil} disabled={archived} onClick={edit}>{t.common.edit}</Button></div>
+            {w.kind === 'work' ? (
+                <WorkLineageSection project={ctx.project} item={w}
+                                    onOpenWork={(other) => setDetail(<WorkPanel key={other} ctx={ctx} id={other} onChanged={onChanged}/>)}/>
+            ) : null}
 
             <StatusChanger key={`${w.status}-${w.updatedAt}`} ctx={ctx} item={w} disabled={archived} onChanged={changed}/>
 
@@ -261,6 +351,10 @@ function WorkPanel({ctx, id, onChanged}: { ctx: Context; id: string; onChanged: 
                         <p className="muted small">진행 중인 업무가 남아 있습니다. 목표를 완료하기 전에 결과를 확인하세요.</p>
                     ) : null}
                 </Section>
+            ) : null}
+            {w.kind === 'goal' ? (
+                <GoalResults project={ctx.project} goal={w} items={d.data.children}
+                             onOpenWork={(other) => setDetail(<WorkPanel key={other} ctx={ctx} id={other} onChanged={onChanged}/>)}/>
             ) : null}
 
             <WorkEvents project={ctx.project} workItemId={w.id} departments={ctx.departments}/>

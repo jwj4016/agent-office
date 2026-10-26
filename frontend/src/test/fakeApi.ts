@@ -61,7 +61,11 @@ export const fakeApi = {
     proposals: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []), acceptProposal: vi.fn(), rejectProposal: ok(undefined),
     decideProposals: vi.fn(async (..._args: unknown[]) => ({done: 0, errors: [] as string[]})),
     pendingDecisions: vi.fn(async (): Promise<{questions: unknown[]; proposals: unknown[]; collabs: unknown[]; notices: unknown[];
-        aiDecisions: unknown[]; autoReviews: unknown[]}> => ({questions: [], proposals: [], collabs: [], notices: [], aiDecisions: [], autoReviews: []})),
+        aiDecisions: unknown[]; autoReviews: unknown[]; results: unknown[]; goals: Record<string, unknown>}> =>
+        ({questions: [], proposals: [], collabs: [], notices: [], aiDecisions: [], autoReviews: [], results: [], goals: {}})),
+    workLineage: vi.fn(async (..._args: unknown[]): Promise<unknown> => ({causes: [], next: []})),
+    operations: vi.fn(async (..._args: unknown[]): Promise<unknown> => ({departments: [], troubles: [], troubleCount: 0,
+        usage: {inputTokens: 0, outputTokens: 0, costUsd: 0, unknownCostAttempts: 0, attempts: 0, budget: {}}})),
     reviewCollabDecision: vi.fn(), revertCollabDecision: vi.fn(), workflowChoices: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []),
     setDepartmentAutomation: vi.fn(), autoStarts: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []),
     retryAutoStart: ok(undefined), dismissAutoStart: ok(undefined),

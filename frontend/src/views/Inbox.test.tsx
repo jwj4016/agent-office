@@ -106,3 +106,26 @@ describe('Inbox code task', () => {
         await waitFor(() => expect(fakeApi.submitHuman).toHaveBeenCalledWith('prj-1', 'att-1', 1, {}));
     });
 });
+
+describe('Inbox by kind and goal', () => {
+    it('groups a result to check with its goal and filters by kind', async () => {
+        state.inbox = [inboxItem()];
+        const openWork = vi.fn();
+        fakeApi.pendingDecisions.mockResolvedValue({questions: [], proposals: [], collabs: [], notices: [], aiDecisions: [], autoReviews: [],
+            results: [{workItemId: 'w2', projectId: 'prj-1', projectName: '게임', title: '랜딩 검토', departmentName: '개발팀', goalId: 'g1', runId: 'run-9',
+                finishedAt: '2026-10-26T00:00:00Z'}],
+            goals: {w2: {id: 'g1', title: '신규 고객 캠페인'}}});
+        render(<LiveProvider><Inbox onOpenRun={() => {}} onOpenWork={openWork}/></LiveProvider>);
+        const group = await screen.findByRole('region', {name: '공동 목표 신규 고객 캠페인'});
+        expect(within(group).getByRole('group', {name: '결과 검토'})).toBeInTheDocument();
+        fireEvent.click(within(group).getByRole('button', {name: '업무 열기'}));
+        expect(openWork).toHaveBeenCalledWith('prj-1', 'w2');
+        // Only what runs wait for.
+        fireEvent.click(screen.getByRole('button', {name: '실행 확인 1'}));
+        expect(screen.queryByRole('region', {name: '공동 목표 신규 고객 캠페인'})).not.toBeInTheDocument();
+        expect(screen.getByRole('article', {name: '게임 기획 승인'})).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', {name: '결과 검토 1'}));
+        expect(screen.getByRole('region', {name: '공동 목표 신규 고객 캠페인'})).toBeInTheDocument();
+        expect(screen.queryByRole('article', {name: '게임 기획 승인'})).not.toBeInTheDocument();
+    });
+});

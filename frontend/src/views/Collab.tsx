@@ -3,11 +3,8 @@ import {useState} from 'react';
 import {api} from '../api';
 import {t} from '../i18n';
 import {useLoad} from '../live';
-import type {
-    AutoStart, CollabAcceptance, CollabRequest, CollabRequirement, Department, NewCollabRequest, Project, RequiredNotice, WorkItem,
-} from '../types';
+import type {CollabAcceptance, CollabRequest, CollabRequirement, Department, NewCollabRequest, Project, WorkItem} from '../types';
 import {Banner, Button, ErrorBox, Field, Icon, Loading, Section, StatusBadge, type Tone, relativeTime, shortTime, useAction, useToast} from '../ui';
-import {AutoStartBanner} from './Automation';
 
 const statusTone: Record<CollabRequest['status'], Tone> = {requested: 'info', question: 'warn', accepted: 'ok', declined: 'bad', cancelled: ''};
 
@@ -373,38 +370,5 @@ function ReplaceForm({r, busy, onReplace, onCancel}: {
                 <Button size="sm" onClick={onCancel}>{t.common.cancel}</Button>
             </span>
         </form>
-    );
-}
-
-// InboxCollaboration is every service's collaboration waiting on the
-// person, required work that changed after something was finished, what
-// the lead AIs decided, and automatic starts that need the person.
-export function InboxCollaboration({collabs, notices, aiDecisions = [], autoReviews = [], onDone, onOpenWork}: {
-    collabs: CollabRequest[]; notices: RequiredNotice[]; aiDecisions?: CollabRequest[]; autoReviews?: AutoStart[]; onDone: () => void;
-    onOpenWork?: (projectId: string, workItemId: string) => void;
-}) {
-    const action = useAction();
-    const count = collabs.length + notices.length + aiDecisions.length + autoReviews.length;
-    if (count === 0) return null;
-    const close = (n: RequiredNotice, status: 'resolved' | 'dismissed') =>
-        action.run(async () => { await api.closeImpactCheck(n.projectId, n.id, status, ''); onDone(); });
-    return (
-        <Section title={<><Icon icon={Handshake} size={18}/>부서 간 협업과 자동 처리</>} label="부서 간 협업과 자동 처리" count={count}>
-            <div className="stack">
-                {notices.map((n) => (
-                    <Banner key={n.id} tone="warn" title={`${n.projectName} · ${n.workKind === 'goal' ? '공동 목표' : '업무'} ‘${n.workTitle}’`}
-                            actions={<span className="row nowrap">
-                                {onOpenWork ? <Button size="sm" variant="ghost" icon={ExternalLink} onClick={() => onOpenWork(n.projectId, n.workItemId)}>업무 열기</Button> : null}
-                                <Button size="sm" busy={action.busy} onClick={() => close(n, 'resolved')}>확인함</Button>
-                                <Button size="sm" variant="ghost" busy={action.busy} onClick={() => close(n, 'dismissed')}>무시</Button>
-                            </span>}>{n.summary}</Banner>
-                ))}
-                <ErrorBox error={action.error}/>
-                {autoReviews.map((a) => <AutoStartBanner key={a.id} a={a} onDone={onDone} showProject
-                                                         onOpenWork={onOpenWork ? () => onOpenWork(a.projectId, a.workItemId) : undefined}/>)}
-                {[...collabs, ...aiDecisions].map((r) => <CollabCard key={r.id} r={r} onDone={onDone} showProject
-                                                                     onOpenWork={onOpenWork ? (id) => onOpenWork(r.projectId, id) : undefined}/>)}
-            </div>
-        </Section>
     );
 }

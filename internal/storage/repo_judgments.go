@@ -86,7 +86,11 @@ type Proposal struct {
 	EventSequence  int64    `json:"eventSequence"`
 	EventKind      string   `json:"eventKind"`
 	EventTitle     string   `json:"eventTitle"`
-	CreatedAt      string   `json:"createdAt"`
+	// EventWorkItemID is the work the event was about ("" when none);
+	// EventDocumentID the shared document.
+	EventWorkItemID string `json:"eventWorkItemId"`
+	EventDocumentID string `json:"eventDocumentId"`
+	CreatedAt       string `json:"createdAt"`
 }
 
 // normalizeTitle compares titles ignoring case, spaces and punctuation.
@@ -352,7 +356,7 @@ func scanProposal(s interface{ Scan(...any) error }) (Proposal, error) {
 	json.Unmarshal([]byte(cats), &p.Categories)
 	var ev WorkEvent
 	json.Unmarshal([]byte(payload), &ev)
-	p.Categories, p.EventTitle = orEmpty(p.Categories), ev.Title
+	p.Categories, p.EventTitle, p.EventWorkItemID, p.EventDocumentID = orEmpty(p.Categories), ev.Title, ev.WorkItemID, ev.DocumentID
 	return p, err
 }
 

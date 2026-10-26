@@ -6,9 +6,10 @@ import {fakeApi} from '../test/fakeApi';
 vi.mock('../api', () => ({api: fakeApi, errorText: (e: unknown) => String(e)}));
 
 import {LiveProvider} from '../live';
-import type {CollabRequest, Department, Project, RequiredNotice, WorkItem} from '../types';
+import type {CollabRequest, Decisions, Department, Project, RequiredNotice, WorkItem} from '../types';
 import {ToastProvider} from '../ui';
-import {InboxCollaboration, WorkCollaboration, acting, blockReason} from './Collab';
+import {WorkCollaboration, acting, blockReason} from './Collab';
+import {InboxGroups} from './InboxGroups';
 
 const project: Project = {id: 'prj-1', organizationId: 'org-default', name: '캠페인', goal: '', instructions: '', workspacePath: '',
     budget: {}, mode: 'review', status: 'active', createdAt: '', updatedAt: ''};
@@ -31,6 +32,10 @@ const request = (over: Partial<CollabRequest>): CollabRequest => ({
     decidedAt: '', resultWorkItemId: '', resultWorkTitle: '', resultWorkStatus: '', replacesId: '', replacedById: '', dueAt: '', eventSequence: 9,
     satisfied: false, overdue: false, history: [{action: 'requested', body: '페이지를 검토해 주세요', asDepartmentId: 'mkt', author: 'local-owner', createdAt: ''}],
     createdAt: '', updatedAt: '', ...over,
+});
+
+const decisions = (over: Partial<Decisions>): Decisions => ({
+    questions: [], proposals: [], collabs: [], notices: [], aiDecisions: [], autoReviews: [], results: [], goals: {}, ...over,
 });
 
 const Shell = ({children}: { children: ReactNode }) => <LiveProvider><ToastProvider>{children}</ToastProvider></LiveProvider>;
@@ -128,7 +133,7 @@ describe('AI collaboration decisions', () => {
             history: [{action: 'accepted', body: '새 업무 ‘랜딩 검토’ 등록', asDepartmentId: 'dev', author: 'ai:aij-1', createdAt: ''}]});
         fakeApi.reviewCollabDecision.mockResolvedValue({...decided, reviewedAt: 'now'});
         fakeApi.revertCollabDecision.mockResolvedValue(request({}));
-        render(<Shell><InboxCollaboration collabs={[]} notices={[]} aiDecisions={[decided]} onDone={() => {}}/></Shell>);
+        render(<Shell><InboxGroups data={decisions({aiDecisions: [decided]})} onDone={() => {}}/></Shell>);
         const card = screen.getByRole('article', {name: '마케팅팀 → 개발팀 협업 요청'});
         expect(within(card).getByText('AI 결정')).toBeInTheDocument();
         expect(within(card).getByText(/개발팀 대표 AI/)).toBeInTheDocument();
@@ -143,9 +148,10 @@ describe('AI collaboration decisions', () => {
     });
 
     it('lists automatic starts that need the person', () => {
-        render(<Shell><InboxCollaboration collabs={[]} notices={[]} onDone={() => {}} autoReviews={[{id: 'as-1', projectId: 'prj-1', projectName: '캠페인',
+        render(<Shell><InboxGroups onDone={() => {}} data={decisions({autoReviews: [{id: 'as-1', projectId: 'prj-1', projectName: '캠페인',
             workItemId: 'w9', workTitle: '랜딩 검토', departmentId: 'dev', causeSequence: 3, status: 'review', planJobId: '', runId: '',
-            reason: '예산 때문에 자동으로 시작하지 않았습니다', note: '', createdAt: '', updatedAt: ''}]}/></Shell>);
+            reason: '예산 때문에 자동으로 시작하지 않았습니다', note: '', createdAt: '', updatedAt: ''}]})}/></Shell>);
+        expect(screen.getByRole('group', {name: '자동 처리'})).toBeInTheDocument();
         expect(screen.getByText(/캠페인 · ‘랜딩 검토’/)).toBeInTheDocument();
         expect(screen.getByText('예산 때문에 자동으로 시작하지 않았습니다')).toBeInTheDocument();
         fireEvent.click(screen.getByRole('button', {name: '직접 진행'}));
@@ -158,8 +164,13 @@ describe('inbox collaboration', () => {
         fakeApi.answerCollab.mockResolvedValue(request({}));
         const notice: RequiredNotice = {id: 'imp1', projectId: 'prj-1', workItemId: 'g1', cause: 'required_reopened', refId: 'c1', documentId: '',
             summary: '완료한 목표는 그대로 두었습니다.', status: 'open', note: '', createdAt: '', projectName: '캠페인', workTitle: '신규 고객 캠페인', workKind: 'goal'};
-        render(<Shell><InboxCollaboration collabs={[request({status: 'question', followUp: '언제까지 필요한가요?'})]} notices={[notice]} onDone={() => {}}/></Shell>);
-        expect(screen.getByRole('region', {name: '부서 간 협업과 자동 처리'})).toBeInTheDocument();
+        const goal = {id: 'g1', title: '신규 고객 캠페인'};
+        render(<Shell><InboxGroups data={decisions({collabs: [request({status: 'question', followUp: '언제까지 필요한가요?'})], notices: [notice],
+            goals: {w1: goal, g1: goal}})} onDone={() => {}}/></Shell>);
+        // Both are about the same shared goal, each under its kind.
+        const group = screen.getByRole('region', {name: '공동 목표 신규 고객 캠페인'});
+        expect(within(group).getByRole('group', {name: '협업'})).toBeInTheDocument();
+        expect(within(group).getByRole('group', {name: '영향 확인'})).toBeInTheDocument();
         expect(screen.getByText('캠페인 · 공동 목표 ‘신규 고객 캠페인’')).toBeInTheDocument();
         expect(screen.getByText('언제까지 필요한가요?')).toBeInTheDocument();
         fireEvent.click(screen.getByRole('button', {name: '마케팅팀으로서 답하기'}));
@@ -170,8 +181,8 @@ describe('inbox collaboration', () => {
 
     it('says when the lead AI could not decide and opens the work items', () => {
         const openWork = vi.fn();
-        render(<Shell><InboxCollaboration collabs={[request({requirement: 'reference', aiStatus: 'failed', aiProblem: '협업 결정에 이유가 없습니다'})]}
-                                          notices={[]} onDone={() => {}} onOpenWork={openWork}/></Shell>);
+        render(<Shell><InboxGroups data={decisions({collabs: [request({requirement: 'reference', aiStatus: 'failed', aiProblem: '협업 결정에 이유가 없습니다'})]})}
+                                   onDone={() => {}} onOpenWork={openWork}/></Shell>);
         expect(screen.getByText('개발팀 대표 AI가 결정하지 못했습니다')).toBeInTheDocument();
         expect(screen.getByText(/협업 결정에 이유가 없습니다/)).toBeInTheDocument();
         fireEvent.click(screen.getByRole('button', {name: '캠페인 기획'}));
@@ -179,7 +190,7 @@ describe('inbox collaboration', () => {
     });
 
     it('shows nothing when no collaboration waits', () => {
-        const {container} = render(<Shell><InboxCollaboration collabs={[]} notices={[]} onDone={() => {}}/></Shell>);
+        const {container} = render(<Shell><InboxGroups data={decisions({})} onDone={() => {}}/></Shell>);
         expect(container.querySelector('section')).toBeNull();
     });
 });

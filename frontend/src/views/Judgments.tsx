@@ -265,22 +265,6 @@ export function DepartmentDecisions({project}: { project: Project }) {
 // or (no projectId) in all of them.
 export function pendingCount(d: Decisions | undefined, projectId?: string): number {
     if (!d) return 0;
-    const lists: { projectId: string }[][] = [d.questions, d.proposals, d.collabs, d.notices, d.aiDecisions, d.autoReviews];
+    const lists: { projectId: string }[][] = [d.questions, d.proposals, d.collabs, d.notices, d.aiDecisions, d.autoReviews, d.results];
     return lists.reduce((n, list) => n + list.filter((x) => !projectId || x.projectId === projectId).length, 0);
-}
-
-// InboxDecisions shows every service's department questions and
-// proposals at the top of the inbox.
-export function InboxDecisions({data, onDone}: { data: Decisions; onDone: () => void }) {
-    if (data.questions.length + data.proposals.length === 0) return null;
-    const groups = groupByEvent(data.proposals);
-    return (
-        <Section title={<><Icon icon={Lightbulb} size={18}/>부서의 제안과 질문</>} label="부서의 제안과 질문"
-                 count={data.questions.length + data.proposals.length}>
-            <div className="stack">
-                {data.questions.map((j) => <QuestionCard key={j.id} j={j} onDone={onDone} showProject/>)}
-                {groups.map((g) => <ProposalGroup key={`${g[0].projectId}:${g[0].eventSequence}`} proposals={g} onDone={onDone} showProject/>)}
-            </div>
-        </Section>
-    );
 }

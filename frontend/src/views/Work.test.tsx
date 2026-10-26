@@ -128,6 +128,24 @@ describe('Work', () => {
         expect(fakeApi.workItem).toHaveBeenCalledWith('prj-1', 'w2');
     });
 
+    it('says why the work started and which work came of it', async () => {
+        fakeApi.workItem.mockResolvedValue({item: items[2], notes: [], children: []} satisfies WorkDetail);
+        fakeApi.workLineage.mockResolvedValue({
+            causes: [{via: 'proposal', eventSequence: 12, eventKind: 'document.shared', eventTitle: '캠페인 기획안 1판', eventNote: '',
+                documentTitle: '캠페인 기획안', fromWorkItemId: 'w1', fromWorkTitle: '기획안 작성', departmentName: '개발팀', reason: '새 페이지가 있다',
+                decidedBy: 'user'}],
+            next: [{id: 'w3', title: '예산 검토', status: 'waiting', departmentName: '재무팀', via: 'collab'}],
+        });
+        render(<Shell><Work project={project} workItemId="w2" onTeam={onTeam} onOpenRun={onOpenRun}/></Shell>);
+        const lineage = await screen.findByRole('region', {name: '시작한 이유와 이어진 업무'});
+        expect(within(lineage).getByText('개발팀 제안으로 등록한 업무')).toBeInTheDocument();
+        expect(within(lineage).getByText(/판단 이유: 새 페이지가 있다/)).toBeInTheDocument();
+        expect(within(lineage).getByText(/재무팀 · 협업 요청/)).toBeInTheDocument();
+        fakeApi.workItem.mockResolvedValue({item: items[1], notes: [], children: []} satisfies WorkDetail);
+        fireEvent.click(within(lineage).getByRole('button', {name: '기획안 작성'}));
+        expect(await screen.findByRole('heading', {name: '기획안 작성'})).toBeInTheDocument();
+    });
+
     it('needs a reason to block work and keeps the history', async () => {
         const item = items[2];
         fakeApi.workItem.mockResolvedValue({

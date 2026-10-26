@@ -10,7 +10,7 @@ import type {
     Department, DepartmentTemplate, WorkDetail, WorkFilter, WorkItem, WorkNote, WorkStatus,
     Delivery, DeliveryFilter, DepartmentSchedule, ScheduleView, Subscription, WorkEventView, WorkPlan, WorkPlanView, AIJob, PlanJobView,
     DocumentContent, DocumentFilter, DocumentVersion, ImpactCheck, LinkedDocument, NewDocumentVersion, SharedDocument,
-    Decisions, Judgment, Proposal, ProposalBatch, ProposalEdit,
+    Decisions, Judgment, Operations, Proposal, ProposalBatch, ProposalEdit, WorkLineage,
     CollabAcceptance, CollabRequest, CollabRequirement, NewCollabRequest, WorkCollab,
     AutoStart, DepartmentAutomation, WorkflowChoice,
 } from './types';
@@ -80,6 +80,8 @@ export const api = {
     decideProposals: (projectId: string, ids: string[], accept: boolean, note = '') =>
         call<ProposalBatch>(Go.DecideProposals(projectId, ids, accept, note)),
     pendingDecisions: () => call<Decisions>(Go.PendingDecisions()),
+    workLineage: (projectId: string, workItemId: string) => call<WorkLineage>(Go.GetWorkLineage(projectId, workItemId)),
+    operations: (projectId: string) => call<Operations>(Go.OperationsOverview(projectId)),
     requestDocumentReview: (projectId: string, departmentId: string, versionIds: string[], note: string) =>
         call<number>(Go.RequestDocumentReview(projectId, departmentId, versionIds, note)),
     workCollab: (projectId: string, workItemId: string) => call<WorkCollab>(Go.GetWorkCollab(projectId, workItemId)),

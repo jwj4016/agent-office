@@ -21,6 +21,7 @@ import {DeskDetail, Office, OfficeList, useOffice} from './Office';
 import {Runs} from './Runs';
 import {Team} from './Team';
 import {Documents} from './Documents';
+import {Operations} from './Operations';
 import {pendingCount} from './Judgments';
 import {Work} from './Work';
 import {Workflows} from './Workflows';
@@ -153,6 +154,7 @@ function Status({project, onRoute}: { project: Project; onRoute: (r: Route) => v
                     ) : null}
                 </Section>
             ) : <Banner tone="ok">막힌 실행이나 기다리는 일이 없습니다.</Banner>}
+            <Operations project={project} onRoute={onRoute}/>
 
             {live.length ? (
                 <Section title="진행 중인 실행" count={live.length}>

@@ -82,8 +82,27 @@ func TestBindingsAutoModeStartsAllowedWork(t *testing.T) {
 	if pending := need(a.PendingDecisions()); len(pending.AIDecisions) != 0 {
 		t.Fatalf("kept decision still in the inbox: %+v", pending.AIDecisions)
 	}
+	// The finished run's result waits in the inbox, and the overview counts it.
+	if pending := need(a.PendingDecisions()); len(pending.Results) != 1 || pending.Results[0].WorkItemID != w.ID || pending.Results[0].RunID == "" {
+		t.Fatalf("results to check = %+v", pending.Results)
+	}
+	ops := need(a.OperationsOverview(p.ID))
+	for _, l := range ops.Departments {
+		if l.DepartmentID == dev.ID && (l.ResultsToCheck != 1 || l.Waiting != 1) {
+			t.Fatalf("development load = %+v", l)
+		}
+	}
+	if ops.Usage.Attempts == 0 {
+		t.Fatalf("usage = %+v", ops.Usage)
+	}
+	if l := need(a.GetWorkLineage(p.ID, w.ID)); len(l.Causes) != 1 || l.Causes[0].Via != "collab" || l.Causes[0].DecidedBy != "ai" {
+		t.Fatalf("lineage = %+v", l)
+	}
 	// The person completes the work; a run never did.
 	need(a.SetWorkStatus(p.ID, w.ID, domain.WorkDone, "결과 확인"))
+	if pending := need(a.PendingDecisions()); len(pending.Results) != 0 {
+		t.Fatalf("completed work still to check: %+v", pending.Results)
+	}
 }
 
 // A work item can run a confirmed version of one of the service's

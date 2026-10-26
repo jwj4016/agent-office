@@ -669,6 +669,12 @@ type Decisions struct {
 	Notices     []storage.RequiredNotice `json:"notices"`
 	AIDecisions []storage.CollabRequest  `json:"aiDecisions"`
 	AutoReviews []storage.AutoStart      `json:"autoReviews"`
+	// Results are work items whose run finished, waiting for the person
+	// to check the result.
+	Results []storage.ResultReview `json:"results"`
+	// Goals maps the work each item is about to its shared goal, so the
+	// inbox can group items by goal.
+	Goals map[string]storage.GoalRef `json:"goals"`
 }
 
 // PendingDecisions lists what every active service waits on a person for,
@@ -694,8 +700,68 @@ func (a *App) PendingDecisions() (Decisions, error) {
 	if d.AIDecisions, err = a.db.CollabRequests(a.ctx, "", storage.CollabFilter{AIUnreviewed: true}); err != nil {
 		return Decisions{}, uiErr(err)
 	}
-	d.AutoReviews, err = a.db.AutoStarts(a.ctx, "", storage.AutoStartFilter{Status: storage.AutoReview})
+	if d.AutoReviews, err = a.db.AutoStarts(a.ctx, "", storage.AutoStartFilter{Status: storage.AutoReview}); err != nil {
+		return Decisions{}, uiErr(err)
+	}
+	if d.Results, err = a.db.ResultsToCheck(a.ctx, ""); err != nil {
+		return Decisions{}, uiErr(err)
+	}
+	var works []string
+	for _, j := range d.Questions {
+		works = append(works, j.Event.WorkItemID)
+	}
+	for _, p := range d.Proposals {
+		works = append(works, p.EventWorkItemID)
+	}
+	for _, r := range append(d.Collabs, d.AIDecisions...) {
+		works = append(works, r.FromWorkItemID)
+	}
+	for _, n := range d.Notices {
+		works = append(works, n.WorkItemID)
+	}
+	for _, s := range d.AutoReviews {
+		works = append(works, s.WorkItemID)
+	}
+	for _, r := range d.Results {
+		works = append(works, r.WorkItemID)
+	}
+	d.Goals, err = a.db.GoalsOf(a.ctx, works)
 	return d, uiErr(err)
+}
+
+// GetWorkLineage says why a work item started and what came of it.
+func (a *App) GetWorkLineage(projectID, workItemID string) (storage.WorkLineage, error) {
+	if err := a.ready(); err != nil {
+		return storage.WorkLineage{}, err
+	}
+	l, err := a.db.WorkLineage(a.ctx, projectID, workItemID)
+	return l, uiErr(err)
+}
+
+// Operations is a service's operating picture: each department's open
+// work and what waits on it, deliveries in trouble, and the budget.
+type Operations struct {
+	Departments  []storage.DepartmentLoad  `json:"departments"`
+	Troubles     []storage.DeliveryTrouble `json:"troubles"`
+	TroubleCount int                       `json:"troubleCount"`
+	Usage        engine.Usage              `json:"usage"`
+}
+
+// OperationsOverview reads a service's operating picture.
+func (a *App) OperationsOverview(projectID string) (Operations, error) {
+	if err := a.ready(); err != nil {
+		return Operations{}, err
+	}
+	var o Operations
+	var err error
+	if o.Departments, err = a.db.DepartmentLoads(a.ctx, projectID); err != nil {
+		return o, uiErr(err)
+	}
+	if o.Troubles, o.TroubleCount, err = a.db.DeliveryTroubles(a.ctx, projectID, 5); err != nil {
+		return o, uiErr(err)
+	}
+	o.Usage, err = a.eng.ProjectUsage(a.ctx, projectID)
+	return o, uiErr(err)
 }
 
 // RequestDocumentReview asks a department to judge existing documents,

@@ -102,7 +102,7 @@ describe('Department decisions as to-dos', () => {
             budget: {}, mode: 'auto', status: 'active', createdAt: '', updatedAt: ''}, activeRuns: 0, waitingRuns: 0, failedRuns: 0,
             pausedRuns: 0, inbox: 0, lastRun: null}];
         fakeApi.pendingDecisions.mockResolvedValue({questions: [], proposals: [], collabs: [{projectId: 'prj-1'}], notices: [], aiDecisions: [],
-            autoReviews: [{projectId: 'prj-1'}]});
+            autoReviews: [{projectId: 'prj-1'}], results: [], goals: {}});
         render(<App/>);
         expect(await screen.findByText('부서 간 협업과 결정 2건')).toBeInTheDocument();
         expect(screen.getByText('확인이 필요한 일이 2건 있습니다.')).toBeInTheDocument();

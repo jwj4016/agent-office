@@ -389,7 +389,7 @@ export type Proposal = {
     id: string; projectId: string; projectName: string; judgmentId: string; position: number; departmentId: string; departmentName: string;
     title: string; description: string; doneCriteria: string; categories: string[]; priority: WorkPriority;
     status: 'proposed' | 'accepted' | 'rejected'; workItemId: string; duplicateOf: string; decisionNote: string; reason: string;
-    eventSequence: number; eventKind: string; eventTitle: string; createdAt: string;
+    eventSequence: number; eventKind: string; eventTitle: string; eventWorkItemId: string; eventDocumentId: string; createdAt: string;
 };
 
 export type ProposalEdit = { title?: string; description?: string; doneCriteria?: string; categories?: string[]; priority?: WorkPriority };
@@ -437,7 +437,41 @@ export type RequiredNotice = ImpactCheck & { projectName: string; workTitle: str
 
 // aiDecisions: collaboration the lead AIs decided that the person has not looked at;
 // autoReviews: automatic starts that need the person.
+// results: work whose run finished, waiting for the person to check it;
+// goals: the work each item is about → its shared goal.
 export type Decisions = {
     questions: Judgment[]; proposals: Proposal[]; collabs: CollabRequest[]; notices: RequiredNotice[]; aiDecisions: CollabRequest[];
-    autoReviews: AutoStart[];
+    autoReviews: AutoStart[]; results: ResultReview[]; goals: Record<string, GoalRef>;
 };
+
+export type GoalRef = { id: string; title: string };
+
+export type ResultReview = {
+    workItemId: string; projectId: string; projectName: string; title: string; departmentName: string; goalId: string; runId: string;
+    finishedAt: string;
+};
+
+// Why a work item started: a department's proposal from an event, or a
+// collaboration request it took on.
+export type WorkCause = {
+    via: 'proposal' | 'collab'; proposalId?: string; collabRequestId?: string; eventSequence: number; eventKind: string; eventTitle: string;
+    eventNote: string; scheduleSlot?: string; fromWorkItemId?: string; fromWorkTitle?: string; fromDepartmentName?: string;
+    documentId?: string; documentTitle?: string; departmentName: string; reason: string; decidedBy: '' | 'user' | 'ai';
+};
+
+export type LinkedWork = { id: string; title: string; status: WorkStatus; departmentName: string; via: 'proposal' | 'collab' };
+
+export type WorkLineage = { causes: WorkCause[]; next: LinkedWork[] };
+
+export type WorkRef = { id: string; title: string; status: WorkStatus; reason: string };
+
+// departmentId '' holds work no department has.
+export type DepartmentLoad = {
+    departmentId: string; name: string; status: ActiveStatus; open: number; waiting: number; blocked: number; resultsToCheck: number;
+    proposals: number; questions: number; collabIncoming: number; autoReviews: number; failedDeliveries: number; heldDeliveries: number;
+    attention: WorkRef[];
+};
+
+export type DeliveryTrouble = { id: string; departmentName: string; status: 'failed' | 'held'; reason: string; eventTitle: string; updatedAt: string };
+
+export type Operations = { departments: DepartmentLoad[]; troubles: DeliveryTrouble[]; troubleCount: number; usage: Usage };

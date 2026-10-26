@@ -9,7 +9,8 @@ import {LiveProvider} from '../live';
 import type {Department, Judgment, Project, Proposal, SharedDocument, WorkItem} from '../types';
 import {ToastProvider} from '../ui';
 import {DeliveryInbox} from './Deliveries';
-import {DepartmentDecisions, InboxDecisions, SubscriptionPanel} from './Judgments';
+import {InboxGroups} from './InboxGroups';
+import {DepartmentDecisions, SubscriptionPanel} from './Judgments';
 
 const project: Project = {id: 'prj-1', organizationId: 'org-default', name: '캠페인', goal: '', instructions: '', workspacePath: '',
     budget: {}, mode: 'review', status: 'active', createdAt: '', updatedAt: ''};
@@ -25,7 +26,7 @@ const proposal = (over: Partial<Proposal>): Proposal => ({
     id: 'p', projectId: 'prj-1', projectName: '캠페인', judgmentId: 'j', position: 1, departmentId: 'dev', departmentName: '개발팀',
     title: '페이지 구현 검토', description: '', doneCriteria: '일정 정리', categories: ['개발'], priority: 'high', status: 'proposed',
     workItemId: '', duplicateOf: '', decisionNote: '', reason: '기획안에 새 페이지가 있다', eventSequence: 7, eventKind: 'document.shared',
-    eventTitle: '캠페인 기획안 1판', createdAt: '', ...over,
+    eventTitle: '캠페인 기획안 1판', eventWorkItemId: '', eventDocumentId: '', createdAt: '', ...over,
 });
 
 const question = (over: Partial<Judgment>): Judgment => ({
@@ -119,8 +120,10 @@ describe('department decisions', () => {
 
 describe('inbox decisions', () => {
     it('shows every service’s proposals with the service name', async () => {
-        render(<Shell><InboxDecisions data={{questions: [], proposals: [proposal({id: 'p1', projectName: '부동산'})], collabs: [], notices: [], aiDecisions: [], autoReviews: []}} onDone={() => {}}/></Shell>);
-        expect(screen.getByRole('region', {name: '부서의 제안과 질문'})).toBeInTheDocument();
+        render(<Shell><InboxGroups data={{questions: [], proposals: [proposal({id: 'p1', projectName: '부동산'})], collabs: [], notices: [], aiDecisions: [],
+            autoReviews: [], results: [], goals: {}}} onDone={() => {}}/></Shell>);
+        expect(screen.getByRole('region', {name: '부동산 공동 목표 없음'})).toBeInTheDocument();
+        expect(screen.getByRole('group', {name: '제안'})).toBeInTheDocument();
         expect(screen.getByText(/부동산 · 자료 공유됨/)).toBeInTheDocument();
         fireEvent.click(screen.getByRole('button', {name: '페이지 구현 검토 거절'}));
         fireEvent.change(screen.getByLabelText('거절 이유'), {target: {value: '이미 진행 중'}});
@@ -129,7 +132,8 @@ describe('inbox decisions', () => {
     });
 
     it('shows nothing when no department waits', () => {
-        const {container} = render(<Shell><InboxDecisions data={{questions: [], proposals: [], collabs: [], notices: [], aiDecisions: [], autoReviews: []}} onDone={() => {}}/></Shell>);
+        const {container} = render(<Shell><InboxGroups data={{questions: [], proposals: [], collabs: [], notices: [], aiDecisions: [], autoReviews: [],
+            results: [], goals: {}}} onDone={() => {}}/></Shell>);
         expect(container.querySelector('section')).toBeNull();
     });
 });

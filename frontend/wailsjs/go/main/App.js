@@ -178,6 +178,10 @@ export function GetWorkItem(arg1, arg2) {
   return window['go']['main']['App']['GetWorkItem'](arg1, arg2);
 }
 
+export function GetWorkLineage(arg1, arg2) {
+  return window['go']['main']['App']['GetWorkLineage'](arg1, arg2);
+}
+
 export function GetWorkPlan(arg1, arg2) {
   return window['go']['main']['App']['GetWorkPlan'](arg1, arg2);
 }
@@ -304,6 +308,10 @@ export function ListWorkflowChoices(arg1) {
 
 export function ListWorkflows(arg1) {
   return window['go']['main']['App']['ListWorkflows'](arg1);
+}
+
+export function OperationsOverview(arg1) {
+  return window['go']['main']['App']['OperationsOverview'](arg1);
 }
 
 export function PauseRun(arg1, arg2) {

@@ -2176,6 +2176,8 @@ export namespace main {
 	    notices: storage.RequiredNotice[];
 	    aiDecisions: storage.CollabRequest[];
 	    autoReviews: storage.AutoStart[];
+	    results: storage.ResultReview[];
+	    goals: Record<string, storage.GoalRef>;
 	
 	    static createFrom(source: any = {}) {
 	        return new Decisions(source);
@@ -2189,6 +2191,8 @@ export namespace main {
 	        this.notices = this.convertValues(source["notices"], storage.RequiredNotice);
 	        this.aiDecisions = this.convertValues(source["aiDecisions"], storage.CollabRequest);
 	        this.autoReviews = this.convertValues(source["autoReviews"], storage.AutoStart);
+	        this.results = this.convertValues(source["results"], storage.ResultReview);
+	        this.goals = this.convertValues(source["goals"], storage.GoalRef, true);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -2369,6 +2373,42 @@ export namespace main {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.layers = this.convertValues(source["layers"], domain.InstructionLayer);
 	        this.composed = source["composed"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class Operations {
+	    departments: storage.DepartmentLoad[];
+	    troubles: storage.DeliveryTrouble[];
+	    troubleCount: number;
+	    usage: engine.Usage;
+	
+	    static createFrom(source: any = {}) {
+	        return new Operations(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.departments = this.convertValues(source["departments"], storage.DepartmentLoad);
+	        this.troubles = this.convertValues(source["troubles"], storage.DeliveryTrouble);
+	        this.troubleCount = source["troubleCount"];
+	        this.usage = this.convertValues(source["usage"], engine.Usage);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -3156,6 +3196,102 @@ export namespace storage {
 	        this.limit = source["limit"];
 	    }
 	}
+	export class DeliveryTrouble {
+	    id: string;
+	    departmentName: string;
+	    status: string;
+	    reason: string;
+	    eventTitle: string;
+	    updatedAt: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DeliveryTrouble(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.departmentName = source["departmentName"];
+	        this.status = source["status"];
+	        this.reason = source["reason"];
+	        this.eventTitle = source["eventTitle"];
+	        this.updatedAt = source["updatedAt"];
+	    }
+	}
+	export class WorkRef {
+	    id: string;
+	    title: string;
+	    status: string;
+	    reason: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new WorkRef(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.title = source["title"];
+	        this.status = source["status"];
+	        this.reason = source["reason"];
+	    }
+	}
+	export class DepartmentLoad {
+	    departmentId: string;
+	    name: string;
+	    status: string;
+	    open: number;
+	    waiting: number;
+	    blocked: number;
+	    resultsToCheck: number;
+	    proposals: number;
+	    questions: number;
+	    collabIncoming: number;
+	    autoReviews: number;
+	    failedDeliveries: number;
+	    heldDeliveries: number;
+	    attention: WorkRef[];
+	
+	    static createFrom(source: any = {}) {
+	        return new DepartmentLoad(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.departmentId = source["departmentId"];
+	        this.name = source["name"];
+	        this.status = source["status"];
+	        this.open = source["open"];
+	        this.waiting = source["waiting"];
+	        this.blocked = source["blocked"];
+	        this.resultsToCheck = source["resultsToCheck"];
+	        this.proposals = source["proposals"];
+	        this.questions = source["questions"];
+	        this.collabIncoming = source["collabIncoming"];
+	        this.autoReviews = source["autoReviews"];
+	        this.failedDeliveries = source["failedDeliveries"];
+	        this.heldDeliveries = source["heldDeliveries"];
+	        this.attention = this.convertValues(source["attention"], WorkRef);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class DesignApplied {
 	    projectId: string;
 	    roleIds: Record<string, string>;
@@ -3243,6 +3379,20 @@ export namespace storage {
 	    }
 	}
 	
+	export class GoalRef {
+	    id: string;
+	    title: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new GoalRef(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.title = source["title"];
+	    }
+	}
 	export class ImpactCheck {
 	    id: string;
 	    projectId: string;
@@ -3425,6 +3575,26 @@ export namespace storage {
 		    return a;
 		}
 	}
+	export class LinkedWork {
+	    id: string;
+	    title: string;
+	    status: string;
+	    departmentName: string;
+	    via: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new LinkedWork(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.title = source["title"];
+	        this.status = source["status"];
+	        this.departmentName = source["departmentName"];
+	        this.via = source["via"];
+	    }
+	}
 	export class NewCollabRequest {
 	    fromWorkItemId: string;
 	    toDepartmentId: string;
@@ -3494,6 +3664,8 @@ export namespace storage {
 	    eventSequence: number;
 	    eventKind: string;
 	    eventTitle: string;
+	    eventWorkItemId: string;
+	    eventDocumentId: string;
 	    createdAt: string;
 	
 	    static createFrom(source: any = {}) {
@@ -3522,6 +3694,8 @@ export namespace storage {
 	        this.eventSequence = source["eventSequence"];
 	        this.eventKind = source["eventKind"];
 	        this.eventTitle = source["eventTitle"];
+	        this.eventWorkItemId = source["eventWorkItemId"];
+	        this.eventDocumentId = source["eventDocumentId"];
 	        this.createdAt = source["createdAt"];
 	    }
 	}
@@ -3579,6 +3753,32 @@ export namespace storage {
 	        this.projectName = source["projectName"];
 	        this.workTitle = source["workTitle"];
 	        this.workKind = source["workKind"];
+	    }
+	}
+	export class ResultReview {
+	    workItemId: string;
+	    projectId: string;
+	    projectName: string;
+	    title: string;
+	    departmentName: string;
+	    goalId: string;
+	    runId: string;
+	    finishedAt: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ResultReview(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.workItemId = source["workItemId"];
+	        this.projectId = source["projectId"];
+	        this.projectName = source["projectName"];
+	        this.title = source["title"];
+	        this.departmentName = source["departmentName"];
+	        this.goalId = source["goalId"];
+	        this.runId = source["runId"];
+	        this.finishedAt = source["finishedAt"];
 	    }
 	}
 	export class ScheduleView {
@@ -3674,6 +3874,48 @@ export namespace storage {
 		    return a;
 		}
 	}
+	export class WorkCause {
+	    via: string;
+	    proposalId?: string;
+	    collabRequestId?: string;
+	    eventSequence: number;
+	    eventKind: string;
+	    eventTitle: string;
+	    eventNote: string;
+	    scheduleSlot?: string;
+	    fromWorkItemId?: string;
+	    fromWorkTitle?: string;
+	    fromDepartmentName?: string;
+	    documentId?: string;
+	    documentTitle?: string;
+	    departmentName: string;
+	    reason: string;
+	    decidedBy: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new WorkCause(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.via = source["via"];
+	        this.proposalId = source["proposalId"];
+	        this.collabRequestId = source["collabRequestId"];
+	        this.eventSequence = source["eventSequence"];
+	        this.eventKind = source["eventKind"];
+	        this.eventTitle = source["eventTitle"];
+	        this.eventNote = source["eventNote"];
+	        this.scheduleSlot = source["scheduleSlot"];
+	        this.fromWorkItemId = source["fromWorkItemId"];
+	        this.fromWorkTitle = source["fromWorkTitle"];
+	        this.fromDepartmentName = source["fromDepartmentName"];
+	        this.documentId = source["documentId"];
+	        this.documentTitle = source["documentTitle"];
+	        this.departmentName = source["departmentName"];
+	        this.reason = source["reason"];
+	        this.decidedBy = source["decidedBy"];
+	    }
+	}
 	
 	export class WorkEventView {
 	    sequence: number;
@@ -3737,6 +3979,39 @@ export namespace storage {
 	        this.dueBefore = source["dueBefore"];
 	    }
 	}
+	export class WorkLineage {
+	    causes: WorkCause[];
+	    next: LinkedWork[];
+	
+	    static createFrom(source: any = {}) {
+	        return new WorkLineage(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.causes = this.convertValues(source["causes"], WorkCause);
+	        this.next = this.convertValues(source["next"], LinkedWork);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
 	export class WorkflowChoice {
 	    versionId: string;
 	    workflowId: string;

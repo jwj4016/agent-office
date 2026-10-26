@@ -79,3 +79,37 @@ CI 수치는 run 38581308212에서 나왔다. CI는 가상 머신이고, 첫 실
 
 측정하면서 고친 것: 사무실 캔버스가 애니메이션 프레임(170ms)마다 `canvas.width`를 다시 지정해 버퍼를 다시 할당하고 있었다. 크기가 바뀔 때만 지정하도록 고쳤다(`Office.test.tsx` 'redraws animation frames without resizing the canvas', 수정 전 실패 확인). 개발 Mac의 유휴 CPU는 첫 측정 14.2%에서 수정 후 5.9~7.5%가 됐다. 다만 첫 측정은 창 상태를 기록하기 전이라 엄밀한 비교는 아니다. 남은 유휴 CPU는 대부분 화면에 보이는 사무실 애니메이션(약 6fps)이며, 모션 줄이기를 켜거나 다른 탭으로 가면 멈춘다.
 
+
+## 서비스 운영(사건 기반 협업) 인수 증거
+
+[서비스 운영 계획서](plan/service-operations/plan.md) 7장 최종 인수 체크리스트의 증거다. 자동 시험은 정해 둔 응답을 쓰는 시험용 공급자로 돌렸으므로 AI가 협업 필요성을 판단하는 품질은 따로 검증하지 않았다(🟡). 실제 앱 확인은 macOS에서 `wails dev`와 임시 데이터 폴더로 했고, 앱에 들어 있는 시험용 AI는 정해진 형식으로 답하지 않아 화면에서는 실패·재시도 흐름만 확인했다(2026-10-26). Windows·Linux는 CI의 Go·프론트 시험만 통과했다.
+
+| 항목 | 상태 | 증거 |
+|---|---|---|
+| 고정 그래프 없이 기획안 공유에서 개발·재무의 별도 업무 | 🟡 | `TestDepartmentsProposeFromASharedPlan`, `TestBindingsDepartmentsProposeWork` |
+| 다른 업무에서는 개발팀만 참여하고 재무팀은 대응 불필요 | 🟡 | `TestDepartmentsProposeFromASharedPlan`(두 번째 자료) |
+| 사용자 제안 요청과 정기 제안을 함께 사용 | 🟡 | `TestChecksAreInteractiveAndSubscriptionsBackground`, `TestRegularChecksRunOncePerSlot`, `TestBindingsDepartmentSchedule`. 실제 앱에서 정기 점검 한 회차 실행 확인 |
+| 명시적 도움 요청·구독 참여·자료 직접 활용 | 🟡 | `TestBindingsCollaborationCompletesGoal`, `TestWorkEventsReachSubscribedDepartments`, `TestSharedDraftIsUsedByOtherDepartments` |
+| 직접 요청은 지정 부서에만, 자료 접근·예산 제한 유지 | 🟡 | `TestDirectCheckIgnoresSubscriptions`, `TestDocumentScopeLimitsWhoSeesIt`, `TestReviewExistingDocuments`, `TestBudgetHoldsJudgment` |
+| 완료 전 초안 공유와 두 팀의 병렬 작업 | 🟡 | `TestBindingsShareDraftWithAnotherDepartment`, `TestNextRunContinuesFromSharedDraft` |
+| 원본이 바뀌어도 사용한 입력 판 유지 | 🟡 | `TestShareAndReviseDocument`, `TestLinkingAnotherVersionReplacesTheLink` |
+| 새 판·철회는 그 자료를 쓴 업무에만 영향 확인 | 🟡 | `TestShareAndReviseDocument`, `TestWithdrawAndSearch` |
+| 초안 참조와 업무적 승인 구분 | 🟡 | `TestConfirmVersionWithoutChangingIt`, `TestSharedDraftIsUsedByOtherDepartments` |
+| 같은 판 확정(해시·번호 유지, 사건 한 번, 새 내용은 초안) | 🟡 | `TestConfirmVersionWithoutChangingIt` |
+| 확정 사건은 알림만, 직접 고른 부서만 판단 | 🟡 | `TestConfirmVersionWithoutChangingIt`, `TestWorkEventsReachSubscribedDepartments` |
+| 필수·참고용 완료 규칙, 순환 대기 차단 | 🟡 | `TestCollaborationGatesTheGoal`, `TestRequiredCycleRefused` |
+| 수행 업무 없는 필수 요청도 완료를 막고 해제·대체 기록 | 🟡 | `TestRequiredRequestWithoutWorkBlocks`, `TestReplaceRequiredRequest` |
+| 재시작·중복 전달·판단 후 종료·등록 후 종료에도 업무 하나 | 🟡 | `TestDrainHandlesEachDeliveryOnce`, `TestRestartFinishesInterruptedDelivery`, `TestJudgmentSurvivesRestarts`, `TestAcceptingAProposalRegistersWorkOnce` |
+| 같은 회차 재시도와 질문 답변만 다음 회차, 두 종류의 재시작 복구 | 🟡 | `TestFailedCallsAreRetriedAndPaidFor`, `TestQuestionThenAnswerThenDecide`, `TestSecondQuestionGoesToAPerson`, `TestInterruptedCallIsRecovered`, `TestReadyJudgmentIsNotCalledAgain` |
+| 반응할 일이 없으면 업무를 만들지 않음 | 🟡 | `TestDepartmentsProposeFromASharedPlan`(대응 불필요) |
+| 연쇄 깊이·연쇄 업무 수·사건당 부서 수 한도에서 보류 | 🟡 | `TestDeepAutomaticChainsAreHeld`, `TestChainHoldLimits`, `TestJudgeFanoutIsLimited` |
+| 판단·계획의 모든 시도 사용량 합산, 중복 없음, 알 수 없는 비용 | 🟡 | `TestPlanProposalIsAppliedAndPaidFor`, `TestFailedCallsAreRetriedAndPaidFor`, `TestUsageUnknownCost`. 실제 앱 ‘현황’에서 알 수 없는 비용 호출 수 표시 확인 |
+| 예산 보류 중 새 판단·계획·재시도·자동 실행 시작 안 함 | 🟡 | `TestBudgetHoldStopsTheCall`, `TestBudgetHoldsJudgment`, `TestAutoStartChecksSendWorkToReview` |
+| 검토 모드·자동 모드가 기존 권한·예산 준수 | 🟡 | `TestReviewModeWaits`, `TestAutoStartChecksSendWorkToReview`, `TestAutoModeRunsAllowedWorkAndSharesResults` |
+| 사람이 부서를 대신한 결정과 AI 결정의 구분 | 🟡 | `TestAICollabDecisions`, `TestWorkLineageAndDepartmentLoads`(원인의 결정자) |
+| 자동 모드 AI의 참고용 협업 결정, 필수는 사람만, 되돌리기 | 🟡 | `TestAICollabDecisions`, `TestBindingsAutoModeStartsAllowedWork`, `TestFailedAICollabDecisionGoesToThePerson` |
+| 백그라운드가 쌓여도 사용자 요청은 바로, 동시 2건 이하 | 🟡 | `TestLanesDoNotWaitForEachOther`, `TestChecksAreInteractiveAndSubscriptionsBackground` |
+| 새 부서에 과거 사건을 재전달하지 않음 | 🟡 | `TestNewDepartmentJoinsLaterEvents` |
+| 서비스 두 개의 자료·사건·업무가 섞이지 않음 | 🟡 | `TestWorkScopedToService`, `TestDepartmentsBelongToTheirService`, `TestCrossProjectReferencesRejected`, `TestBindingsTwoServicesEndToEnd` |
+| 업그레이드 후 기존 역할·워크플로·실행·산출물 사용 | 🟡 | `TestUpgradeFromV2KeepsData`, `TestUpgradeToDepartmentsKeepsServices`, `TestUpgradeToAutomationKeepsCollabHistory`, `TestUpgradeToSchedulesKeepsDepartments` |
+| (9단계) 어떤 사건 때문에 이 부서가 이 업무를 시작했는지 설명하고 따라가기 | 🟡 | `TestWorkLineageAndDepartmentLoads`, 프론트 `Work.test.tsx`·`Operations.test.tsx`·`Inbox.test.tsx`. 실제 앱에서 협업 업무의 원인·요청한 업무·이어진 업무 이동 확인 |
