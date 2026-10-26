@@ -12,6 +12,7 @@
 | 2026-10-07 | 실제 취소 | `TestCodexRealCancel`, `TestClaudeRealCancel` | Codex 통과 / Claude 남은 프로세스 결함 수정 후 통과 |
 | 2026-10-08 | M4 게이트 흐름 | Windows 11, 실제 Claude(Agent SDK, claude.ai 로그인)·Codex(codex-cli 0.161.0), `TestRealM4Gate` | 분기 skipped→합류, 회의, 병렬 worktree→통합 실제 빌드·테스트, 리뷰 수정 1회차, QA·전달까지 완료(1476s). 도구 허가 14건 사람 처리 |
 | 2026-10-03 | Claude Agent SDK bridge | SDK 0.3.288, Node 26.10.0, `TestClaudeReal` | 성공: started→message→usage($0.0485)→completed(succeeded), 5.4s. 취소 미시험 |
+| 2026-10-26 | 서비스 운영 대표 시나리오 | 실제 Claude(이 PC 로그인, sonnet), macOS arm64, `TestRealServiceOperations` | 성공(2분 28초, AI 시도 11회, 보고 비용 $0.66). 아래 ‘서비스 운영’ 표의 실제 AI 결과 참고. 이 시험에서 Claude 사용량의 입력 토큰에 캐시 토큰이 빠지는 결함을 찾아 고침 |
 
 상태: ⬜ 미착수 · 🟡 구현(자동 테스트만) · ✅ 검증 완료 · ⚠️ 미검증(환경 없음)
 
@@ -113,3 +114,20 @@ CI 수치는 run 38581308212에서 나왔다. CI는 가상 머신이고, 첫 실
 | 서비스 두 개의 자료·사건·업무가 섞이지 않음 | 🟡 | `TestWorkScopedToService`, `TestDepartmentsBelongToTheirService`, `TestCrossProjectReferencesRejected`, `TestBindingsTwoServicesEndToEnd` |
 | 업그레이드 후 기존 역할·워크플로·실행·산출물 사용 | 🟡 | `TestUpgradeFromV2KeepsData`, `TestUpgradeToDepartmentsKeepsServices`, `TestUpgradeToAutomationKeepsCollabHistory`, `TestUpgradeToSchedulesKeepsDepartments` |
 | (9단계) 어떤 사건 때문에 이 부서가 이 업무를 시작했는지 설명하고 따라가기 | 🟡 | `TestWorkLineageAndDepartmentLoads`, 프론트 `Work.test.tsx`·`Operations.test.tsx`·`Inbox.test.tsx`. 실제 앱에서 협업 업무의 원인·요청한 업무·이어진 업무 이동 확인 |
+
+### 실제 AI로 돌린 대표 시나리오 (2026-10-26)
+
+`AGENT_OFFICE_REAL_OPERATIONS=sonnet go test . -run TestRealServiceOperations -v -timeout 60m`(실제 Claude, 이 PC의 로그인, macOS). 계획서 1장 대표 예시와 7장 항목을 앱 바인딩으로 그대로 따라간다. 기계적 규칙(누구에게 전달되는지, 무엇이 저장·차단되는지)은 실패로 검사하고, AI의 판단은 기록만 한다.
+
+| 단계 | 결과 |
+|---|---|
+| 마케팅 기획안 초안 공유(랜딩 페이지·가입 폼·쿠폰, 광고 예산 3,000만 원) | 개발팀 ‘캠페인 랜딩 페이지·가입 폼·쿠폰 발급 구현’, 재무팀 ‘캠페인 총예산 및 쿠폰 비용 추정 검토’ 제안. 구독 없는 법무팀은 전달도 호출도 없음 |
+| 제안 등록 | 각 한 번만 등록(두 번째 등록 거절), 두 업무의 원인이 ‘캠페인 기획안’·‘캠페인 기획’으로 나옴 |
+| 개발만 필요한 알림 문구 개선안 공유 | 개발팀은 딥링크 수정 업무 제안, 재무팀은 ‘새 지출 없음’으로 대응 불필요 |
+| 기획안 2판 공개 | 1판을 연결한 개발 업무에만 영향 확인, 기획 업무 자신은 제외. 두 팀 모두 ‘이미 진행 중인 업무 범위’라며 대응 불필요(중복 업무 없음) |
+| 재무팀 필수 협업 | 미충족이면 기획 완료 거절, 수행 업무 완료 뒤 완료됨 |
+| 자동 모드 참고용 협업(배너 화면 변경 정리) | 개발팀 대표 AI가 수락(`decidedBy=ai`) → AI 계획 → 승인 → 실제 실행 → 결과 1건 초안 공유 → ‘결과 검토’ 대기 |
+| 재무팀 정기 점검(회차 실행) | 백그라운드 판단, ‘이미 진행 중인 업무가 있어 새 일 없음’ |
+| 운영 현황 | 부서별 진행·결과 확인·제안 수가 위 결과와 일치, 전달 실패·보류 없음 |
+
+판단 품질 메모: 이번 한 번의 실행에서 제안·불필요 판단은 모두 자료 내용과 맞았고 이유가 구체적이었다. 표본이 한 번뿐이어서 품질을 일반화하지 않는다.

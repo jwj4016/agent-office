@@ -40,7 +40,7 @@ const text = (t: string) =>
 const result = (r: string) =>
     ({
         type: 'result', subtype: 'success', is_error: false, result: r,
-        usage: {input_tokens: 11, output_tokens: 7}, total_cost_usd: 0.0012,
+        usage: {input_tokens: 11, cache_creation_input_tokens: 300, cache_read_input_tokens: 2000, output_tokens: 7}, total_cost_usd: 0.0012,
     }) as unknown as SDKMessage;
 
 test('success maps to normalized events and passes isolation options', async () => {
@@ -56,6 +56,8 @@ test('success maps to normalized events and passes isolation options', async () 
     assert.deepEqual(h.events.map((e) => e.kind), ['started', 'message', 'usage', 'completed']);
     assert.deepEqual(h.events.at(-1)!.payload, {status: 'succeeded', text: 'pong'});
     assert.equal(h.events[2].payload.costUsd, 0.0012);
+    assert.equal(h.events[2].payload.inputTokens, 2311); // cached input counts
+    assert.equal(h.events[2].payload.outputTokens, 7);
     assert.deepEqual(seen!.settingSources, []);
     assert.deepEqual(seen!.systemPrompt, {type: 'preset', preset: 'claude_code', append: '짧게 답한다'});
 });
