@@ -750,6 +750,30 @@ export namespace domain {
 	        this.updatedAt = source["updatedAt"];
 	    }
 	}
+	export class DepartmentAutomation {
+	    autoStart: boolean;
+	    categories: string[];
+	    connectionIds: string[];
+	    outputTypes: string[];
+	    workflowVersionIds: string[];
+	    autoShare: boolean;
+	    autoCollab: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new DepartmentAutomation(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.autoStart = source["autoStart"];
+	        this.categories = source["categories"];
+	        this.connectionIds = source["connectionIds"];
+	        this.outputTypes = source["outputTypes"];
+	        this.workflowVersionIds = source["workflowVersionIds"];
+	        this.autoShare = source["autoShare"];
+	        this.autoCollab = source["autoCollab"];
+	    }
+	}
 	export class DepartmentTemplate {
 	    id: string;
 	    organizationId: string;
@@ -1137,6 +1161,7 @@ export namespace domain {
 	    statusReason: string;
 	    categories: string[];
 	    dueAt: string;
+	    reviewBeforeStart: boolean;
 	    createdAt: string;
 	    updatedAt: string;
 	    closedAt: string;
@@ -1161,6 +1186,7 @@ export namespace domain {
 	        this.statusReason = source["statusReason"];
 	        this.categories = source["categories"];
 	        this.dueAt = source["dueAt"];
+	        this.reviewBeforeStart = source["reviewBeforeStart"];
 	        this.createdAt = source["createdAt"];
 	        this.updatedAt = source["updatedAt"];
 	        this.closedAt = source["closedAt"];
@@ -1199,6 +1225,7 @@ export namespace domain {
 	    instructions: string;
 	    materials: string;
 	    outputs: Output[];
+	    workflowVersionId: string;
 	    updatedAt: string;
 	
 	    static createFrom(source: any = {}) {
@@ -1213,6 +1240,7 @@ export namespace domain {
 	        this.instructions = source["instructions"];
 	        this.materials = source["materials"];
 	        this.outputs = this.convertValues(source["outputs"], Output);
+	        this.workflowVersionId = source["workflowVersionId"];
 	        this.updatedAt = source["updatedAt"];
 	    }
 	
@@ -2112,6 +2140,8 @@ export namespace main {
 	    proposals: storage.Proposal[];
 	    collabs: storage.CollabRequest[];
 	    notices: storage.RequiredNotice[];
+	    aiDecisions: storage.CollabRequest[];
+	    autoReviews: storage.AutoStart[];
 	
 	    static createFrom(source: any = {}) {
 	        return new Decisions(source);
@@ -2123,6 +2153,8 @@ export namespace main {
 	        this.proposals = this.convertValues(source["proposals"], storage.Proposal);
 	        this.collabs = this.convertValues(source["collabs"], storage.CollabRequest);
 	        this.notices = this.convertValues(source["notices"], storage.RequiredNotice);
+	        this.aiDecisions = this.convertValues(source["aiDecisions"], storage.CollabRequest);
+	        this.autoReviews = this.convertValues(source["autoReviews"], storage.AutoStart);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -2558,6 +2590,8 @@ export namespace main {
 	    saved: boolean;
 	    preview: string;
 	    problem: string;
+	    approval: storage.StartApproval;
+	    autoStart?: storage.AutoStart;
 	
 	    static createFrom(source: any = {}) {
 	        return new WorkPlanView(source);
@@ -2569,6 +2603,8 @@ export namespace main {
 	        this.saved = source["saved"];
 	        this.preview = source["preview"];
 	        this.problem = source["problem"];
+	        this.approval = this.convertValues(source["approval"], storage.StartApproval);
+	        this.autoStart = this.convertValues(source["autoStart"], storage.AutoStart);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -2754,6 +2790,58 @@ export namespace storage {
 	        this.scopeNodeId = source["scopeNodeId"];
 	    }
 	}
+	export class AutoStart {
+	    id: string;
+	    projectId: string;
+	    projectName: string;
+	    workItemId: string;
+	    workTitle: string;
+	    departmentId: string;
+	    causeSequence: number;
+	    status: string;
+	    planJobId: string;
+	    runId: string;
+	    reason: string;
+	    note: string;
+	    createdAt: string;
+	    updatedAt: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AutoStart(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.projectId = source["projectId"];
+	        this.projectName = source["projectName"];
+	        this.workItemId = source["workItemId"];
+	        this.workTitle = source["workTitle"];
+	        this.departmentId = source["departmentId"];
+	        this.causeSequence = source["causeSequence"];
+	        this.status = source["status"];
+	        this.planJobId = source["planJobId"];
+	        this.runId = source["runId"];
+	        this.reason = source["reason"];
+	        this.note = source["note"];
+	        this.createdAt = source["createdAt"];
+	        this.updatedAt = source["updatedAt"];
+	    }
+	}
+	export class AutoStartFilter {
+	    workItemId: string;
+	    status: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AutoStartFilter(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.workItemId = source["workItemId"];
+	        this.status = source["status"];
+	    }
+	}
 	export class CollabAcceptance {
 	    existingWorkItemId: string;
 	    title: string;
@@ -2781,6 +2869,7 @@ export namespace storage {
 	    resultWorkItemId: string;
 	    departmentId: string;
 	    open: boolean;
+	    aiUnreviewed: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new CollabFilter(source);
@@ -2792,6 +2881,7 @@ export namespace storage {
 	        this.resultWorkItemId = source["resultWorkItemId"];
 	        this.departmentId = source["departmentId"];
 	        this.open = source["open"];
+	        this.aiUnreviewed = source["aiUnreviewed"];
 	    }
 	}
 	export class CollabHistory {
@@ -2833,8 +2923,12 @@ export namespace storage {
 	    status: string;
 	    followUp: string;
 	    decidedBy: string;
+	    decisionJobId: string;
 	    decisionReason: string;
 	    decidedAt: string;
+	    reviewedAt: string;
+	    revertedAt: string;
+	    revertReason: string;
 	    resultWorkItemId: string;
 	    resultWorkTitle: string;
 	    resultWorkStatus: string;
@@ -2872,8 +2966,12 @@ export namespace storage {
 	        this.status = source["status"];
 	        this.followUp = source["followUp"];
 	        this.decidedBy = source["decidedBy"];
+	        this.decisionJobId = source["decisionJobId"];
 	        this.decisionReason = source["decisionReason"];
 	        this.decidedAt = source["decidedAt"];
+	        this.reviewedAt = source["reviewedAt"];
+	        this.revertedAt = source["revertedAt"];
+	        this.revertReason = source["revertReason"];
 	        this.resultWorkItemId = source["resultWorkItemId"];
 	        this.resultWorkTitle = source["resultWorkTitle"];
 	        this.resultWorkStatus = source["resultWorkStatus"];
@@ -3444,6 +3542,22 @@ export namespace storage {
 	    }
 	}
 	
+	export class StartApproval {
+	    by: string;
+	    at: string;
+	    valid: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new StartApproval(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.by = source["by"];
+	        this.at = source["at"];
+	        this.valid = source["valid"];
+	    }
+	}
 	export class ValidationResult {
 	    issues: domain.Issue[];
 	    canVersion: boolean;
@@ -3539,6 +3653,26 @@ export namespace storage {
 	        this.departmentId = source["departmentId"];
 	        this.parentId = source["parentId"];
 	        this.dueBefore = source["dueBefore"];
+	    }
+	}
+	export class WorkflowChoice {
+	    versionId: string;
+	    workflowId: string;
+	    title: string;
+	    number: number;
+	    createdAt: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new WorkflowChoice(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.versionId = source["versionId"];
+	        this.workflowId = source["workflowId"];
+	        this.title = source["title"];
+	        this.number = source["number"];
+	        this.createdAt = source["createdAt"];
 	    }
 	}
 

@@ -246,4 +246,21 @@ func TestCollabSchemaConstraints(t *testing.T) {
 	f.mustFail(t, "UNIQUE", req, "c10", "d-dev", "reference", "accepted", "", "user", now, "w2", now, now)
 	f.mustFail(t, "FOREIGN KEY", `INSERT INTO collab_request_history (id, project_id, request_id, action, author, created_at) VALUES ('h1', 'estate', 'c1', 'asked', 'me', ?)`, now)
 	f.mustFail(t, "CHECK", `INSERT INTO collab_request_history (id, project_id, request_id, action, author, created_at) VALUES ('h2', 'game', 'c1', 'shrugged', 'me', ?)`, now)
+	f.mustExec(t, `INSERT INTO collab_request_history (id, project_id, request_id, action, author, created_at) VALUES ('h3', 'game', 'c9', 'reverted', 'me', ?)`, now)
+}
+
+// An auto start is one per work item of its service, says why it needs a
+// person, and has a run once started.
+func TestAutoStartSchemaConstraints(t *testing.T) {
+	f := newSchemaFixture(t)
+	now := Now()
+	f.mustExec(t, `INSERT INTO work_items (id, project_id, kind, title, created_at, updated_at) VALUES ('w1', 'game', 'work', '기획', ?, ?)`, now, now)
+	as := `INSERT INTO auto_starts (id, project_id, work_item_id, status, run_id, reason, created_at, updated_at) VALUES (?, ?, 'w1', ?, ?, ?, ?, ?)`
+	f.mustFail(t, "FOREIGN KEY", as, "s0", "estate", "pending", nil, "", now, now)
+	f.mustFail(t, "CHECK", as, "s1", "game", "review", nil, "", now, now)
+	f.mustFail(t, "CHECK", as, "s2", "game", "started", nil, "", now, now)
+	f.mustFail(t, "CHECK", as, "s3", "game", "waiting", nil, "", now, now)
+	f.mustExec(t, as, "s4", "game", "started", "run-game", "", now, now)
+	f.mustFail(t, "UNIQUE", as, "s5", "game", "pending", nil, "", now, now)
+	f.mustFail(t, "FOREIGN KEY", `UPDATE auto_starts SET run_id = 'run-estate' WHERE id = 's4'`)
 }

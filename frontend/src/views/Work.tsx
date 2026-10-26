@@ -340,11 +340,11 @@ function History({ctx, itemId, notes, disabled, onAdded}: {
 }
 
 type WorkDraft = Pick<WorkItem, 'kind' | 'parentId' | 'departmentId' | 'assigneeAssignmentId' | 'title' | 'description'
-    | 'doneCriteria' | 'priority' | 'categories' | 'dueAt'> & { id?: string };
+    | 'doneCriteria' | 'priority' | 'categories' | 'dueAt' | 'reviewBeforeStart'> & { id?: string };
 
 const emptyWork: WorkDraft = {
     kind: 'work', parentId: '', departmentId: '', assigneeAssignmentId: '', title: '', description: '', doneCriteria: '',
-    priority: 'normal', categories: [], dueAt: '',
+    priority: 'normal', categories: [], dueAt: '', reviewBeforeStart: false,
 };
 
 // WorkForm creates or edits a work item or goal in the detail pane.

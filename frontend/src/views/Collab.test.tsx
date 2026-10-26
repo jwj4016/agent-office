@@ -21,13 +21,13 @@ const departments = [dept('mkt', '마케팅팀'), dept('dev', '개발팀'), dept
 
 const plan: WorkItem = {
     id: 'w1', projectId: 'prj-1', kind: 'work', parentId: 'g1', departmentId: 'mkt', assigneeAssignmentId: '', title: '캠페인 기획', description: '',
-    doneCriteria: '', priority: 'normal', status: 'in_progress', statusReason: '', categories: [], dueAt: '', createdAt: '', updatedAt: '', closedAt: '',
+    doneCriteria: '', priority: 'normal', status: 'in_progress', statusReason: '', categories: [], dueAt: '', createdAt: '', updatedAt: '', closedAt: '', reviewBeforeStart: false,
 };
 
 const request = (over: Partial<CollabRequest>): CollabRequest => ({
     id: 'c1', projectId: 'prj-1', projectName: '캠페인', fromWorkItemId: 'w1', fromWorkTitle: '캠페인 기획', fromWorkStatus: 'in_progress', goalId: 'g1',
     fromDepartmentId: 'mkt', fromDepartmentName: '마케팅팀', toDepartmentId: 'dev', toDepartmentName: '개발팀', question: '페이지를 검토해 주세요',
-    inputVersionIds: [], requirement: 'required', requirementReason: '', status: 'requested', followUp: '', decidedBy: '', decisionReason: '',
+    inputVersionIds: [], requirement: 'required', requirementReason: '', status: 'requested', followUp: '', decidedBy: '', decisionJobId: '', decisionReason: '', reviewedAt: '', revertedAt: '', revertReason: '',
     decidedAt: '', resultWorkItemId: '', resultWorkTitle: '', resultWorkStatus: '', replacesId: '', replacedById: '', dueAt: '', eventSequence: 9,
     satisfied: false, overdue: false, history: [{action: 'requested', body: '페이지를 검토해 주세요', asDepartmentId: 'mkt', author: 'local-owner', createdAt: ''}],
     createdAt: '', updatedAt: '', ...over,
@@ -121,13 +121,45 @@ describe('work collaboration', () => {
     });
 });
 
+describe('AI collaboration decisions', () => {
+    it('lets the person keep or revert what the lead AI decided', async () => {
+        const decided = request({requirement: 'reference', status: 'accepted', decidedBy: 'ai', decisionJobId: 'aij-1', decisionReason: '우리 일이다',
+            resultWorkItemId: 'w9', resultWorkTitle: '랜딩 검토', resultWorkStatus: 'received',
+            history: [{action: 'accepted', body: '새 업무 ‘랜딩 검토’ 등록', asDepartmentId: 'dev', author: 'ai:aij-1', createdAt: ''}]});
+        fakeApi.reviewCollabDecision.mockResolvedValue({...decided, reviewedAt: 'now'});
+        fakeApi.revertCollabDecision.mockResolvedValue(request({}));
+        render(<Shell><InboxCollaboration collabs={[]} notices={[]} aiDecisions={[decided]} onDone={() => {}}/></Shell>);
+        const card = screen.getByRole('article', {name: '마케팅팀 → 개발팀 협업 요청'});
+        expect(within(card).getByText('AI 결정')).toBeInTheDocument();
+        expect(within(card).getByText(/개발팀 대표 AI/)).toBeInTheDocument();
+        fireEvent.click(within(card).getByRole('button', {name: 'AI 결정 확인'}));
+        await waitFor(() => expect(fakeApi.reviewCollabDecision).toHaveBeenCalledWith('prj-1', 'c1'));
+        fireEvent.click(within(card).getByRole('button', {name: 'AI 결정 되돌리기'}));
+        const submit = within(card).getByRole('button', {name: '책임자로서 AI 결정 되돌리기'});
+        expect(submit).toBeDisabled();
+        fireEvent.change(within(card).getByLabelText('되돌리는 이유'), {target: {value: '직접 정하겠다'}});
+        fireEvent.click(submit);
+        await waitFor(() => expect(fakeApi.revertCollabDecision).toHaveBeenCalledWith('prj-1', 'c1', '직접 정하겠다'));
+    });
+
+    it('lists automatic starts that need the person', () => {
+        render(<Shell><InboxCollaboration collabs={[]} notices={[]} onDone={() => {}} autoReviews={[{id: 'as-1', projectId: 'prj-1', projectName: '캠페인',
+            workItemId: 'w9', workTitle: '랜딩 검토', departmentId: 'dev', causeSequence: 3, status: 'review', planJobId: '', runId: '',
+            reason: '예산 때문에 자동으로 시작하지 않았습니다', note: '', createdAt: '', updatedAt: ''}]}/></Shell>);
+        expect(screen.getByText(/캠페인 · ‘랜딩 검토’/)).toBeInTheDocument();
+        expect(screen.getByText('예산 때문에 자동으로 시작하지 않았습니다')).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', {name: '직접 진행'}));
+        expect(fakeApi.dismissAutoStart).toHaveBeenCalledWith('prj-1', 'as-1', '사람이 직접 진행');
+    });
+});
+
 describe('inbox collaboration', () => {
     it('lets the asking department answer a question from the inbox', async () => {
         fakeApi.answerCollab.mockResolvedValue(request({}));
         const notice: RequiredNotice = {id: 'imp1', projectId: 'prj-1', workItemId: 'g1', cause: 'required_reopened', refId: 'c1', documentId: '',
             summary: '완료한 목표는 그대로 두었습니다.', status: 'open', note: '', createdAt: '', projectName: '캠페인', workTitle: '신규 고객 캠페인', workKind: 'goal'};
         render(<Shell><InboxCollaboration collabs={[request({status: 'question', followUp: '언제까지 필요한가요?'})]} notices={[notice]} onDone={() => {}}/></Shell>);
-        expect(screen.getByRole('region', {name: '부서 간 협업'})).toBeInTheDocument();
+        expect(screen.getByRole('region', {name: '부서 간 협업과 자동 처리'})).toBeInTheDocument();
         expect(screen.getByText('캠페인 · 공동 목표 ‘신규 고객 캠페인’')).toBeInTheDocument();
         expect(screen.getByText('언제까지 필요한가요?')).toBeInTheDocument();
         fireEvent.click(screen.getByRole('button', {name: '마케팅팀으로서 답하기'}));

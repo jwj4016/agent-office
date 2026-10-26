@@ -12,6 +12,7 @@ import type {
     DocumentContent, DocumentFilter, DocumentVersion, ImpactCheck, LinkedDocument, NewDocumentVersion, SharedDocument,
     Decisions, Judgment, Proposal, ProposalBatch, ProposalEdit,
     CollabAcceptance, CollabRequest, CollabRequirement, NewCollabRequest, WorkCollab,
+    AutoStart, DepartmentAutomation, WorkflowChoice,
 } from './types';
 
 // The generated d.ts types differ from the real JSON for raw fields, so
@@ -92,6 +93,14 @@ export const api = {
         call<CollabRequest>(Go.SetCollabRequirement(projectId, id, requirement, reason)),
     replaceCollab: (projectId: string, id: string, n: NewCollabRequest, reason: string) =>
         call<CollabRequest>(Go.ReplaceCollab(projectId, id, n as never, reason)),
+    reviewCollabDecision: (projectId: string, id: string) => call<CollabRequest>(Go.ReviewCollabDecision(projectId, id)),
+    revertCollabDecision: (projectId: string, id: string, reason: string) => call<CollabRequest>(Go.RevertCollabDecision(projectId, id, reason)),
+    workflowChoices: (projectId: string) => call<WorkflowChoice[]>(Go.ListWorkflowChoices(projectId)),
+    setDepartmentAutomation: (projectId: string, departmentId: string, rules: DepartmentAutomation) =>
+        call<Department>(Go.SetDepartmentAutomation(projectId, departmentId, rules as never)),
+    autoStarts: (projectId: string, filter: { workItemId?: string; status?: string } = {}) => call<AutoStart[]>(Go.ListAutoStarts(projectId, filter as never)),
+    retryAutoStart: (projectId: string, id: string) => call<void>(Go.RetryAutoStart(projectId, id)),
+    dismissAutoStart: (projectId: string, id: string, note: string) => call<void>(Go.DismissAutoStart(projectId, id, note)),
     workPlan: (projectId: string, workItemId: string) => call<WorkPlanView>(Go.GetWorkPlan(projectId, workItemId)),
     saveWorkPlan: (p: Partial<WorkPlan>) => call<WorkPlan>(Go.SaveWorkPlan(p as never)),
     startWork: (projectId: string, workItemId: string, feedback: string) => call<StartResult>(Go.StartWork(projectId, workItemId, feedback)),

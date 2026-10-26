@@ -69,6 +69,9 @@ type App struct {
 	// ai runs AI work outside runs (work plans) in two lanes.
 	ai     *work.AI
 	aiDone chan struct{}
+	// auto starts work made from events in auto-mode services.
+	auto     *work.AutoStarter
+	autoDone chan struct{}
 
 	deltaMu sync.Mutex
 	deltas  map[string]*Delta
@@ -138,15 +141,26 @@ func (a *App) startup(ctx context.Context) {
 		},
 		Kinds: map[string]work.Kind{
 			storage.JobPlan: work.PlanKind{DB: a.db},
-			storage.JobJudgment: work.JudgeKind{DB: a.db, ReadDocument: func(ctx context.Context, projectID, versionID string) (string, error) {
-				c, err := a.eng.ReadDocumentVersion(ctx, projectID, versionID)
-				return c.Content, err
-			}},
+			storage.JobJudgment:       work.JudgeKind{DB: a.db, ReadDocument: a.readDocumentText},
+			storage.JobCollabDecision: work.CollabKind{DB: a.db, ReadDocument: a.readDocumentText},
 		},
+	})
+	a.auto = work.NewAutoStarter(work.AutoConfig{
+		DB: a.db,
+		Hold: func(ctx context.Context, projectID string) (string, error) {
+			u, err := a.eng.ProjectUsage(ctx, projectID)
+			return u.HoldReason, err
+		},
+		Start: func(ctx context.Context, projectID, workItemID string) (string, error) {
+			return a.eng.StartWork(ctx, projectID, workItemID, "")
+		},
+		Share:  a.eng.ShareRunResults,
+		WakeAI: a.ai.Wake,
 	})
 	a.work = work.New(a.db, work.Judge(a.db, a.ai.Wake))
 	a.db.Subscribe(func(evs []storage.EventRecord) {
 		a.emit(a.ctx, EventStored, evs)
+		a.auto.Wake() // runs, plans and new work move auto starts on
 		for _, ev := range evs {
 			if domain.IsWorkEvent(ev.Kind) {
 				a.work.Wake() // only a signal: the callback must not write
@@ -155,7 +169,7 @@ func (a *App) startup(ctx context.Context) {
 		}
 	})
 	ectx, cancel := context.WithCancel(context.Background())
-	a.stopEngine, a.engineDone, a.workDone, a.aiDone = cancel, make(chan struct{}), make(chan struct{}), make(chan struct{})
+	a.stopEngine, a.engineDone, a.workDone, a.aiDone, a.autoDone = cancel, make(chan struct{}), make(chan struct{}), make(chan struct{}), make(chan struct{})
 	a.design = &design.Service{DB: a.db, Engine: a.eng, Providers: a.providerFor, Connections: a.designConnections, Ctx: ectx,
 		DataDir: dir, Diagram: diagram}
 	if err := a.design.Recover(ctx); err != nil {
@@ -179,6 +193,12 @@ func (a *App) startup(ctx context.Context) {
 		}
 		close(a.aiDone)
 	}()
+	go func() {
+		if err := a.auto.Run(ectx); err != nil {
+			log.Printf("work auto stopped: %v", err)
+		}
+		close(a.autoDone)
+	}()
 	go a.flushDeltas(ectx)
 	if perfEnabled() {
 		perfLog("startup", map[string]any{"version": appVersion})
@@ -201,6 +221,7 @@ func (a *App) shutdown(ctx context.Context) {
 		<-a.engineDone
 		<-a.workDone
 		<-a.aiDone
+		<-a.autoDone
 		a.design.Wait()
 	}
 	if a.db != nil {

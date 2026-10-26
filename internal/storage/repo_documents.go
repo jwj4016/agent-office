@@ -70,6 +70,9 @@ type NewDocumentVersion struct {
 	Path             string `json:"-"`
 	Hash             string `json:"-"`
 	Size             int64  `json:"-"`
+	// CauseSequence is set when automatic processing shares: the event
+	// the work came from, whose chain the share continues.
+	CauseSequence int64 `json:"-"`
 }
 
 const documentCols = `id, project_id, title, categories, COALESCE(owner_department_id, ''), COALESCE(work_item_id, ''), scope,
@@ -263,7 +266,13 @@ func (db *DB) AddDocumentVersion(ctx context.Context, projectID string, nv NewDo
 		if number > 1 {
 			kind = domain.EventDocumentRevised
 		}
-		rec, err := emitWorkEventTx(ctx, c, projectID, kind, documentEvent(doc, number, versionID, ""))
+		ev := documentEvent(doc, number, versionID, "")
+		if nv.CauseSequence > 0 {
+			if err := continueChainTx(ctx, tx, &ev, nv.CauseSequence); err != nil {
+				return err
+			}
+		}
+		rec, err := emitWorkEventTx(ctx, c, projectID, kind, ev)
 		if err != nil {
 			return err
 		}

@@ -242,6 +242,8 @@ export type WorkItem = {
     id: string; projectId: string; kind: WorkKind; parentId: string; departmentId: string; assigneeAssignmentId: string;
     title: string; description: string; doneCriteria: string; priority: WorkPriority; status: WorkStatus; statusReason: string;
     categories: string[]; dueAt: string; createdAt: string; updatedAt: string; closedAt: string;
+    // reviewBeforeStart keeps a person's review before every start, even in auto mode.
+    reviewBeforeStart: boolean;
 };
 
 export type WorkNote = {
@@ -280,14 +282,35 @@ export type Subscription = {
 export type DeliveryFilter = { departmentId?: string; status?: string; limit?: number };
 
 // How one work item is done: who, extra instructions, materials, outputs.
+// With workflowVersionId the work runs that confirmed workflow version as it is.
 export type WorkPlan = {
     workItemId: string; projectId: string; assignmentId: string; instructions: string; materials: string;
-    outputs: WorkflowOutput[]; updatedAt: string;
+    outputs: WorkflowOutput[]; workflowVersionId: string; updatedAt: string;
+};
+
+// The approval the last start was made under; valid while nothing changed since.
+export type StartApproval = { by: '' | 'user' | 'auto'; at: string; valid: boolean };
+
+export type AutoStartStatus = 'pending' | 'planning' | 'approved' | 'started' | 'finished' | 'review' | 'cancelled';
+
+// The auto starter's record of one work item made from an event in an auto-mode service.
+export type AutoStart = {
+    id: string; projectId: string; projectName: string; workItemId: string; workTitle: string; departmentId: string; causeSequence: number;
+    status: AutoStartStatus; planJobId: string; runId: string; reason: string; note: string; createdAt: string; updatedAt: string;
+};
+
+export type WorkflowChoice = { versionId: string; workflowId: string; title: string; number: number; createdAt: string };
+
+// What a department lets happen without a person. Empty categories allow every
+// category, empty connectionIds add no limit, empty outputTypes mean documents only.
+export type DepartmentAutomation = {
+    autoStart: boolean; categories: string[]; connectionIds: string[]; outputTypes: OutputType[]; workflowVersionIds: string[];
+    autoShare: boolean; autoCollab: boolean;
 };
 
 // saved is false when no plan is stored (plan is then a starting point);
 // preview is what a run would be told; problem says why it cannot run.
-export type WorkPlanView = { plan: WorkPlan; saved: boolean; preview: string; problem: string };
+export type WorkPlanView = { plan: WorkPlan; saved: boolean; preview: string; problem: string; approval: StartApproval; autoStart?: AutoStart };
 
 export type AIJobStatus = 'pending' | 'working' | 'waiting_answer' | 'ready' | 'held' | 'failed';
 
@@ -367,7 +390,7 @@ export type ProposalBatch = { done: number; errors: string[] };
 
 export type CollabStatus = 'requested' | 'question' | 'accepted' | 'declined' | 'cancelled';
 export type CollabRequirement = 'reference' | 'required';
-export type CollabAction = 'requested' | 'asked' | 'answered' | 'accepted' | 'declined' | 'cancelled' | 'required' | 'reference' | 'replaced';
+export type CollabAction = 'requested' | 'asked' | 'answered' | 'accepted' | 'declined' | 'cancelled' | 'required' | 'reference' | 'replaced' | 'reverted';
 
 // asDepartmentId is the department the person acted for ('' for the person
 // in charge of the asking work).
@@ -380,7 +403,8 @@ export type CollabRequest = {
     id: string; projectId: string; projectName: string; fromWorkItemId: string; fromWorkTitle: string; fromWorkStatus: WorkStatus; goalId: string;
     fromDepartmentId: string; fromDepartmentName: string; toDepartmentId: string; toDepartmentName: string; question: string;
     inputVersionIds: string[]; requirement: CollabRequirement; requirementReason: string; status: CollabStatus; followUp: string;
-    decidedBy: '' | 'user' | 'ai'; decisionReason: string; decidedAt: string; resultWorkItemId: string; resultWorkTitle: string;
+    decidedBy: '' | 'user' | 'ai'; decisionJobId: string; decisionReason: string; decidedAt: string; reviewedAt: string; revertedAt: string;
+    revertReason: string; resultWorkItemId: string; resultWorkTitle: string;
     resultWorkStatus: WorkStatus | ''; replacesId: string; replacedById: string; dueAt: string; eventSequence: number;
     satisfied: boolean; overdue: boolean; history: CollabHistory[]; createdAt: string; updatedAt: string;
 };
@@ -401,4 +425,9 @@ export type WorkCollab = { requests: CollabRequest[]; incoming: CollabRequest[];
 
 export type RequiredNotice = ImpactCheck & { projectName: string; workTitle: string; workKind: WorkKind };
 
-export type Decisions = { questions: Judgment[]; proposals: Proposal[]; collabs: CollabRequest[]; notices: RequiredNotice[] };
+// aiDecisions: collaboration the lead AIs decided that the person has not looked at;
+// autoReviews: automatic starts that need the person.
+export type Decisions = {
+    questions: Judgment[]; proposals: Proposal[]; collabs: CollabRequest[]; notices: RequiredNotice[]; aiDecisions: CollabRequest[];
+    autoReviews: AutoStart[];
+};

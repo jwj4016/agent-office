@@ -14,13 +14,13 @@ const project: Project = {id: 'prj-1', organizationId: 'org-default', name: '캠
     budget: {}, mode: 'review', status: 'active', createdAt: '', updatedAt: ''};
 const item: WorkItem = {
     id: 'w1', projectId: 'prj-1', kind: 'work', parentId: '', departmentId: 'dev', assigneeAssignmentId: '', title: '구현 검토', description: '',
-    doneCriteria: '일정 정리', priority: 'normal', status: 'received', statusReason: '', categories: [], dueAt: '', createdAt: '', updatedAt: 't1', closedAt: '',
+    doneCriteria: '일정 정리', priority: 'normal', status: 'received', statusReason: '', categories: [], dueAt: '', createdAt: '', updatedAt: 't1', closedAt: '', reviewBeforeStart: false,
 };
 const assignments = [{id: 'a-dev', displayName: '개발 AI', actorKind: 'ai'}] as Assignment[];
 
 const view = (over: Partial<WorkPlanView> = {}): WorkPlanView => ({
-    plan: {workItemId: 'w1', projectId: 'prj-1', assignmentId: 'a-dev', instructions: '', materials: '', outputs: [{key: 'result', type: 'markdown'}], updatedAt: ''},
-    saved: false, preview: '', problem: '', ...over,
+    plan: {workItemId: 'w1', projectId: 'prj-1', assignmentId: 'a-dev', instructions: '', materials: '', outputs: [{key: 'result', type: 'markdown'}], workflowVersionId: '', updatedAt: ''},
+    saved: false, preview: '', problem: '', approval: {by: '', at: '', valid: false}, ...over,
 });
 const run = (over: Partial<RunDetail>): RunDetail => ({
     id: 'run-1', projectId: 'prj-1', versionId: 'v1', versionNumber: 1, title: '업무: 구현 검토', status: 'succeeded', paused: false,
@@ -143,3 +143,42 @@ describe('AI plan proposals', () => {
         await waitFor(() => expect(fakeApi.retryAIJob).toHaveBeenCalledWith('prj-1', 'aij-1'));
     });
 });
+
+describe('automatic mode on a work item', () => {
+    it('runs a confirmed workflow version as it is, without change requests', async () => {
+        fakeApi.workflowChoices.mockResolvedValue([{versionId: 'wv-1', workflowId: 'wf-1', title: '정기 배포', number: 2, createdAt: ''}]);
+        fakeApi.workPlan.mockResolvedValue(view());
+        fakeApi.saveWorkPlan.mockResolvedValue(view().plan);
+        renderIt();
+        const form = await screen.findByRole('form', {name: '작업 계획'});
+        await screen.findByRole('option', {name: '업무 흐름: 정기 배포 2판'});
+        fireEvent.change(within(form).getByLabelText(/실행 방식/), {target: {value: 'wv-1'}});
+        expect(within(form).queryByLabelText(/작업 지침/)).toBeNull();
+        fireEvent.click(within(form).getByRole('button', {name: '계획 저장'}));
+        await waitFor(() => expect(fakeApi.saveWorkPlan).toHaveBeenCalledWith(expect.objectContaining({workflowVersionId: 'wv-1'})));
+    });
+
+    it('hides the change request for a linked workflow', async () => {
+        fakeApi.workPlan.mockResolvedValue(view({saved: true, preview: '업무 흐름', plan: {...view().plan, workflowVersionId: 'wv-1'}}));
+        fakeApi.workRuns.mockResolvedValue([run({})]);
+        renderIt();
+        expect(await screen.findByRole('button', {name: '다시 실행'})).toBeEnabled();
+        expect(screen.queryByRole('form', {name: '수정 요청'})).toBeNull();
+        expect(screen.queryByRole('button', {name: 'AI에게 계획 제안 받기'})).toBeNull();
+    });
+
+    it('keeps a review before starting and shows a voided approval and the auto start', async () => {
+        fakeApi.workPlan.mockResolvedValue(view({saved: true, approval: {by: 'auto', at: '', valid: false},
+            autoStart: {id: 'as-1', projectId: 'prj-1', projectName: '캠페인', workItemId: 'w1', workTitle: '구현 검토', departmentId: 'dev', causeSequence: 3,
+                status: 'review', planJobId: '', runId: '', reason: '결과 형식 ‘code_change’는 개발팀의 자동 작업 범위 밖입니다', note: '', createdAt: '', updatedAt: ''}}));
+        fakeApi.updateWorkItem.mockResolvedValue({...item, reviewBeforeStart: true});
+        renderIt();
+        expect(await screen.findByText(/자동 시작 승인 · 이후 계획·조건·자료·담당자가 바뀜/)).toBeInTheDocument();
+        expect(screen.getByText(/자동 작업 범위 밖/)).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', {name: '다시 확인'}));
+        await waitFor(() => expect(fakeApi.retryAutoStart).toHaveBeenCalledWith('prj-1', 'as-1'));
+        fireEvent.click(screen.getByRole('checkbox', {name: '자동 모드에서도 시작 전에 직접 검토'}));
+        await waitFor(() => expect(fakeApi.updateWorkItem).toHaveBeenCalledWith(expect.objectContaining({id: 'w1', reviewBeforeStart: true})));
+    });
+});
+

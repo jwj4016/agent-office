@@ -27,7 +27,7 @@ const doc = (over: Partial<SharedDocument> = {}): SharedDocument => ({
 });
 const item: WorkItem = {
     id: 'w-dev', projectId: 'prj-1', kind: 'work', parentId: '', departmentId: 'dev', assigneeAssignmentId: '', title: '구현 검토', description: '',
-    doneCriteria: '', priority: 'normal', status: 'in_progress', statusReason: '', categories: ['개발'], dueAt: '', createdAt: '', updatedAt: '', closedAt: '',
+    doneCriteria: '', priority: 'normal', status: 'in_progress', statusReason: '', categories: ['개발'], dueAt: '', createdAt: '', updatedAt: '', closedAt: '', reviewBeforeStart: false,
 };
 
 function Shell({children}: { children: ReactNode }) {

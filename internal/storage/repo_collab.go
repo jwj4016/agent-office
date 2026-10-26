@@ -49,10 +49,14 @@ type CollabRequest struct {
 	Requirement        string          `json:"requirement"` // reference | required
 	RequirementReason  string          `json:"requirementReason"`
 	Status             string          `json:"status"`
-	FollowUp           string          `json:"followUp"` // the receiving department's open question
-	DecidedBy          string          `json:"decidedBy"`
+	FollowUp           string          `json:"followUp"`  // the receiving department's open question
+	DecidedBy          string          `json:"decidedBy"` // user | ai
+	DecisionJobID      string          `json:"decisionJobId"`
 	DecisionReason     string          `json:"decisionReason"`
 	DecidedAt          string          `json:"decidedAt"`
+	ReviewedAt         string          `json:"reviewedAt"` // when the person looked at an AI decision
+	RevertedAt         string          `json:"revertedAt"`
+	RevertReason       string          `json:"revertReason"`
 	ResultWorkItemID   string          `json:"resultWorkItemId"`
 	ResultWorkTitle    string          `json:"resultWorkTitle"`
 	ResultWorkStatus   string          `json:"resultWorkStatus"`
@@ -110,7 +114,8 @@ type CollabHistory struct {
 const collabSelect = `SELECT r.id, r.project_id, p.name, r.from_work_item_id, fw.title, fw.status,
 	COALESCE(CASE WHEN fw.kind = 'goal' THEN fw.id ELSE fw.parent_id END, ''),
 	r.from_department_id, fd.name, r.to_department_id, td.name, r.question, r.input_versions, r.requirement, r.requirement_reason,
-	r.status, r.follow_up, r.decided_by, r.decision_reason, COALESCE(r.decided_at, ''),
+	r.status, r.follow_up, r.decided_by, COALESCE(r.decision_job_id, ''), r.decision_reason, COALESCE(r.decided_at, ''),
+	COALESCE(r.reviewed_at, ''), COALESCE(r.reverted_at, ''), r.revert_reason,
 	COALESCE(r.result_work_item_id, ''), COALESCE(rw.title, ''), COALESCE(rw.status, ''), COALESCE(r.replaces_id, ''),
 	COALESCE((SELECT n.id FROM collab_requests n WHERE n.replaces_id = r.id ORDER BY n.created_at DESC LIMIT 1), ''),
 	COALESCE(r.due_at, ''), COALESCE(r.event_sequence, 0), r.created_at, r.updated_at
@@ -123,7 +128,8 @@ func scanCollab(s interface{ Scan(...any) error }) (CollabRequest, error) {
 	var versions string
 	err := s.Scan(&r.ID, &r.ProjectID, &r.ProjectName, &r.FromWorkItemID, &r.FromWorkTitle, &r.FromWorkStatus, &r.GoalID,
 		&r.FromDepartmentID, &r.FromDepartmentName, &r.ToDepartmentID, &r.ToDepartmentName, &r.Question, &versions, &r.Requirement,
-		&r.RequirementReason, &r.Status, &r.FollowUp, &r.DecidedBy, &r.DecisionReason, &r.DecidedAt,
+		&r.RequirementReason, &r.Status, &r.FollowUp, &r.DecidedBy, &r.DecisionJobID, &r.DecisionReason, &r.DecidedAt,
+		&r.ReviewedAt, &r.RevertedAt, &r.RevertReason,
 		&r.ResultWorkItemID, &r.ResultWorkTitle, &r.ResultWorkStatus, &r.ReplacesID, &r.ReplacedByID,
 		&r.DueAt, &r.EventSequence, &r.CreatedAt, &r.UpdatedAt)
 	json.Unmarshal([]byte(versions), &r.InputVersionIDs)
@@ -204,6 +210,9 @@ type CollabFilter struct {
 	// Open keeps what waits on a person: requests to decide, questions to
 	// answer, and required requests that were declined.
 	Open bool `json:"open"`
+	// AIUnreviewed keeps decisions the lead AI made that the person has
+	// not looked at yet.
+	AIUnreviewed bool `json:"aiUnreviewed"`
 }
 
 // CollabRequests lists a service's requests ("" for every active
@@ -230,6 +239,9 @@ func (db *DB) CollabRequests(ctx context.Context, projectID string, f CollabFilt
 	}
 	if f.Open {
 		where += ` AND (r.status IN ('requested', 'question') OR (r.status = 'declined' AND r.requirement = 'required'))`
+	}
+	if f.AIUnreviewed {
+		where += ` AND r.decided_by = 'ai' AND r.reviewed_at IS NULL AND r.status IN ('accepted', 'declined')`
 	}
 	return queryCollabs(ctx, db.sql, where+` ORDER BY r.created_at, r.rowid`, args...)
 }
@@ -315,8 +327,14 @@ func checkNoCycleTx(ctx context.Context, tx *sql.Tx, r CollabRequest, resultID s
 }
 
 func addCollabHistoryTx(ctx context.Context, tx *sql.Tx, projectID, requestID, action, body, asDept, now string) error {
+	return addCollabHistoryByTx(ctx, tx, projectID, requestID, action, body, asDept, domain.LocalOwner, now)
+}
+
+// addCollabHistoryByTx records who acted: the local person, or "ai:<job>"
+// for the department's lead AI.
+func addCollabHistoryByTx(ctx context.Context, tx *sql.Tx, projectID, requestID, action, body, asDept, author, now string) error {
 	_, err := tx.ExecContext(ctx, `INSERT INTO collab_request_history (id, project_id, request_id, action, body, as_department_id, author, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, NewID("chist"), projectID, requestID, action, strings.TrimSpace(body), asDept, domain.LocalOwner, now)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, NewID("chist"), projectID, requestID, action, strings.TrimSpace(body), asDept, author, now)
 	return err
 }
 
@@ -565,91 +583,118 @@ type CollabAcceptance struct {
 // the material sent with the request.
 func (db *DB) AcceptCollab(ctx context.Context, projectID, id string, a CollabAcceptance) (CollabRequest, error) {
 	return db.changeCollab(ctx, projectID, id, func(c *Change, r CollabRequest, now string) error {
-		tx := c.Tx
 		if err := undecided(r); err != nil {
 			return err
 		}
-		to, err := departmentTx(ctx, tx, projectID, r.ToDepartmentID)
-		if err != nil {
-			return err
-		}
-		if to.Status != domain.StatusActive {
-			return invalid("사용하지 않는 부서는 협업을 수락할 수 없습니다")
-		}
-		from, err := workTx(ctx, tx, projectID, r.FromWorkItemID)
-		if err != nil {
-			return err
-		}
-		var result domain.WorkItem
-		var body string
-		if a.ExistingWorkItemID != "" {
-			if result, err = workTx(ctx, tx, projectID, a.ExistingWorkItemID); err != nil {
-				return err
-			}
-			switch {
-			case result.Kind != domain.WorkTask:
-				return invalid("공동 목표는 협업 업무로 고를 수 없습니다")
-			case result.DepartmentID != r.ToDepartmentID:
-				return invalid("%s의 업무만 고를 수 있습니다", r.ToDepartmentName)
-			case domain.WorkClosed(result.Status):
-				return invalid("닫힌 업무는 협업 업무로 고를 수 없습니다")
-			case result.ID == from.ID:
-				return invalid("요청한 업무를 그대로 고를 수 없습니다")
-			}
-			var used int
-			tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM collab_requests WHERE result_work_item_id = ?`, result.ID).Scan(&used)
-			if used > 0 {
-				return invalid("‘%s’는 이미 다른 협업 요청의 업무입니다", result.Title)
-			}
-			if r.Requirement == CollabRequired {
-				if err := checkNoCycleTx(ctx, tx, r, result.ID); err != nil {
-					return err
-				}
-			}
-			body = fmt.Sprintf("기존 업무 ‘%s’로 수락", result.Title)
-		} else {
-			result = domain.WorkItem{ProjectID: projectID, Kind: domain.WorkTask, DepartmentID: to.ID, Title: a.Title,
-				Description: a.Description, DoneCriteria: a.DoneCriteria, Priority: a.Priority, Categories: from.Categories, DueAt: r.DueAt}
-			if strings.TrimSpace(result.Title) == "" {
-				result.Title = fmt.Sprintf("%s 협업: %s", r.FromDepartmentName, from.Title)
-			}
-			if strings.TrimSpace(result.Description) == "" {
-				result.Description = fmt.Sprintf("%s의 ‘%s’ 업무에서 요청했습니다.\n\n%s", r.FromDepartmentName, from.Title, r.Question)
-			}
-			if result.Priority == "" {
-				result.Priority = from.Priority
-			}
-			if goal := workEventFor(from).GoalID; goal != "" {
-				if g, err := workTx(ctx, tx, projectID, goal); err == nil && !domain.WorkClosed(g.Status) {
-					result.ParentID = g.ID
-				}
-			}
-			if err := normalizeWork(&result); err != nil {
-				return err
-			}
-			if err := checkWorkLinks(ctx, tx, result, true); err != nil {
-				return err
-			}
-			if result.ID, err = insertWorkTx(ctx, c, result, r.EventSequence, ""); err != nil {
-				return err
-			}
-			body = fmt.Sprintf("새 업무 ‘%s’ 등록", result.Title)
-		}
-		for _, v := range r.InputVersionIDs {
-			// Material withdrawn since the request is no longer linked.
-			if err := linkDocumentTx(ctx, tx, projectID, result, v); err != nil && !errors.Is(err, ErrInvalid) {
-				return err
-			}
-		}
-		if _, err := tx.ExecContext(ctx, `UPDATE collab_requests SET status = 'accepted', follow_up = '', decided_by = 'user', decision_reason = ?,
-			decided_at = ?, result_work_item_id = ?, updated_at = ? WHERE id = ?`, strings.TrimSpace(a.Note), now, result.ID, now, r.ID); err != nil {
-			return err
-		}
-		if note := strings.TrimSpace(a.Note); note != "" {
-			body += ": " + note
-		}
-		return addCollabHistoryTx(ctx, tx, projectID, r.ID, "accepted", body, r.ToDepartmentID, now)
+		return acceptCollabTx(ctx, c, r, a, collabDecider{}, now)
 	})
+}
+
+// collabDecider is who decides a request: the person (zero value), or the
+// receiving department's lead AI through one AI job.
+type collabDecider struct{ JobID string }
+
+func (d collabDecider) by() string {
+	if d.JobID != "" {
+		return "ai"
+	}
+	return "user"
+}
+
+func (d collabDecider) author() string {
+	if d.JobID != "" {
+		return "ai:" + d.JobID
+	}
+	return domain.LocalOwner
+}
+
+// acceptCollabTx takes an undecided request on. Work the lead AI
+// registers continues the request event's chain, so the chain limits
+// count it.
+func acceptCollabTx(ctx context.Context, c *Change, r CollabRequest, a CollabAcceptance, who collabDecider, now string) error {
+	tx := c.Tx
+	projectID := r.ProjectID
+	to, err := departmentTx(ctx, tx, projectID, r.ToDepartmentID)
+	if err != nil {
+		return err
+	}
+	if to.Status != domain.StatusActive {
+		return invalid("사용하지 않는 부서는 협업을 수락할 수 없습니다")
+	}
+	from, err := workTx(ctx, tx, projectID, r.FromWorkItemID)
+	if err != nil {
+		return err
+	}
+	var result domain.WorkItem
+	var body string
+	if a.ExistingWorkItemID != "" {
+		if result, err = workTx(ctx, tx, projectID, a.ExistingWorkItemID); err != nil {
+			return err
+		}
+		switch {
+		case result.Kind != domain.WorkTask:
+			return invalid("공동 목표는 협업 업무로 고를 수 없습니다")
+		case result.DepartmentID != r.ToDepartmentID:
+			return invalid("%s의 업무만 고를 수 있습니다", r.ToDepartmentName)
+		case domain.WorkClosed(result.Status):
+			return invalid("닫힌 업무는 협업 업무로 고를 수 없습니다")
+		case result.ID == from.ID:
+			return invalid("요청한 업무를 그대로 고를 수 없습니다")
+		}
+		var used int
+		tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM collab_requests WHERE result_work_item_id = ?`, result.ID).Scan(&used)
+		if used > 0 {
+			return invalid("‘%s’는 이미 다른 협업 요청의 업무입니다", result.Title)
+		}
+		if r.Requirement == CollabRequired {
+			if err := checkNoCycleTx(ctx, tx, r, result.ID); err != nil {
+				return err
+			}
+		}
+		body = fmt.Sprintf("기존 업무 ‘%s’로 수락", result.Title)
+	} else {
+		result = domain.WorkItem{ProjectID: projectID, Kind: domain.WorkTask, DepartmentID: to.ID, Title: a.Title,
+			Description: a.Description, DoneCriteria: a.DoneCriteria, Priority: a.Priority, Categories: from.Categories, DueAt: r.DueAt}
+		if strings.TrimSpace(result.Title) == "" {
+			result.Title = fmt.Sprintf("%s 협업: %s", r.FromDepartmentName, from.Title)
+		}
+		if strings.TrimSpace(result.Description) == "" {
+			result.Description = fmt.Sprintf("%s의 ‘%s’ 업무에서 요청했습니다.\n\n%s", r.FromDepartmentName, from.Title, r.Question)
+		}
+		if result.Priority == "" {
+			result.Priority = from.Priority
+		}
+		if goal := workEventFor(from).GoalID; goal != "" {
+			if g, err := workTx(ctx, tx, projectID, goal); err == nil && !domain.WorkClosed(g.Status) {
+				result.ParentID = g.ID
+			}
+		}
+		if err := normalizeWork(&result); err != nil {
+			return err
+		}
+		if err := checkWorkLinks(ctx, tx, result, true); err != nil {
+			return err
+		}
+		if result.ID, err = insertWorkTx(ctx, c, result, workOrigin{Seq: r.EventSequence, Automated: who.JobID != ""}); err != nil {
+			return err
+		}
+		body = fmt.Sprintf("새 업무 ‘%s’ 등록", result.Title)
+	}
+	for _, v := range r.InputVersionIDs {
+		// Material withdrawn since the request is no longer linked.
+		if err := linkDocumentTx(ctx, tx, projectID, result, v); err != nil && !errors.Is(err, ErrInvalid) {
+			return err
+		}
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE collab_requests SET status = 'accepted', follow_up = '', decided_by = ?, decision_job_id = NULLIF(?, ''),
+			decision_reason = ?, decided_at = ?, result_work_item_id = ?, updated_at = ? WHERE id = ?`,
+		who.by(), who.JobID, strings.TrimSpace(a.Note), now, result.ID, now, r.ID); err != nil {
+		return err
+	}
+	if note := strings.TrimSpace(a.Note); note != "" {
+		body += ": " + note
+	}
+	return addCollabHistoryByTx(ctx, tx, projectID, r.ID, "accepted", body, r.ToDepartmentID, who.author(), now)
 }
 
 // AskCollab records the receiving department's question about a request;
@@ -685,8 +730,44 @@ func (db *DB) AnswerCollab(ctx context.Context, projectID, id, answer string) (C
 		if _, err := c.Tx.ExecContext(ctx, `UPDATE collab_requests SET status = 'requested', follow_up = '', updated_at = ? WHERE id = ?`, now, r.ID); err != nil {
 			return err
 		}
-		return addCollabHistoryTx(ctx, c.Tx, projectID, r.ID, "answered", answer, r.FromDepartmentID, now)
+		if err := addCollabHistoryTx(ctx, c.Tx, projectID, r.ID, "answered", answer, r.FromDepartmentID, now); err != nil {
+			return err
+		}
+		return queueCollabRound2Tx(ctx, c, r, now)
 	})
+}
+
+// queueCollabRound2Tx lets the lead AI decide once more when its round-1
+// question was just answered. After a second question the person decides.
+func queueCollabRound2Tx(ctx context.Context, c *Change, r CollabRequest, now string) error {
+	var deliveryID string
+	err := c.Tx.QueryRowContext(ctx, `SELECT id FROM event_deliveries WHERE event_sequence = ? AND department_id = ? AND purpose = 'collab_request'
+		AND status = 'waiting_answer'`, r.EventSequence, r.ToDepartmentID).Scan(&deliveryID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	first, err := scanAIJob(c.Tx.QueryRowContext(ctx, `SELECT `+aiJobCols+` FROM work_ai_jobs j WHERE j.delivery_id = ? AND j.round = 1`, deliveryID))
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	id := NewID("aij")
+	if _, err := c.Tx.ExecContext(ctx, `INSERT INTO work_ai_jobs (id, project_id, kind, lane, request_key, delivery_id, round, assignment_id,
+		connection_id, model, status, input_snapshot, input_hash, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, 2, NULLIF(?, ''), NULLIF(?, ''), ?, 'pending', ?, ?, ?, ?)`,
+		id, r.ProjectID, first.Kind, first.Lane, fmt.Sprintf("%s:%s:2", first.Kind, deliveryID), deliveryID,
+		first.AssignmentID, first.ConnectionID, first.Model, string(first.InputSnapshot), first.InputHash, now, now); err != nil {
+		return err
+	}
+	if _, err := c.Tx.ExecContext(ctx, `UPDATE event_deliveries SET status = 'processing', note = '', updated_at = ? WHERE id = ?`, now, deliveryID); err != nil {
+		return err
+	}
+	return emitJobUpdate(c, r.ProjectID, id, JobPending)
 }
 
 // DeclineCollab records that the receiving department will not help. A

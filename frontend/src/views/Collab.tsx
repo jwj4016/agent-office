@@ -1,12 +1,13 @@
-import {ArrowRightLeft, Check, CircleHelp, ExternalLink, Handshake, Send, ShieldCheck, Undo2, X} from 'lucide-react';
+import {ArrowRightLeft, Bot, Check, CircleHelp, ExternalLink, Handshake, Send, ShieldCheck, Undo2, X} from 'lucide-react';
 import {useState} from 'react';
 import {api} from '../api';
 import {t} from '../i18n';
 import {useLoad} from '../live';
 import type {
-    CollabAcceptance, CollabRequest, CollabRequirement, Department, NewCollabRequest, Project, RequiredNotice, WorkItem,
+    AutoStart, CollabAcceptance, CollabRequest, CollabRequirement, Department, NewCollabRequest, Project, RequiredNotice, WorkItem,
 } from '../types';
 import {Banner, Button, ErrorBox, Field, Icon, Loading, Section, StatusBadge, type Tone, relativeTime, shortTime, useAction, useToast} from '../ui';
+import {AutoStartBanner} from './Automation';
 
 const statusTone: Record<CollabRequest['status'], Tone> = {requested: 'info', question: 'warn', accepted: 'ok', declined: 'bad', cancelled: ''};
 
@@ -36,10 +37,15 @@ export function acting(name: string) {
     return name + (final === 0 || final === 8 ? '로서' : '으로서');
 }
 
-// actorName is who acted in a history entry: a department, or the person
-// in charge of the asking work.
-const actorName = (r: CollabRequest, id: string) =>
-    id === r.fromDepartmentId ? acting(r.fromDepartmentName) : id === r.toDepartmentId ? acting(r.toDepartmentName) : '책임자';
+// actorName is who acted in a history entry: a department (as the person,
+// or its lead AI), or the person in charge of the asking work.
+const actorName = (r: CollabRequest, id: string, author = '') => {
+    const dept = id === r.fromDepartmentId ? r.fromDepartmentName : id === r.toDepartmentId ? r.toDepartmentName : '';
+    if (author.startsWith('ai:')) return `${dept} 대표 AI`;
+    return dept ? acting(dept) : '책임자';
+};
+
+const aiDecided = (r: CollabRequest) => r.decidedBy === 'ai' && (r.status === 'accepted' || r.status === 'declined' || r.status === 'question');
 
 // WorkCollaboration is a work item's (or goal's) collaboration: the request
 // it came from, what it asked other departments, what keeps it from being
@@ -162,7 +168,7 @@ function CollabRequestForm({project, item, from, departments, onSent, onDone}: {
     );
 }
 
-type Mode = null | 'accept' | 'ask' | 'answer' | 'decline' | 'cancel' | 'require' | 'release' | 'replace';
+type Mode = null | 'accept' | 'ask' | 'answer' | 'decline' | 'cancel' | 'require' | 'release' | 'replace' | 'revert';
 
 // CollabCard is one request with what can be done to it now. Every button
 // says which department (or the person in charge) decides.
@@ -192,6 +198,7 @@ export function CollabCard({r, onDone, onOpenWork, showFrom, showProject, readOn
                 <StatusBadge tone={statusTone[r.status]}>{t.collabStatus[r.status]}</StatusBadge>
                 <StatusBadge tone={required ? 'warn' : ''} icon={required ? ShieldCheck : undefined}>{t.collabRequirement[r.requirement]}</StatusBadge>
                 {r.satisfied ? <StatusBadge tone="ok">충족</StatusBadge> : null}
+                {aiDecided(r) ? <StatusBadge tone="ai" icon={Bot}>{r.reviewedAt ? 'AI 결정 · 확인함' : 'AI 결정'}</StatusBadge> : null}
                 {r.dueAt ? <StatusBadge tone={r.overdue ? 'bad' : ''}>{r.overdue ? `${r.dueAt} 지남` : `기한 ${r.dueAt}`}</StatusBadge> : null}
                 <span className="spacer"/>
                 <span className="muted xsmall">{relativeTime(r.createdAt)}</span>
@@ -206,6 +213,8 @@ export function CollabCard({r, onDone, onOpenWork, showFrom, showProject, readOn
             {r.status === 'question' ? <Banner tone="warn" icon={CircleHelp} title={`${to}의 질문`}>{r.followUp}</Banner> : null}
             {r.status === 'requested' && lastAnswer ? <span className="muted xsmall">{from}의 답변: {lastAnswer.body}</span> : null}
             {r.status === 'declined' ? <span className="small">거절 이유: {r.decisionReason}</span> : null}
+            {r.status === 'accepted' && r.decisionReason ? <span className="small">수락 메모: {r.decisionReason}</span> : null}
+            {r.revertedAt ? <span className="muted xsmall">AI 결정을 되돌렸습니다: {r.revertReason}</span> : null}
             {r.resultWorkItemId ? (
                 <span className="row nowrap small">수행 업무:
                     {onOpenWork ? <button className="btn ghost small" onClick={() => onOpenWork(r.resultWorkItemId)}>{r.resultWorkTitle}</button>
@@ -219,7 +228,7 @@ export function CollabCard({r, onDone, onOpenWork, showFrom, showProject, readOn
                 <summary className="xsmall muted">기록 {r.history.length}건</summary>
                 <ol className="stack tight small" style={{margin: '4px 0 0', paddingLeft: 18}}>
                     {r.history.map((h, i) => (
-                        <li key={i}><strong>{t.collabAction[h.action]}</strong> · {actorName(r, h.asDepartmentId)}
+                        <li key={i}><strong>{t.collabAction[h.action]}</strong> · {actorName(r, h.asDepartmentId, h.author)}
                             {h.body ? <> · <span className="pre">{h.body}</span></> : null} <span className="muted xsmall">{shortTime(h.createdAt)}</span></li>
                     ))}
                 </ol>
@@ -240,6 +249,11 @@ export function CollabCard({r, onDone, onOpenWork, showFrom, showProject, readOn
                     {required && (r.status === 'declined' || r.status === 'cancelled') && !r.replacedById ? (
                         <Button size="sm" icon={ArrowRightLeft} onClick={() => open('replace')}>다른 요청으로 대체</Button>
                     ) : null}
+                    {aiDecided(r) && !r.reviewedAt && r.status !== 'question' ? (
+                        <Button size="sm" icon={Check} busy={action.busy}
+                                onClick={() => act(() => api.reviewCollabDecision(r.projectId, r.id), 'AI의 결정을 확인했습니다')}>AI 결정 확인</Button>
+                    ) : null}
+                    {aiDecided(r) ? <Button size="sm" variant="ghost" icon={Undo2} onClick={() => open('revert')}>AI 결정 되돌리기</Button> : null}
                 </span>
             ) : mode === 'accept' ? (
                 <AcceptForm r={r} busy={action.busy} onCancel={() => setMode(null)}
@@ -256,6 +270,7 @@ export function CollabCard({r, onDone, onOpenWork, showFrom, showProject, readOn
                     case 'cancel': return act(() => api.cancelCollab(r.projectId, r.id, text), '요청을 취소했습니다');
                     case 'require': return act(() => api.setCollabRequirement(r.projectId, r.id, 'required', text), '완료에 필요한 협업으로 지정했습니다');
                     case 'release': return act(() => api.setCollabRequirement(r.projectId, r.id, 'reference', text), '필수 조건을 해제했습니다');
+                    case 'revert': return act(() => api.revertCollabDecision(r.projectId, r.id, text), 'AI의 결정을 되돌렸습니다. 직접 결정하세요');
                     }
                 }}/>
             )}
@@ -264,7 +279,8 @@ export function CollabCard({r, onDone, onOpenWork, showFrom, showProject, readOn
     );
 }
 
-const steps: Record<'ask' | 'answer' | 'decline' | 'cancel' | 'require' | 'release', {label: string; who: 'to' | 'from' | ''; button: string; needed: boolean}> = {
+const steps: Record<'ask' | 'answer' | 'decline' | 'cancel' | 'require' | 'release' | 'revert', {label: string; who: 'to' | 'from' | ''; button: string; needed: boolean}> = {
+    revert: {label: '되돌리는 이유', who: '', button: 'AI 결정 되돌리기', needed: true},
     ask: {label: '질문', who: 'to', button: '질문 보내기', needed: true},
     answer: {label: '답변', who: 'from', button: '답하기', needed: true},
     decline: {label: '거절 이유', who: 'to', button: '거절', needed: true},
@@ -354,14 +370,18 @@ function ReplaceForm({r, busy, onReplace, onCancel}: {
 }
 
 // InboxCollaboration is every service's collaboration waiting on the
-// person, and required work that changed after something was finished.
-export function InboxCollaboration({collabs, notices, onDone}: { collabs: CollabRequest[]; notices: RequiredNotice[]; onDone: () => void }) {
+// person, required work that changed after something was finished, what
+// the lead AIs decided, and automatic starts that need the person.
+export function InboxCollaboration({collabs, notices, aiDecisions = [], autoReviews = [], onDone}: {
+    collabs: CollabRequest[]; notices: RequiredNotice[]; aiDecisions?: CollabRequest[]; autoReviews?: AutoStart[]; onDone: () => void;
+}) {
     const action = useAction();
-    if (collabs.length + notices.length === 0) return null;
+    const count = collabs.length + notices.length + aiDecisions.length + autoReviews.length;
+    if (count === 0) return null;
     const close = (n: RequiredNotice, status: 'resolved' | 'dismissed') =>
         action.run(async () => { await api.closeImpactCheck(n.projectId, n.id, status, ''); onDone(); });
     return (
-        <Section title={<><Icon icon={Handshake} size={18}/>부서 간 협업</>} label="부서 간 협업" count={collabs.length + notices.length}>
+        <Section title={<><Icon icon={Handshake} size={18}/>부서 간 협업과 자동 처리</>} label="부서 간 협업과 자동 처리" count={count}>
             <div className="stack">
                 {notices.map((n) => (
                     <Banner key={n.id} tone="warn" title={`${n.projectName} · ${n.workKind === 'goal' ? '공동 목표' : '업무'} ‘${n.workTitle}’`}
@@ -371,7 +391,9 @@ export function InboxCollaboration({collabs, notices, onDone}: { collabs: Collab
                             </span>}>{n.summary}</Banner>
                 ))}
                 <ErrorBox error={action.error}/>
+                {autoReviews.map((a) => <AutoStartBanner key={a.id} a={a} onDone={onDone} showProject/>)}
                 {collabs.map((r) => <CollabCard key={r.id} r={r} onDone={onDone} showProject/>)}
+                {aiDecisions.map((r) => <CollabCard key={r.id} r={r} onDone={onDone} showProject/>)}
             </div>
         </Section>
     );

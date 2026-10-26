@@ -134,6 +134,10 @@ export function DiscardWorkflowAssist(arg1) {
   return window['go']['main']['App']['DiscardWorkflowAssist'](arg1);
 }
 
+export function DismissAutoStart(arg1, arg2, arg3) {
+  return window['go']['main']['App']['DismissAutoStart'](arg1, arg2, arg3);
+}
+
 export function EnsureTestConnection() {
   return window['go']['main']['App']['EnsureTestConnection']();
 }
@@ -204,6 +208,10 @@ export function LinkDocument(arg1, arg2, arg3) {
 
 export function ListAssignments(arg1) {
   return window['go']['main']['App']['ListAssignments'](arg1);
+}
+
+export function ListAutoStarts(arg1, arg2) {
+  return window['go']['main']['App']['ListAutoStarts'](arg1, arg2);
 }
 
 export function ListCollabRequests(arg1, arg2) {
@@ -286,6 +294,10 @@ export function ListWorkflowAssists(arg1, arg2) {
   return window['go']['main']['App']['ListWorkflowAssists'](arg1, arg2);
 }
 
+export function ListWorkflowChoices(arg1) {
+  return window['go']['main']['App']['ListWorkflowChoices'](arg1);
+}
+
 export function ListWorkflows(arg1) {
   return window['go']['main']['App']['ListWorkflows'](arg1);
 }
@@ -362,12 +374,24 @@ export function RetryAIJob(arg1, arg2) {
   return window['go']['main']['App']['RetryAIJob'](arg1, arg2);
 }
 
+export function RetryAutoStart(arg1, arg2) {
+  return window['go']['main']['App']['RetryAutoStart'](arg1, arg2);
+}
+
 export function RetryDelivery(arg1, arg2) {
   return window['go']['main']['App']['RetryDelivery'](arg1, arg2);
 }
 
 export function RetryStep(arg1, arg2, arg3) {
   return window['go']['main']['App']['RetryStep'](arg1, arg2, arg3);
+}
+
+export function RevertCollabDecision(arg1, arg2, arg3) {
+  return window['go']['main']['App']['RevertCollabDecision'](arg1, arg2, arg3);
+}
+
+export function ReviewCollabDecision(arg1, arg2) {
+  return window['go']['main']['App']['ReviewCollabDecision'](arg1, arg2);
 }
 
 export function RunMessages(arg1, arg2) {
@@ -424,6 +448,10 @@ export function SetCollabRequirement(arg1, arg2, arg3, arg4) {
 
 export function SetConnectionKey(arg1, arg2) {
   return window['go']['main']['App']['SetConnectionKey'](arg1, arg2);
+}
+
+export function SetDepartmentAutomation(arg1, arg2, arg3) {
+  return window['go']['main']['App']['SetDepartmentAutomation'](arg1, arg2, arg3);
 }
 
 export function SetProjectArchived(arg1, arg2) {

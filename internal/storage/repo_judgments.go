@@ -449,7 +449,7 @@ func (db *DB) AcceptProposal(ctx context.Context, projectID, proposalID string, 
 		if err := checkWorkLinks(ctx, tx, w, true); err != nil {
 			return err
 		}
-		created, err := insertWorkTx(ctx, c, w, p.EventSequence, p.ID)
+		created, err := insertWorkTx(ctx, c, w, workOrigin{Seq: p.EventSequence, Proposal: p.ID})
 		if err != nil {
 			return err
 		}

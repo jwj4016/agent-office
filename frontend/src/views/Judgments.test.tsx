@@ -119,7 +119,7 @@ describe('department decisions', () => {
 
 describe('inbox decisions', () => {
     it('shows every service’s proposals with the service name', async () => {
-        render(<Shell><InboxDecisions data={{questions: [], proposals: [proposal({id: 'p1', projectName: '부동산'})], collabs: [], notices: []}} onDone={() => {}}/></Shell>);
+        render(<Shell><InboxDecisions data={{questions: [], proposals: [proposal({id: 'p1', projectName: '부동산'})], collabs: [], notices: [], aiDecisions: [], autoReviews: []}} onDone={() => {}}/></Shell>);
         expect(screen.getByRole('region', {name: '부서의 제안과 질문'})).toBeInTheDocument();
         expect(screen.getByText(/부동산 · 자료 공유됨/)).toBeInTheDocument();
         fireEvent.click(screen.getByRole('button', {name: '페이지 구현 검토 거절'}));
@@ -129,7 +129,7 @@ describe('inbox decisions', () => {
     });
 
     it('shows nothing when no department waits', () => {
-        const {container} = render(<Shell><InboxDecisions data={{questions: [], proposals: [], collabs: [], notices: []}} onDone={() => {}}/></Shell>);
+        const {container} = render(<Shell><InboxDecisions data={{questions: [], proposals: [], collabs: [], notices: [], aiDecisions: [], autoReviews: []}} onDone={() => {}}/></Shell>);
         expect(container.querySelector('section')).toBeNull();
     });
 });

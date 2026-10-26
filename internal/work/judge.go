@@ -42,7 +42,7 @@ type judgeInput struct {
 // made by a person goes to the interactive lane; everything else to the
 // background lane.
 func RequestJudgment(ctx context.Context, db *storage.DB, d storage.Delivery) (storage.AIJob, error) {
-	if existing, ok, err := latestJudgmentJob(ctx, db, d); err != nil || ok {
+	if existing, ok, err := latestDeliveryJob(ctx, db, d); err != nil || ok {
 		return existing, err
 	}
 	dept, err := db.Department(ctx, d.ProjectID, d.DepartmentID)
@@ -83,8 +83,9 @@ func RequestJudgment(ctx context.Context, db *storage.DB, d storage.Delivery) (s
 	return job, err
 }
 
-// latestJudgmentJob returns the newest judgment job of a delivery.
-func latestJudgmentJob(ctx context.Context, db *storage.DB, d storage.Delivery) (storage.AIJob, bool, error) {
+// latestDeliveryJob returns the newest AI job (judgment or collaboration
+// decision) of a delivery.
+func latestDeliveryJob(ctx context.Context, db *storage.DB, d storage.Delivery) (storage.AIJob, bool, error) {
 	for _, round := range []int{2, 1} {
 		var id string
 		err := db.Read().QueryRowContext(ctx, `SELECT id FROM work_ai_jobs WHERE delivery_id = ? AND round = ?`, d.ID, round).Scan(&id)
@@ -97,15 +98,15 @@ func latestJudgmentJob(ctx context.Context, db *storage.DB, d storage.Delivery) 
 }
 
 // Judge handles deliveries: a judge delivery becomes a judgment job that
-// finishes it later; other deliveries (notices) are recorded. A
-// collaboration request is recorded too: the request itself waits for the
-// receiving department's decision. Automatic chains stop at the depth
-// limit, held for a person.
+// finishes it later; notices are recorded. A collaboration request is
+// recorded for the person to decide, or, in auto mode, handed to the lead
+// AI as a decision job. Automatic chains stop at the depth limit, held
+// for a person.
 func Judge(db *storage.DB, wake func(lane string)) Handler {
 	return func(ctx context.Context, d storage.Delivery) (Result, error) {
 		switch d.Purpose {
 		case domain.PurposeCollabRequest:
-			return Result{Status: domain.DeliveryDone, Note: "협업 요청을 받았습니다. 수락·질문·거절은 협업 요청에서 결정합니다."}, nil
+			return decideCollab(ctx, db, d, wake)
 		case domain.PurposeNotify:
 			return Acknowledge(ctx, d)
 		}

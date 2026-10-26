@@ -1,8 +1,10 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 
 	"agent-office/internal/domain"
 	"agent-office/internal/engine"
@@ -240,11 +242,17 @@ func (a *App) SkipDelivery(projectID, deliveryID, reason string) error {
 
 // WorkPlanView is a work item's plan (Saved false when none is stored
 // yet: Plan then holds a starting point) and what a run would be told.
+//
+// Approval is the start approval the last start was made under and
+// whether it still holds; AutoStart is the auto starter's latest record of
+// the work, if any.
 type WorkPlanView struct {
-	Plan    domain.WorkPlan `json:"plan"`
-	Saved   bool            `json:"saved"`
-	Preview string          `json:"preview"`
-	Problem string          `json:"problem"`
+	Plan      domain.WorkPlan       `json:"plan"`
+	Saved     bool                  `json:"saved"`
+	Preview   string                `json:"preview"`
+	Problem   string                `json:"problem"`
+	Approval  storage.StartApproval `json:"approval"`
+	AutoStart *storage.AutoStart    `json:"autoStart,omitempty"`
 }
 
 // GetWorkPlan returns the plan of a work item. Without a saved plan it
@@ -258,6 +266,23 @@ func (a *App) GetWorkPlan(projectID, workItemID string) (WorkPlanView, error) {
 		return WorkPlanView{}, uiErr(err)
 	}
 	v := WorkPlanView{Plan: plan, Saved: saved}
+	if starts, err := a.db.AutoStarts(a.ctx, projectID, storage.AutoStartFilter{WorkItemID: workItemID}); err != nil {
+		return v, uiErr(err)
+	} else if len(starts) > 0 {
+		v.AutoStart = &starts[0]
+	}
+	if v.Approval, err = a.db.WorkStartApproval(a.ctx, projectID, workItemID); err != nil {
+		return v, uiErr(err)
+	}
+	if saved && plan.WorkflowVersionID != "" {
+		c, err := a.db.WorkflowChoice(a.ctx, projectID, plan.WorkflowVersionID)
+		if err != nil {
+			v.Problem = uiErr(err).Error()
+		} else {
+			v.Preview = fmt.Sprintf("업무 흐름 ‘%s’ %d판을 그대로 실행합니다. 업무 설명·완료 조건·참고 공유 자료는 흐름에 전달되지 않습니다.", c.Title, c.Number)
+		}
+		return v, nil
+	}
 	if !saved {
 		v.Plan.ProjectID, v.Plan.Outputs = projectID, domain.DefaultWorkOutputs()
 		if w, err := a.db.WorkItem(a.ctx, projectID, workItemID); err == nil && w.DepartmentID != "" {
@@ -295,12 +320,26 @@ func (a *App) StartWork(projectID, workItemID, feedback string) (StartResult, er
 	if err := a.ready(); err != nil {
 		return StartResult{}, err
 	}
+	// The person starting the work approves exactly what it starts with.
+	hash, err := a.db.WorkStartHash(a.ctx, projectID, workItemID)
+	if err != nil {
+		return StartResult{}, uiErr(err)
+	}
 	id, err := a.eng.StartWork(a.ctx, projectID, workItemID, feedback)
 	var nr *engine.NotRunnableError
 	if errors.As(err, &nr) {
 		return StartResult{Issues: nr.Issues}, nil
 	}
-	return StartResult{RunID: id, Issues: []domain.Issue{}}, uiErr(err)
+	if err != nil {
+		return StartResult{}, uiErr(err)
+	}
+	if err := a.db.ApproveWorkStart(a.ctx, projectID, workItemID, "user", hash); err != nil {
+		return StartResult{RunID: id, Issues: []domain.Issue{}}, uiErr(err)
+	}
+	if err := a.db.SettleAutoStart(a.ctx, projectID, workItemID, "사람이 직접 시작했습니다"); err != nil {
+		return StartResult{RunID: id, Issues: []domain.Issue{}}, uiErr(err)
+	}
+	return StartResult{RunID: id, Issues: []domain.Issue{}}, nil
 }
 
 // ListWorkRuns lists a work item's runs, newest first.
@@ -595,11 +634,17 @@ func (a *App) DecideProposals(projectID string, proposalIDs []string, accept boo
 // Decisions is what departments wait on a person for, across services:
 // questions, proposals, collaboration requests to decide or answer, and
 // required collaboration that changed after work was finished.
+//
+// AIDecisions are collaboration decisions the lead AIs made that the
+// person has not looked at; AutoReviews are automatic starts that need
+// the person.
 type Decisions struct {
-	Questions []storage.Judgment       `json:"questions"`
-	Proposals []storage.Proposal       `json:"proposals"`
-	Collabs   []storage.CollabRequest  `json:"collabs"`
-	Notices   []storage.RequiredNotice `json:"notices"`
+	Questions   []storage.Judgment       `json:"questions"`
+	Proposals   []storage.Proposal       `json:"proposals"`
+	Collabs     []storage.CollabRequest  `json:"collabs"`
+	Notices     []storage.RequiredNotice `json:"notices"`
+	AIDecisions []storage.CollabRequest  `json:"aiDecisions"`
+	AutoReviews []storage.AutoStart      `json:"autoReviews"`
 }
 
 // PendingDecisions lists what every active service waits on a person for,
@@ -619,7 +664,13 @@ func (a *App) PendingDecisions() (Decisions, error) {
 	if d.Collabs, err = a.db.CollabRequests(a.ctx, "", storage.CollabFilter{Open: true}); err != nil {
 		return Decisions{}, uiErr(err)
 	}
-	d.Notices, err = a.db.OpenRequiredNotices(a.ctx)
+	if d.Notices, err = a.db.OpenRequiredNotices(a.ctx); err != nil {
+		return Decisions{}, uiErr(err)
+	}
+	if d.AIDecisions, err = a.db.CollabRequests(a.ctx, "", storage.CollabFilter{AIUnreviewed: true}); err != nil {
+		return Decisions{}, uiErr(err)
+	}
+	d.AutoReviews, err = a.db.AutoStarts(a.ctx, "", storage.AutoStartFilter{Status: storage.AutoReview})
 	return d, uiErr(err)
 }
 
@@ -715,6 +766,9 @@ func (a *App) AnswerCollab(projectID, id, answer string) (storage.CollabRequest,
 		return storage.CollabRequest{}, err
 	}
 	r, err := a.db.AnswerCollab(a.ctx, projectID, id, answer)
+	if err == nil {
+		a.ai.Wake(storage.LaneBackground) // the lead AI may decide again
+	}
 	return r, uiErr(err)
 }
 
@@ -753,4 +807,79 @@ func (a *App) ReplaceCollab(projectID, id string, n storage.NewCollabRequest, re
 	}
 	r, err := a.db.ReplaceCollab(a.ctx, projectID, id, n, reason)
 	return r, uiErr(err)
+}
+
+// ReviewCollabDecision keeps a decision the lead AI made.
+func (a *App) ReviewCollabDecision(projectID, id string) (storage.CollabRequest, error) {
+	if err := a.ready(); err != nil {
+		return storage.CollabRequest{}, err
+	}
+	r, err := a.db.ReviewCollabDecision(a.ctx, projectID, id)
+	return r, uiErr(err)
+}
+
+// RevertCollabDecision undoes the lead AI's decision; the person decides.
+func (a *App) RevertCollabDecision(projectID, id, reason string) (storage.CollabRequest, error) {
+	if err := a.ready(); err != nil {
+		return storage.CollabRequest{}, err
+	}
+	r, err := a.db.RevertCollabDecision(a.ctx, projectID, id, reason)
+	return r, uiErr(err)
+}
+
+// ---- automatic mode ----
+
+// ListWorkflowChoices lists confirmed versions of the service's workflows
+// a work item can run.
+func (a *App) ListWorkflowChoices(projectID string) ([]storage.WorkflowChoice, error) {
+	if err := a.ready(); err != nil {
+		return nil, err
+	}
+	list, err := a.db.WorkflowChoices(a.ctx, projectID)
+	return list, uiErr(err)
+}
+
+// SetDepartmentAutomation stores what a department lets happen without a
+// person.
+func (a *App) SetDepartmentAutomation(projectID, departmentID string, rules domain.DepartmentAutomation) (domain.Department, error) {
+	if err := a.ready(); err != nil {
+		return domain.Department{}, err
+	}
+	d, err := a.db.SetDepartmentAutomation(a.ctx, projectID, departmentID, rules)
+	return d, uiErr(err)
+}
+
+// ListAutoStarts lists a service's automatic starts.
+func (a *App) ListAutoStarts(projectID string, filter storage.AutoStartFilter) ([]storage.AutoStart, error) {
+	if err := a.ready(); err != nil {
+		return nil, err
+	}
+	list, err := a.db.AutoStarts(a.ctx, projectID, filter)
+	return list, uiErr(err)
+}
+
+// RetryAutoStart checks an automatic start under review again.
+func (a *App) RetryAutoStart(projectID, id string) error {
+	if err := a.ready(); err != nil {
+		return err
+	}
+	if err := a.db.RetryAutoStart(a.ctx, projectID, id); err != nil {
+		return uiErr(err)
+	}
+	a.auto.Wake()
+	return nil
+}
+
+// DismissAutoStart closes an automatic start the person looked at; the
+// work stays for the person to start.
+func (a *App) DismissAutoStart(projectID, id, note string) error {
+	if err := a.ready(); err != nil {
+		return err
+	}
+	return uiErr(a.db.DismissAutoStart(a.ctx, projectID, id, note))
+}
+
+func (a *App) readDocumentText(ctx context.Context, projectID, versionID string) (string, error) {
+	c, err := a.eng.ReadDocumentVersion(ctx, projectID, versionID)
+	return c.Content, err
 }

@@ -205,3 +205,61 @@ func TestUpgradeToDepartmentsKeepsServices(t *testing.T) {
 		t.Fatal("foreign key violations after upgrade")
 	}
 }
+
+// v15 rebuilds the collaboration history to allow reverted AI decisions.
+// History written at v14 survives with its request, and the new action is
+// accepted afterwards.
+func TestUpgradeToAutomationKeepsCollabHistory(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "v14.db")
+	raw, err := sql.Open("sqlite", "file:"+path+"?_pragma=foreign_keys(1)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ms, _ := loadMigrations()
+	exec := func(q string, args ...any) {
+		t.Helper()
+		if _, err := raw.Exec(q, args...); err != nil {
+			t.Fatalf("%s: %v", q, err)
+		}
+	}
+	exec(`CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at TEXT NOT NULL)`)
+	for _, m := range ms {
+		if m.version > 14 {
+			break
+		}
+		exec(m.sql)
+		exec(`INSERT INTO schema_migrations VALUES (?, ?, ?)`, m.version, m.name, Now())
+	}
+	now := Now()
+	exec(`INSERT INTO projects (id, organization_id, name, created_at, updated_at) VALUES ('prj-1', 'org-default', '서비스', ?, ?)`, now, now)
+	exec(`INSERT INTO departments (id, project_id, name, created_at, updated_at) VALUES ('d-mkt', 'prj-1', '마케팅팀', ?, ?), ('d-dev', 'prj-1', '개발팀', ?, ?)`,
+		now, now, now, now)
+	exec(`INSERT INTO work_items (id, project_id, kind, department_id, title, created_at, updated_at) VALUES ('w1', 'prj-1', 'work', 'd-mkt', '기획', ?, ?)`, now, now)
+	exec(`INSERT INTO collab_requests (id, project_id, from_work_item_id, from_department_id, to_department_id, question, created_at, updated_at)
+		VALUES ('c1', 'prj-1', 'w1', 'd-mkt', 'd-dev', '검토', ?, ?)`, now, now)
+	exec(`INSERT INTO collab_request_history (id, project_id, request_id, action, body, as_department_id, author, created_at)
+		VALUES ('h1', 'prj-1', 'c1', 'requested', '검토', 'd-mkt', 'local-owner', ?)`, now)
+	raw.Close()
+
+	db := openTemp(t, path)
+	defer db.Close()
+	ctx := context.Background()
+	r, err := db.CollabRequest(ctx, "prj-1", "c1")
+	if err != nil || len(r.History) != 1 || r.History[0].Body != "검토" {
+		t.Fatalf("request after upgrade: %+v %v", r, err)
+	}
+	if w, err := db.WorkItem(ctx, "prj-1", "w1"); err != nil || w.ReviewBeforeStart {
+		t.Fatalf("work after upgrade: %+v %v", w, err)
+	}
+	if err := db.Write(ctx, func(tx *sql.Tx) error {
+		_, err := tx.Exec(`INSERT INTO collab_request_history (id, project_id, request_id, action, author, created_at)
+			VALUES ('h2', 'prj-1', 'c1', 'reverted', 'local-owner', ?)`, now)
+		return err
+	}); err != nil {
+		t.Fatalf("reverted history after upgrade: %v", err)
+	}
+	if rows, _ := db.Read().Query(`PRAGMA foreign_key_check`); rows.Next() {
+		rows.Close()
+		t.Fatal("foreign key violations after upgrade")
+	}
+}

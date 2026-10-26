@@ -3,9 +3,12 @@ import {useEffect, useState} from 'react';
 import {api} from '../api';
 import {t} from '../i18n';
 import {useLoad} from '../live';
-import type {Assignment, Department, OutputType, PlanJobView, Project, RunDetail, WorkflowOutput, WorkItem, WorkPlan} from '../types';
+import type {
+    Assignment, Department, OutputType, PlanJobView, Project, RunDetail, StartApproval, WorkflowChoice, WorkflowOutput, WorkItem, WorkPlan,
+} from '../types';
 import {Banner, Button, ErrorBox, Field, IssueList, Loading, RunBadge, Section, StatusBadge, useAction, useToast} from '../ui';
 import {ArtifactViewer} from './ArtifactViewer';
+import {AutoStartBanner} from './Automation';
 import {ShareResult} from './Documents';
 
 const outputTypes: OutputType[] = ['markdown', 'json', 'report', 'file', 'code_change', 'diagram'];
@@ -20,17 +23,23 @@ export function WorkRun({project, item, assignments, departments = [], categorie
 }) {
     const view = useLoad(() => api.workPlan(project.id, item.id), [project.id, item.id, item.updatedAt], project.id);
     const runs = useLoad(() => api.workRuns(project.id, item.id), [project.id, item.id], project.id);
+    const choices = useLoad(() => api.workflowChoices(project.id), [project.id], project.id);
     const archived = project.status === 'archived';
     const closed = item.status === 'done' || item.status === 'cancelled';
     if (view.error || runs.error) return <ErrorBox error={view.error || runs.error}/>;
     if (!view.data || !runs.data) return <Loading/>;
     const busy = runs.data.some(activeRun);
     const reload = () => { view.reload(); runs.reload(); onChanged(); };
+    const linked = !!view.data.plan.workflowVersionId;
     return (
         <Section title="작업 계획과 실행">
-            <PlanProposal project={project} itemId={item.id} assignments={assignments} disabled={archived || closed || busy} onApplied={reload}/>
+            <StartGate project={project} item={item} approval={view.data.saved ? view.data.approval : undefined} onChanged={reload}/>
+            {view.data.autoStart ? <AutoStartBanner a={view.data.autoStart} onDone={reload}/> : null}
+            {linked ? null : (
+                <PlanProposal project={project} itemId={item.id} assignments={assignments} disabled={archived || closed || busy} onApplied={reload}/>
+            )}
             <PlanForm key={view.data.plan.updatedAt || 'new'} project={project} itemId={item.id} initial={view.data.plan}
-                      assignments={assignments} disabled={archived || busy} onSaved={reload}/>
+                      assignments={assignments} choices={choices.data ?? []} disabled={archived || busy} onSaved={reload}/>
             {view.data.saved && view.data.preview ? (
                 <details className="card">
                     <summary className="small">실행에 전달되는 내용 보기</summary>
@@ -40,14 +49,37 @@ export function WorkRun({project, item, assignments, departments = [], categorie
             {view.data.saved && view.data.problem ? <Banner tone="warn">{view.data.problem}</Banner> : null}
             {closed ? <p className="muted small">닫힌 업무입니다. 다시 열면 실행할 수 있습니다.</p> : null}
             <RunControls project={project} itemId={item.id} canRun={view.data.saved && !view.data.problem && !closed && !archived}
-                         busy={busy} hasResult={runs.data.some((r) => r.status === 'succeeded')} onStarted={reload}/>
+                         busy={busy} hasResult={runs.data.some((r) => r.status === 'succeeded')} canRework={!linked} onStarted={reload}/>
             <RunList project={project} runs={runs.data} item={item} departments={departments} categories={categories} onOpenRun={onOpenRun}/>
         </Section>
     );
 }
 
-function PlanForm({project, itemId, initial, assignments, disabled, onSaved}: {
-    project: Project; itemId: string; initial: WorkPlan; assignments: Assignment[]; disabled: boolean; onSaved: () => void;
+// StartGate says under which approval the work last started and lets
+// the person keep a review before every start, even in auto mode.
+function StartGate({project, item, approval, onChanged}: {
+    project: Project; item: WorkItem; approval?: StartApproval; onChanged: () => void;
+}) {
+    const action = useAction();
+    const toggle = (on: boolean) => action.run(async () => { await api.updateWorkItem({...item, reviewBeforeStart: on}); onChanged(); });
+    return (
+        <div className="row small">
+            <label className="check">
+                <input type="checkbox" checked={item.reviewBeforeStart} disabled={project.status === 'archived' || action.busy}
+                       onChange={(e) => toggle(e.target.checked)}/>자동 모드에서도 시작 전에 직접 검토
+            </label>
+            {approval?.by ? (
+                <StatusBadge tone={approval.valid ? 'ok' : 'warn'}>
+                    {approval.by === 'auto' ? '자동 시작 승인' : '사람이 시작'}{approval.valid ? '' : ' · 이후 계획·조건·자료·담당자가 바뀜'}
+                </StatusBadge>
+            ) : null}
+            <ErrorBox error={action.error}/>
+        </div>
+    );
+}
+
+function PlanForm({project, itemId, initial, assignments, choices, disabled, onSaved}: {
+    project: Project; itemId: string; initial: WorkPlan; assignments: Assignment[]; choices: WorkflowChoice[]; disabled: boolean; onSaved: () => void;
 }) {
     const [plan, setPlan] = useState<WorkPlan>(initial);
     useEffect(() => setPlan(initial), [initial]);
@@ -60,8 +92,15 @@ function PlanForm({project, itemId, initial, assignments, disabled, onSaved}: {
         toast('작업 계획을 저장했습니다');
         onSaved();
     });
+    const linked = !!plan.workflowVersionId;
     return (
         <form className="card stack" aria-label="작업 계획" onSubmit={(e) => { e.preventDefault(); save(); }}>
+            <Field label="실행 방식" hint="반복하는 일은 확정한 업무 흐름 버전을 그대로 실행할 수 있습니다.">
+                <select value={plan.workflowVersionId} disabled={disabled} onChange={(e) => set({workflowVersionId: e.target.value})}>
+                    <option value="">이 업무의 작업 계획</option>
+                    {choices.map((c) => <option key={c.versionId} value={c.versionId}>업무 흐름: {c.title} {c.number}판</option>)}
+                </select></Field>
+            {linked ? null : <>
             <Field label="담당자" hint="부서의 대표 담당자가 기본입니다. 사람을 고르면 내 할 일로 들어옵니다.">
                 <select value={plan.assignmentId} disabled={disabled} onChange={(e) => set({assignmentId: e.target.value})}>
                     <option value="">담당자 선택</option>
@@ -88,17 +127,18 @@ function PlanForm({project, itemId, initial, assignments, disabled, onSaved}: {
                 <div><Button size="sm" variant="ghost" icon={Plus} disabled={disabled}
                              onClick={() => set({outputs: [...plan.outputs, {key: '', type: 'markdown'}]})}>산출물 추가</Button></div>
             </fieldset>
+            </>}
             <ErrorBox error={action.error}/>
             <div className="form-actions">
-                <Button type="submit" icon={Save} busy={action.busy} disabled={disabled || !plan.assignmentId}>계획 저장</Button>
+                <Button type="submit" icon={Save} busy={action.busy} disabled={disabled || (!linked && !plan.assignmentId)}>계획 저장</Button>
                 {disabled ? <span className="muted small">실행 중에는 계획을 바꿀 수 없습니다.</span> : null}
             </div>
         </form>
     );
 }
 
-function RunControls({project, itemId, canRun, busy, hasResult, onStarted}: {
-    project: Project; itemId: string; canRun: boolean; busy: boolean; hasResult: boolean; onStarted: () => void;
+function RunControls({project, itemId, canRun, busy, hasResult, canRework = true, onStarted}: {
+    project: Project; itemId: string; canRun: boolean; busy: boolean; hasResult: boolean; canRework?: boolean; onStarted: () => void;
 }) {
     const [feedback, setFeedback] = useState('');
     const action = useAction();
@@ -122,7 +162,7 @@ function RunControls({project, itemId, canRun, busy, hasResult, onStarted}: {
                     {hasResult ? '다시 실행' : '계획대로 실행'}</Button>
                 {busy ? <span className="muted small">실행 중입니다. 끝나거나 취소된 뒤에 다시 실행할 수 있습니다.</span> : null}
             </div>
-            {hasResult ? (
+            {hasResult && canRework ? (
                 <form className="stack tight" aria-label="수정 요청" onSubmit={(e) => { e.preventDefault(); if (feedback.trim()) start(feedback); }}>
                     <textarea value={feedback} rows={2} aria-label="수정 요청 내용" placeholder="결과에서 고칠 점을 적으면 이전 결과와 함께 다시 실행합니다"
                               disabled={!canRun || busy} onChange={(e) => setFeedback(e.target.value)}/>

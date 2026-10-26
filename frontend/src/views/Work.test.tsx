@@ -20,7 +20,7 @@ const dept = (id: string, name: string, status: 'active' | 'inactive' = 'active'
 
 const work = (over: Partial<WorkItem>): WorkItem => ({
     id: 'w', projectId: 'prj-1', kind: 'work', parentId: '', departmentId: '', assigneeAssignmentId: '', title: '업무', description: '',
-    doneCriteria: '', priority: 'normal', status: 'received', statusReason: '', categories: [], dueAt: '', createdAt: '', updatedAt: '', closedAt: '',
+    doneCriteria: '', priority: 'normal', status: 'received', statusReason: '', categories: [], dueAt: '', createdAt: '', updatedAt: '', closedAt: '', reviewBeforeStart: false,
     ...over,
 });
 

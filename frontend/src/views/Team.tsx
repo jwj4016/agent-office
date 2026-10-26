@@ -1,9 +1,10 @@
-import {Building, Copy, FileText, FlaskConical, GripVertical, LayoutTemplate, Pencil, Plus, Radio, UserPlus, Users} from 'lucide-react';
+import {Bot, Building, Copy, FileText, FlaskConical, GripVertical, LayoutTemplate, Pencil, Plus, Radio, UserPlus, Users} from 'lucide-react';
 import {type DragEvent, useState} from 'react';
 import {api} from '../api';
 import {t} from '../i18n';
 import {useLoad} from '../live';
 import type {ActiveStatus, ActorKind, Assignment, Department, DepartmentTemplate, Project, Role} from '../types';
+import {AutomationPanel, rulesOf} from './Automation';
 import {SubscriptionPanel} from './Judgments';
 import {ActorBadge, Banner, Button, DetailHeader, EmptyState, ErrorBox, Field, Icon, Loading, Section, StatusBadge, useAction, useDetail, useToast} from '../ui';
 
@@ -166,10 +167,15 @@ function ServiceDepartments({project, assignments, roles, onChanged}: {
                                     <td className="small pre">{d.responsibility || <span className="muted">적지 않음</span>}</td>
                                     <td className="small">{d.memberIds.map(person).filter(Boolean).join(', ') || <span className="muted">없음</span>}</td>
                                     <td className="small">{person(d.leadAssignmentId) ?? <span className="muted">지정 안 함</span>}</td>
-                                    <td><StatusBadge tone={d.status === 'active' ? 'ok' : ''}>{d.status === 'active' ? '사용' : '사용 안 함'}</StatusBadge></td>
+                                    <td><span className="row nowrap">
+                                        <StatusBadge tone={d.status === 'active' ? 'ok' : ''}>{d.status === 'active' ? '사용' : '사용 안 함'}</StatusBadge>
+                                        {rulesOf(d).autoStart || rulesOf(d).autoCollab ? <StatusBadge tone="ai" icon={Bot}>자동화</StatusBadge> : null}
+                                    </span></td>
                                     <td className="actions"><span className="row nowrap" style={{justifyContent: 'flex-end'}}>
                                         <Button size="sm" icon={Radio} aria-label={`${d.name} 판단 설정`}
                                                 onClick={() => setDetail(<SubscriptionPanel key={`sub-${d.id}`} project={project} department={d}/>)}>판단 설정</Button>
+                                        <Button size="sm" icon={Bot} aria-label={`${d.name} 자동화`}
+                                                onClick={() => setDetail(<AutomationPanel key={`auto-${d.id}-${d.updatedAt}`} project={project} department={d}/>)}>자동화</Button>
                                         <Button size="sm" icon={Pencil} disabled={archived}
                                                 aria-label={`${d.name} 부서 편집`} onClick={() => edit(d)}>{t.common.edit}</Button>
                                     </span></td>

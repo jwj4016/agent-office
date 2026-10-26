@@ -24,8 +24,9 @@ func (db *DB) WorkPlan(ctx context.Context, projectID, workItemID string) (domai
 func workPlanTx(ctx context.Context, q queryer, workItemID string) (domain.WorkPlan, bool, error) {
 	p := domain.WorkPlan{WorkItemID: workItemID}
 	var outputs string
-	err := q.QueryRowContext(ctx, `SELECT project_id, COALESCE(assignment_id, ''), instructions, materials, outputs, updated_at
-		FROM work_plans WHERE work_item_id = ?`, workItemID).Scan(&p.ProjectID, &p.AssignmentID, &p.Instructions, &p.Materials, &outputs, &p.UpdatedAt)
+	err := q.QueryRowContext(ctx, `SELECT project_id, COALESCE(assignment_id, ''), instructions, materials, outputs, COALESCE(workflow_version_id, ''), updated_at
+		FROM work_plans WHERE work_item_id = ?`, workItemID).Scan(&p.ProjectID, &p.AssignmentID, &p.Instructions, &p.Materials, &outputs,
+		&p.WorkflowVersionID, &p.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return p, false, nil
 	}
@@ -71,11 +72,17 @@ func (db *DB) SaveWorkPlan(ctx context.Context, p domain.WorkPlan) (domain.WorkP
 				return err
 			}
 		}
-		_, err := tx.ExecContext(ctx, `INSERT INTO work_plans (work_item_id, project_id, assignment_id, instructions, materials, outputs, updated_at)
-			VALUES (?, ?, NULLIF(?, ''), ?, ?, ?, ?)
+		if p.WorkflowVersionID != "" {
+			if _, err := sharedWorkflowVersionTx(ctx, tx, p.ProjectID, p.WorkflowVersionID); err != nil {
+				return err
+			}
+		}
+		_, err := tx.ExecContext(ctx, `INSERT INTO work_plans (work_item_id, project_id, assignment_id, instructions, materials, outputs, workflow_version_id, updated_at)
+			VALUES (?, ?, NULLIF(?, ''), ?, ?, ?, NULLIF(?, ''), ?)
 			ON CONFLICT(work_item_id) DO UPDATE SET assignment_id = excluded.assignment_id, instructions = excluded.instructions,
-				materials = excluded.materials, outputs = excluded.outputs, updated_at = excluded.updated_at`,
-			p.WorkItemID, p.ProjectID, p.AssignmentID, strings.TrimSpace(p.Instructions), strings.TrimSpace(p.Materials), string(outputs), Now())
+				materials = excluded.materials, outputs = excluded.outputs, workflow_version_id = excluded.workflow_version_id, updated_at = excluded.updated_at`,
+			p.WorkItemID, p.ProjectID, p.AssignmentID, strings.TrimSpace(p.Instructions), strings.TrimSpace(p.Materials), string(outputs),
+			p.WorkflowVersionID, Now())
 		return err
 	})
 	if err != nil {

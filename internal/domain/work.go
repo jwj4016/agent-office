@@ -1,6 +1,9 @@
 package domain
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"slices"
+)
 
 // Department statuses.
 const (
@@ -86,7 +89,10 @@ type WorkItem struct {
 	StatusReason         string   `json:"statusReason"`
 	Categories           []string `json:"categories"`
 	DueAt                string   `json:"dueAt"` // YYYY-MM-DD or empty
-	CreatedAt            string   `json:"createdAt"`
+	// ReviewBeforeStart keeps a person's review before every start, even
+	// when the service and department would start it on their own.
+	ReviewBeforeStart bool   `json:"reviewBeforeStart"`
+	CreatedAt         string `json:"createdAt"`
 	UpdatedAt            string   `json:"updatedAt"`
 	ClosedAt             string   `json:"closedAt"`
 }
@@ -175,14 +181,18 @@ const DefaultJudgeFanout = 5
 // WorkPlan is how one work item will be done: who does it, extra
 // instructions, materials to read, and the outputs to produce. Running it
 // makes a one-step workflow version (plan §4.6).
+//
+// With WorkflowVersionID the work runs that confirmed version of one of
+// the service's workflows as it is, for repeated work (plan §4.6).
 type WorkPlan struct {
-	WorkItemID   string   `json:"workItemId"`
-	ProjectID    string   `json:"projectId"`
-	AssignmentID string   `json:"assignmentId"`
-	Instructions string   `json:"instructions"`
-	Materials    string   `json:"materials"`
-	Outputs      []Output `json:"outputs"`
-	UpdatedAt    string   `json:"updatedAt"`
+	WorkItemID        string   `json:"workItemId"`
+	ProjectID         string   `json:"projectId"`
+	AssignmentID      string   `json:"assignmentId"`
+	Instructions      string   `json:"instructions"`
+	Materials         string   `json:"materials"`
+	Outputs           []Output `json:"outputs"`
+	WorkflowVersionID string   `json:"workflowVersionId"`
+	UpdatedAt         string   `json:"updatedAt"`
 }
 
 // WorkStepID is the id of the single step in a work item's workflow.
@@ -194,3 +204,90 @@ func DefaultWorkOutputs() []Output { return []Output{{Key: "result", Type: OutMa
 // DefaultChainDepth is how deep automatic follow-up judgment goes in one
 // chain of events (plan §4.7, §9.3).
 const DefaultChainDepth = 3
+
+// DefaultChainWork is how many work items automatic processing may
+// register in one chain of events (plan §4.7, §9.3).
+const DefaultChainWork = 10
+
+// DepartmentAutomation is what a department lets happen without a person
+// (plan §4.6). Everything is off for a new department.
+type DepartmentAutomation struct {
+	// AutoStart lets work made from events start on its own when the
+	// service is in auto mode and the rest of these rules allow it.
+	AutoStart bool `json:"autoStart"`
+	// Categories narrows AutoStart to work whose categories are all in
+	// the list; empty allows every category.
+	Categories []string `json:"categories"`
+	// ConnectionIDs are the AI connections (tools) automatic work may use,
+	// on top of the service's auto policy; empty adds no limit.
+	ConnectionIDs []string `json:"connectionIds"`
+	// OutputTypes is the scope of automatic work: the result types it may
+	// produce. Empty means DefaultAutoOutputTypes.
+	OutputTypes []OutputType `json:"outputTypes"`
+	// WorkflowVersionIDs are the confirmed workflow versions a work item
+	// may run on its own.
+	WorkflowVersionIDs []string `json:"workflowVersionIds"`
+	// AutoShare shares the results of automatically started runs as
+	// drafts.
+	AutoShare bool `json:"autoShare"`
+	// AutoCollab lets the lead AI accept, decline or question reference
+	// collaboration requests. Required requests are always a person's.
+	AutoCollab bool `json:"autoCollab"`
+}
+
+// DefaultAutoOutputTypes are results automatic work may produce unless a
+// department says otherwise: documents only, nothing that changes files.
+var DefaultAutoOutputTypes = []OutputType{OutMarkdown, OutJSON, OutReport}
+
+// ParseAutomation reads a department's stored rules; anything unreadable
+// is treated as everything off.
+func ParseAutomation(raw json.RawMessage) DepartmentAutomation {
+	var a DepartmentAutomation
+	json.Unmarshal(raw, &a)
+	a.Categories, a.ConnectionIDs, a.WorkflowVersionIDs = orNil(a.Categories), orNil(a.ConnectionIDs), orNil(a.WorkflowVersionIDs)
+	if a.OutputTypes == nil {
+		a.OutputTypes = []OutputType{}
+	}
+	return a
+}
+
+// AllowsOutput reports whether automatic work may produce t.
+func (a DepartmentAutomation) AllowsOutput(t OutputType) bool {
+	if len(a.OutputTypes) == 0 {
+		return slices.Contains(DefaultAutoOutputTypes, t)
+	}
+	return slices.Contains(a.OutputTypes, t)
+}
+
+// AllowsCategories reports whether work with these categories may start
+// on its own.
+func (a DepartmentAutomation) AllowsCategories(cats []string) bool {
+	if len(a.Categories) == 0 {
+		return true
+	}
+	if len(cats) == 0 {
+		return false
+	}
+	for _, c := range cats {
+		if !slices.Contains(a.Categories, c) {
+			return false
+		}
+	}
+	return true
+}
+
+// AllowsConnection reports whether automatic work may use a connection,
+// as far as the department is concerned.
+func (a DepartmentAutomation) AllowsConnection(id string) bool {
+	return len(a.ConnectionIDs) == 0 || slices.Contains(a.ConnectionIDs, id)
+}
+
+func orNil(s []string) []string {
+	if s == nil {
+		return []string{}
+	}
+	return s
+}
+
+// ValidOutputType reports whether t is a result type workflows support.
+func ValidOutputType(t OutputType) bool { return outputTypes[t] }

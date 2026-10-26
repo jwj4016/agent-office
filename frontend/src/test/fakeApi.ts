@@ -60,8 +60,11 @@ export const fakeApi = {
     judgments: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []), answerJudgment: ok(undefined), closeJudgmentQuestion: ok(undefined),
     proposals: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []), acceptProposal: vi.fn(), rejectProposal: ok(undefined),
     decideProposals: vi.fn(async (..._args: unknown[]) => ({done: 0, errors: [] as string[]})),
-    pendingDecisions: vi.fn(async (): Promise<{questions: unknown[]; proposals: unknown[]; collabs: unknown[]; notices: unknown[]}> =>
-        ({questions: [], proposals: [], collabs: [], notices: []})),
+    pendingDecisions: vi.fn(async (): Promise<{questions: unknown[]; proposals: unknown[]; collabs: unknown[]; notices: unknown[];
+        aiDecisions: unknown[]; autoReviews: unknown[]}> => ({questions: [], proposals: [], collabs: [], notices: [], aiDecisions: [], autoReviews: []})),
+    reviewCollabDecision: vi.fn(), revertCollabDecision: vi.fn(), workflowChoices: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []),
+    setDepartmentAutomation: vi.fn(), autoStarts: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []),
+    retryAutoStart: ok(undefined), dismissAutoStart: ok(undefined),
     workCollab: vi.fn(async (..._args: unknown[]): Promise<{requests: unknown[]; incoming: unknown[]; blockers: unknown[]; checks: unknown[]}> =>
         ({requests: [], incoming: [], blockers: [], checks: []})),
     collabRequests: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []),
@@ -69,8 +72,9 @@ export const fakeApi = {
     setCollabRequirement: vi.fn(), replaceCollab: vi.fn(),
     requestDocumentReview: vi.fn(async (..._args: unknown[]) => 0),
     workPlan: vi.fn(async (..._args: unknown[]): Promise<WorkPlanView> => ({
-        plan: {workItemId: '', projectId: '', assignmentId: '', instructions: '', materials: '', outputs: [{key: 'result', type: 'markdown'}], updatedAt: ''},
-        saved: false, preview: '', problem: '',
+        plan: {workItemId: '', projectId: '', assignmentId: '', instructions: '', materials: '', outputs: [{key: 'result', type: 'markdown'}],
+            workflowVersionId: '', updatedAt: ''},
+        saved: false, preview: '', problem: '', approval: {by: '', at: '', valid: false},
     })),
     saveWorkPlan: vi.fn(), startWork: vi.fn(),
     documents: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []), document: vi.fn(), readDocumentVersion: vi.fn(),

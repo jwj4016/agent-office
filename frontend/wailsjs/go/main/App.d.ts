@@ -74,6 +74,8 @@ export function DiscardDesign(arg1:string):Promise<void>;
 
 export function DiscardWorkflowAssist(arg1:string):Promise<void>;
 
+export function DismissAutoStart(arg1:string,arg2:string,arg3:string):Promise<void>;
+
 export function EnsureTestConnection():Promise<domain.ProviderConnection>;
 
 export function EventsAfter(arg1:string,arg2:number):Promise<Array<storage.EventRecord>>;
@@ -109,6 +111,8 @@ export function InstructionPreview(arg1:string,arg2:string):Promise<main.Instruc
 export function LinkDocument(arg1:string,arg2:string,arg3:string):Promise<void>;
 
 export function ListAssignments(arg1:string):Promise<Array<domain.Assignment>>;
+
+export function ListAutoStarts(arg1:string,arg2:storage.AutoStartFilter):Promise<Array<storage.AutoStart>>;
 
 export function ListCollabRequests(arg1:string,arg2:storage.CollabFilter):Promise<Array<storage.CollabRequest>>;
 
@@ -150,6 +154,8 @@ export function ListWorkRuns(arg1:string,arg2:string):Promise<Array<engine.RunDe
 
 export function ListWorkflowAssists(arg1:string,arg2:string):Promise<Array<storage.AssistRecord>>;
 
+export function ListWorkflowChoices(arg1:string):Promise<Array<storage.WorkflowChoice>>;
+
 export function ListWorkflows(arg1:string):Promise<Array<domain.Workflow>>;
 
 export function PauseRun(arg1:string,arg2:string):Promise<void>;
@@ -188,9 +194,15 @@ export function ResumeRun(arg1:string,arg2:string):Promise<void>;
 
 export function RetryAIJob(arg1:string,arg2:string):Promise<void>;
 
+export function RetryAutoStart(arg1:string,arg2:string):Promise<void>;
+
 export function RetryDelivery(arg1:string,arg2:string):Promise<void>;
 
 export function RetryStep(arg1:string,arg2:string,arg3:string):Promise<void>;
+
+export function RevertCollabDecision(arg1:string,arg2:string,arg3:string):Promise<storage.CollabRequest>;
+
+export function ReviewCollabDecision(arg1:string,arg2:string):Promise<storage.CollabRequest>;
 
 export function RunMessages(arg1:string,arg2:string):Promise<Array<engine.MessageView>>;
 
@@ -219,6 +231,8 @@ export function SetAutoPolicy(arg1:string,arg2:Array<string>):Promise<void>;
 export function SetCollabRequirement(arg1:string,arg2:string,arg3:string,arg4:string):Promise<storage.CollabRequest>;
 
 export function SetConnectionKey(arg1:string,arg2:string):Promise<main.ConnectionView>;
+
+export function SetDepartmentAutomation(arg1:string,arg2:string,arg3:domain.DepartmentAutomation):Promise<domain.Department>;
 
 export function SetProjectArchived(arg1:string,arg2:boolean):Promise<void>;
 

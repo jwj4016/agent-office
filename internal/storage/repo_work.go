@@ -503,13 +503,16 @@ func (db *DB) SetProjectCategories(ctx context.Context, projectID string, names 
 // ---- work items ----
 
 const workCols = `id, project_id, kind, COALESCE(parent_id, ''), COALESCE(department_id, ''), COALESCE(assignee_assignment_id, ''),
-	title, description, done_criteria, priority, status, status_reason, categories, COALESCE(due_at, ''), created_at, updated_at, COALESCE(closed_at, '')`
+	title, description, done_criteria, priority, status, status_reason, categories, COALESCE(due_at, ''), created_at, updated_at, COALESCE(closed_at, ''),
+	COALESCE(review_before_start, 0)`
 
 func scanWork(s interface{ Scan(...any) error }) (domain.WorkItem, error) {
 	var w domain.WorkItem
 	var cats string
+	var review int
 	err := s.Scan(&w.ID, &w.ProjectID, &w.Kind, &w.ParentID, &w.DepartmentID, &w.AssigneeAssignmentID,
-		&w.Title, &w.Description, &w.DoneCriteria, &w.Priority, &w.Status, &w.StatusReason, &cats, &w.DueAt, &w.CreatedAt, &w.UpdatedAt, &w.ClosedAt)
+		&w.Title, &w.Description, &w.DoneCriteria, &w.Priority, &w.Status, &w.StatusReason, &cats, &w.DueAt, &w.CreatedAt, &w.UpdatedAt, &w.ClosedAt, &review)
+	w.ReviewBeforeStart = review == 1
 	if err == nil {
 		json.Unmarshal([]byte(cats), &w.Categories)
 		if w.Categories == nil {
@@ -719,7 +722,7 @@ func (db *DB) CreateWorkItem(ctx context.Context, w domain.WorkItem) (domain.Wor
 		if err := checkWorkLinks(ctx, c.Tx, w, true); err != nil {
 			return err
 		}
-		id, err := insertWorkTx(ctx, c, w, 0, "")
+		id, err := insertWorkTx(ctx, c, w, workOrigin{})
 		w.ID = id
 		return err
 	})
@@ -729,10 +732,21 @@ func (db *DB) CreateWorkItem(ctx context.Context, w domain.WorkItem) (domain.Wor
 	return db.WorkItem(ctx, w.ProjectID, w.ID)
 }
 
+// workOrigin is where new work came from: the event that caused it, the
+// proposal it was registered from, and whether automatic processing (not
+// a person) registered it, which continues the event's chain.
+type workOrigin struct {
+	Seq       int64
+	Proposal  string
+	Automated bool
+}
+
 // insertWorkTx stores a checked new work item with its first history
-// entry and emits work.created. originSeq and originProposal record the
-// event and proposal it came from, if any; the event is then its cause.
-func insertWorkTx(ctx context.Context, c *Change, w domain.WorkItem, originSeq int64, originProposal string) (string, error) {
+// entry and emits work.created. The origin's event, if any, is its cause;
+// work made from an event in an auto-mode service is queued for the auto
+// starter when its department starts work on its own.
+func insertWorkTx(ctx context.Context, c *Change, w domain.WorkItem, origin workOrigin) (string, error) {
+	originSeq, originProposal := origin.Seq, origin.Proposal
 	if w.Status == "" {
 		w.Status = domain.WorkReceived
 	}
@@ -744,21 +758,39 @@ func insertWorkTx(ctx context.Context, c *Change, w domain.WorkItem, originSeq i
 		seq = originSeq
 	}
 	if _, err := c.Tx.ExecContext(ctx, `INSERT INTO work_items (id, project_id, kind, parent_id, department_id, assignee_assignment_id,
-		title, description, done_criteria, priority, status, status_reason, categories, due_at, origin_event_sequence, origin_proposal_id, created_at, updated_at)
-		VALUES (?, ?, ?, NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), ?, ?, ?, ?, ?, ?, ?, NULLIF(?, ''), ?, NULLIF(?, ''), ?, ?)`,
+		title, description, done_criteria, priority, status, status_reason, categories, due_at, origin_event_sequence, origin_proposal_id,
+		review_before_start, created_at, updated_at)
+		VALUES (?, ?, ?, NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), ?, ?, ?, ?, ?, ?, ?, NULLIF(?, ''), ?, NULLIF(?, ''), ?, ?, ?)`,
 		w.ID, w.ProjectID, w.Kind, w.ParentID, w.DepartmentID, w.AssigneeAssignmentID,
-		w.Title, w.Description, w.DoneCriteria, w.Priority, w.Status, strings.TrimSpace(w.StatusReason), string(cats), w.DueAt, seq, originProposal, now, now); err != nil {
+		w.Title, w.Description, w.DoneCriteria, w.Priority, w.Status, strings.TrimSpace(w.StatusReason), string(cats), w.DueAt, seq, originProposal,
+		boolInt(w.ReviewBeforeStart), now, now); err != nil {
 		return "", err
 	}
 	if err := addNoteTx(ctx, c.Tx, w.ProjectID, w.ID, domain.NoteStatus, strings.TrimSpace(w.StatusReason), "", w.Status, domain.LocalOwner, now); err != nil {
 		return "", err
 	}
 	ev := workEventFor(w)
-	if originSeq > 0 {
+	if origin.Automated {
+		if err := continueChainTx(ctx, c.Tx, &ev, originSeq); err != nil {
+			return "", err
+		}
+	} else if originSeq > 0 {
 		ev.CauseSequence = &originSeq
 	}
-	_, err := emitWorkEventTx(ctx, c, w.ProjectID, domain.EventWorkCreated, ev)
-	return w.ID, err
+	if _, err := emitWorkEventTx(ctx, c, w.ProjectID, domain.EventWorkCreated, ev); err != nil {
+		return "", err
+	}
+	if originSeq > 0 && w.Kind == domain.WorkTask {
+		return w.ID, queueAutoStartTx(ctx, c, w, originSeq)
+	}
+	return w.ID, nil
+}
+
+func boolInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }
 
 // UpdateWorkItem changes a work item's content. Status changes go
@@ -788,9 +820,9 @@ func (db *DB) UpdateWorkItem(ctx context.Context, w domain.WorkItem) (domain.Wor
 		cats, _ := json.Marshal(w.Categories)
 		_, err = tx.ExecContext(ctx, `UPDATE work_items SET parent_id = NULLIF(?, ''), department_id = NULLIF(?, ''),
 			assignee_assignment_id = NULLIF(?, ''), title = ?, description = ?, done_criteria = ?, priority = ?, categories = ?,
-			due_at = NULLIF(?, ''), updated_at = ? WHERE id = ? AND project_id = ?`,
+			due_at = NULLIF(?, ''), review_before_start = ?, updated_at = ? WHERE id = ? AND project_id = ?`,
 			w.ParentID, w.DepartmentID, w.AssigneeAssignmentID, w.Title, w.Description, w.DoneCriteria, w.Priority,
-			string(cats), w.DueAt, Now(), w.ID, w.ProjectID)
+			string(cats), w.DueAt, boolInt(w.ReviewBeforeStart), Now(), w.ID, w.ProjectID)
 		if err != nil || w.ParentID == cur.ParentID || w.ParentID == "" {
 			return err
 		}
