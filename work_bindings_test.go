@@ -450,3 +450,101 @@ func TestBindingsDepartmentsProposeWork(t *testing.T) {
 		time.Sleep(20 * time.Millisecond)
 	}
 }
+
+// startPlannedWork saves the suggested plan (the department lead) and
+// starts it.
+func startPlannedWork(t *testing.T, a *App, projectID, workItemID string) {
+	t.Helper()
+	view := need(a.GetWorkPlan(projectID, workItemID))
+	plan := view.Plan
+	plan.WorkItemID = workItemID
+	need(a.SaveWorkPlan(plan))
+	if res := need(a.StartWork(projectID, workItemID, "")); res.RunID == "" {
+		t.Fatalf("start %s = %+v", workItemID, res)
+	}
+}
+
+func waitWorkStatus(t *testing.T, a *App, projectID, workItemID, status string) {
+	t.Helper()
+	deadline := time.Now().Add(e2eWait)
+	for need(a.GetWorkItem(projectID, workItemID)).Item.Status != status {
+		if time.Now().After(deadline) {
+			t.Fatalf("%s did not reach %s", workItemID, status)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+// Stage 6 acceptance: marketing asks development and finance for help
+// separately, each department takes its request on as its own work and
+// runs it in parallel, and the goal is completed only after the person
+// checked both required results. Reopening a result afterwards flags the
+// finished goal in the inbox instead of reopening it.
+func TestBindingsCollaborationCompletesGoal(t *testing.T) {
+	a := startApp(t)
+	p := need(a.CreateProject(ProjectInput{Name: "캠페인", Mode: "review"}))
+	mkt := aiDepartment(t, a, p.ID, "마케팅팀", "auto")
+	dev := aiDepartment(t, a, p.ID, "개발팀", "auto")
+	fin := aiDepartment(t, a, p.ID, "재무팀", "auto")
+	goal := need(a.CreateWorkItem(domain.WorkItem{ProjectID: p.ID, Kind: domain.WorkGoal, Title: "신규 고객 캠페인 준비", DepartmentID: mkt.ID}))
+	plan := need(a.CreateWorkItem(domain.WorkItem{ProjectID: p.ID, ParentID: goal.ID, DepartmentID: mkt.ID, Title: "캠페인 기획"}))
+
+	toDev := need(a.RequestCollab(p.ID, storage.NewCollabRequest{FromWorkItemID: plan.ID, ToDepartmentID: dev.ID,
+		Question: "캠페인 페이지를 만들 수 있는지 검토해 주세요", Requirement: storage.CollabRequired}))
+	toFin := need(a.RequestCollab(p.ID, storage.NewCollabRequest{FromWorkItemID: plan.ID, ToDepartmentID: fin.ID,
+		Question: "예산 범위를 확인해 주세요", Requirement: storage.CollabRequired}))
+	for _, d := range waitDeliveries(t, a, p.ID, 2) {
+		if d.Purpose != domain.PurposeCollabRequest || !strings.Contains(d.Note, "협업 요청") {
+			t.Fatalf("delivery = %+v", d)
+		}
+	}
+	if pending := need(a.PendingDecisions()); len(pending.Collabs) != 2 {
+		t.Fatalf("inbox collaboration = %+v", pending.Collabs)
+	}
+	if _, err := a.SetWorkStatus(p.ID, goal.ID, domain.WorkDone, ""); err == nil || !strings.Contains(err.Error(), "필수 협업") ||
+		strings.Contains(err.Error(), "invalid input") {
+		t.Fatalf("goal completed before anyone helped: %v", err)
+	}
+
+	devReq := need(a.AcceptCollab(p.ID, toDev.ID, storage.CollabAcceptance{Title: "캠페인 페이지 구현 검토"}))
+	finReq := need(a.AcceptCollab(p.ID, toFin.ID, storage.CollabAcceptance{Title: "캠페인 예산 검토"}))
+	if pending := need(a.PendingDecisions()); len(pending.Collabs) != 0 {
+		t.Fatalf("decided requests still in the inbox: %+v", pending.Collabs)
+	}
+	// Both departments run their own work at the same time.
+	startPlannedWork(t, a, p.ID, devReq.ResultWorkItemID)
+	startPlannedWork(t, a, p.ID, finReq.ResultWorkItemID)
+	for _, id := range []string{devReq.ResultWorkItemID, finReq.ResultWorkItemID} {
+		waitWorkStatus(t, a, p.ID, id, domain.WorkWaiting)
+	}
+	collab := need(a.GetWorkCollab(p.ID, goal.ID))
+	if len(collab.Requests) != 2 || len(collab.Blockers) != 2 {
+		t.Fatalf("goal collaboration = %+v", collab)
+	}
+	if in := need(a.GetWorkCollab(p.ID, devReq.ResultWorkItemID)).Incoming; len(in) != 1 || in[0].FromWorkItemID != plan.ID {
+		t.Fatalf("development work does not lead back to the plan: %+v", in)
+	}
+
+	// The person checks each result, then completes the plan and the goal.
+	need(a.SetWorkStatus(p.ID, devReq.ResultWorkItemID, domain.WorkDone, "검토 결과 확인"))
+	if _, err := a.SetWorkStatus(p.ID, plan.ID, domain.WorkDone, ""); err == nil || !strings.Contains(err.Error(), "재무팀") {
+		t.Fatalf("plan completed with finance unchecked: %v", err)
+	}
+	need(a.SetWorkStatus(p.ID, finReq.ResultWorkItemID, domain.WorkDone, "예산 확인"))
+	need(a.SetWorkStatus(p.ID, plan.ID, domain.WorkDone, ""))
+	if g := need(a.SetWorkStatus(p.ID, goal.ID, domain.WorkDone, "필수 협업 결과 확인")); g.Status != domain.WorkDone {
+		t.Fatalf("goal = %+v", g)
+	}
+
+	need(a.SetWorkStatus(p.ID, devReq.ResultWorkItemID, domain.WorkInProgress, "추가 수정"))
+	if g := need(a.GetWorkItem(p.ID, goal.ID)).Item; g.Status != domain.WorkDone {
+		t.Fatalf("goal reopened behind the person's back: %s", g.Status)
+	}
+	notices := need(a.PendingDecisions()).Notices
+	if len(notices) != 2 {
+		t.Fatalf("notices = %+v", notices)
+	}
+	if checks := need(a.GetWorkCollab(p.ID, goal.ID)).Checks; len(checks) != 1 || checks[0].RefID != toDev.ID {
+		t.Fatalf("goal checks = %+v", checks)
+	}
+}

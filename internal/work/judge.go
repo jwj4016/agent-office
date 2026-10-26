@@ -97,11 +97,16 @@ func latestJudgmentJob(ctx context.Context, db *storage.DB, d storage.Delivery) 
 }
 
 // Judge handles deliveries: a judge delivery becomes a judgment job that
-// finishes it later; other deliveries (notices) are recorded. Automatic
-// chains stop at the depth limit, held for a person.
+// finishes it later; other deliveries (notices) are recorded. A
+// collaboration request is recorded too: the request itself waits for the
+// receiving department's decision. Automatic chains stop at the depth
+// limit, held for a person.
 func Judge(db *storage.DB, wake func(lane string)) Handler {
 	return func(ctx context.Context, d storage.Delivery) (Result, error) {
-		if d.Purpose != domain.PurposeJudge {
+		switch d.Purpose {
+		case domain.PurposeCollabRequest:
+			return Result{Status: domain.DeliveryDone, Note: "협업 요청을 받았습니다. 수락·질문·거절은 협업 요청에서 결정합니다."}, nil
+		case domain.PurposeNotify:
 			return Acknowledge(ctx, d)
 		}
 		if d.Event.Automated && d.Event.ChainDepth >= domain.DefaultChainDepth {

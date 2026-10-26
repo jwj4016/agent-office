@@ -765,7 +765,8 @@ func insertWorkTx(ctx context.Context, c *Change, w domain.WorkItem, originSeq i
 // through SetWorkStatus so every change is kept in the history; the
 // kind of an item never changes.
 func (db *DB) UpdateWorkItem(ctx context.Context, w domain.WorkItem) (domain.WorkItem, error) {
-	err := db.Write(ctx, func(tx *sql.Tx) error {
+	_, err := db.Change(ctx, func(c *Change) error {
+		tx := c.Tx
 		if err := writableProjectTx(ctx, tx, w.ProjectID); err != nil {
 			return err
 		}
@@ -790,7 +791,11 @@ func (db *DB) UpdateWorkItem(ctx context.Context, w domain.WorkItem) (domain.Wor
 			due_at = NULLIF(?, ''), updated_at = ? WHERE id = ? AND project_id = ?`,
 			w.ParentID, w.DepartmentID, w.AssigneeAssignmentID, w.Title, w.Description, w.DoneCriteria, w.Priority,
 			string(cats), w.DueAt, Now(), w.ID, w.ProjectID)
-		return err
+		if err != nil || w.ParentID == cur.ParentID || w.ParentID == "" {
+			return err
+		}
+		w.Status = cur.Status
+		return flagMovedUnderDoneGoalTx(ctx, c, w)
 	})
 	if err != nil {
 		return w, err
@@ -863,6 +868,13 @@ func setWorkStatusTx(ctx context.Context, c *Change, cur domain.WorkItem, status
 	if cur.Status == status && cur.StatusReason == reason {
 		return nil
 	}
+	// Completing checks the required collaboration in the transaction
+	// that stores it.
+	if status == domain.WorkDone && cur.Status != domain.WorkDone {
+		if err := checkRequiredMetTx(ctx, c.Tx, cur); err != nil {
+			return err
+		}
+	}
 	now := Now()
 	closed := sql.NullString{String: cur.ClosedAt, Valid: cur.ClosedAt != ""}
 	switch {
@@ -895,7 +907,12 @@ func setWorkStatusTx(ctx context.Context, c *Change, cur domain.WorkItem, status
 	case domain.WorkClosed(cur.Status) && !domain.WorkClosed(status):
 		_, err = emitWorkEventTx(ctx, c, cur.ProjectID, domain.EventWorkReopened, ev)
 	}
-	return err
+	if err != nil || cur.Status != domain.WorkDone || status == domain.WorkDone {
+		return err
+	}
+	// Work another department required is no longer done: the asking
+	// work and its goal are told, never reopened behind the person's back.
+	return requiredWorkLeftDoneTx(ctx, c, cur, status)
 }
 
 func addNoteTx(ctx context.Context, tx *sql.Tx, projectID, workID, kind, body, from, to, author, now string) error {

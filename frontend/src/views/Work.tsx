@@ -8,6 +8,7 @@ import {
     Banner, Button, DetailHeader, EmptyState, ErrorBox, Field, Icon, Loading, Section, StatusBadge, type Tone, shortTime, useAction, useDetail,
     useToast,
 } from '../ui';
+import {WorkCollaboration} from './Collab';
 import {DeliveryInbox, WorkEvents} from './Deliveries';
 import {DepartmentDecisions} from './Judgments';
 import {WorkDocuments} from './Documents';
@@ -228,6 +229,8 @@ function WorkPanel({ctx, id, onChanged}: { ctx: Context; id: string; onChanged: 
             {w.kind === 'work' ? (
                 <WorkDocuments project={ctx.project} item={w}/>
             ) : null}
+            <WorkCollaboration project={ctx.project} item={w} departments={ctx.departments} onChanged={changed}
+                               onOpenWork={(other) => setDetail(<WorkPanel key={other} ctx={ctx} id={other} onChanged={onChanged}/>)}/>
 
             {w.kind === 'goal' ? (
                 <Section title="이 목표의 업무" count={d.data.children.length}

@@ -11,6 +11,7 @@ import type {
     Delivery, DeliveryFilter, Subscription, WorkEventView, WorkPlan, WorkPlanView, AIJob, PlanJobView,
     DocumentContent, DocumentFilter, DocumentVersion, ImpactCheck, LinkedDocument, NewDocumentVersion, SharedDocument,
     Decisions, Judgment, Proposal, ProposalBatch, ProposalEdit,
+    CollabAcceptance, CollabRequest, CollabRequirement, NewCollabRequest, WorkCollab,
 } from './types';
 
 // The generated d.ts types differ from the real JSON for raw fields, so
@@ -78,6 +79,19 @@ export const api = {
     pendingDecisions: () => call<Decisions>(Go.PendingDecisions()),
     requestDocumentReview: (projectId: string, departmentId: string, versionIds: string[], note: string) =>
         call<number>(Go.RequestDocumentReview(projectId, departmentId, versionIds, note)),
+    workCollab: (projectId: string, workItemId: string) => call<WorkCollab>(Go.GetWorkCollab(projectId, workItemId)),
+    collabRequests: (projectId: string, filter: { workItemId?: string; resultWorkItemId?: string; departmentId?: string; open?: boolean } = {}) =>
+        call<CollabRequest[]>(Go.ListCollabRequests(projectId, filter as never)),
+    requestCollab: (projectId: string, n: NewCollabRequest) => call<CollabRequest>(Go.RequestCollab(projectId, n as never)),
+    acceptCollab: (projectId: string, id: string, a: CollabAcceptance = {}) => call<CollabRequest>(Go.AcceptCollab(projectId, id, a as never)),
+    askCollab: (projectId: string, id: string, question: string) => call<CollabRequest>(Go.AskCollab(projectId, id, question)),
+    answerCollab: (projectId: string, id: string, answer: string) => call<CollabRequest>(Go.AnswerCollab(projectId, id, answer)),
+    declineCollab: (projectId: string, id: string, reason: string) => call<CollabRequest>(Go.DeclineCollab(projectId, id, reason)),
+    cancelCollab: (projectId: string, id: string, reason: string) => call<CollabRequest>(Go.CancelCollab(projectId, id, reason)),
+    setCollabRequirement: (projectId: string, id: string, requirement: CollabRequirement, reason: string) =>
+        call<CollabRequest>(Go.SetCollabRequirement(projectId, id, requirement, reason)),
+    replaceCollab: (projectId: string, id: string, n: NewCollabRequest, reason: string) =>
+        call<CollabRequest>(Go.ReplaceCollab(projectId, id, n as never, reason)),
     workPlan: (projectId: string, workItemId: string) => call<WorkPlanView>(Go.GetWorkPlan(projectId, workItemId)),
     saveWorkPlan: (p: Partial<WorkPlan>) => call<WorkPlan>(Go.SaveWorkPlan(p as never)),
     startWork: (projectId: string, workItemId: string, feedback: string) => call<StartResult>(Go.StartWork(projectId, workItemId, feedback)),

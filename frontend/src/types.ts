@@ -363,4 +363,42 @@ export type ProposalEdit = { title?: string; description?: string; doneCriteria?
 
 export type ProposalBatch = { done: number; errors: string[] };
 
-export type Decisions = { questions: Judgment[]; proposals: Proposal[] };
+// ---- collaboration requests ----
+
+export type CollabStatus = 'requested' | 'question' | 'accepted' | 'declined' | 'cancelled';
+export type CollabRequirement = 'reference' | 'required';
+export type CollabAction = 'requested' | 'asked' | 'answered' | 'accepted' | 'declined' | 'cancelled' | 'required' | 'reference' | 'replaced';
+
+// asDepartmentId is the department the person acted for ('' for the person
+// in charge of the asking work).
+export type CollabHistory = { action: CollabAction; body: string; asDepartmentId: string; author: string; createdAt: string };
+
+// One department asking another for help on a work item. satisfied: accepted
+// and its work done; a required request that is not satisfied blocks
+// completing the asking work and its goal.
+export type CollabRequest = {
+    id: string; projectId: string; projectName: string; fromWorkItemId: string; fromWorkTitle: string; fromWorkStatus: WorkStatus; goalId: string;
+    fromDepartmentId: string; fromDepartmentName: string; toDepartmentId: string; toDepartmentName: string; question: string;
+    inputVersionIds: string[]; requirement: CollabRequirement; requirementReason: string; status: CollabStatus; followUp: string;
+    decidedBy: '' | 'user' | 'ai'; decisionReason: string; decidedAt: string; resultWorkItemId: string; resultWorkTitle: string;
+    resultWorkStatus: WorkStatus | ''; replacesId: string; replacedById: string; dueAt: string; eventSequence: number;
+    satisfied: boolean; overdue: boolean; history: CollabHistory[]; createdAt: string; updatedAt: string;
+};
+
+export type NewCollabRequest = {
+    fromWorkItemId?: string; toDepartmentId: string; question: string; inputVersionIds?: string[]; requirement?: CollabRequirement;
+    requirementReason?: string; dueAt?: string;
+};
+
+export type CollabAcceptance = {
+    existingWorkItemId?: string; title?: string; description?: string; doneCriteria?: string; priority?: WorkPriority; note?: string;
+};
+
+// A work item's collaboration: what it (or, for a goal, its work) asked,
+// the request it is the work of, what keeps it from completing, and checks
+// about required work that changed.
+export type WorkCollab = { requests: CollabRequest[]; incoming: CollabRequest[]; blockers: CollabRequest[]; checks: ImpactCheck[] };
+
+export type RequiredNotice = ImpactCheck & { projectName: string; workTitle: string; workKind: WorkKind };
+
+export type Decisions = { questions: Judgment[]; proposals: Proposal[]; collabs: CollabRequest[]; notices: RequiredNotice[] };

@@ -1,6 +1,6 @@
 // UI strings. Korean first; another language is a second object with the
 // same shape.
-import type {DeliveryPurpose, DeliveryStatus, InboxKind, MessageKind, NodeKind, OutputType, RunStatus, StepStatus, WorkPriority, WorkStatus} from './types';
+import type {CollabAction, CollabRequirement, CollabStatus, DeliveryPurpose, DeliveryStatus, InboxKind, MessageKind, NodeKind, OutputType, RunStatus, StepStatus, WorkPriority, WorkStatus} from './types';
 
 export const ko = {
     app: {name: 'Agent Office'},
@@ -56,6 +56,16 @@ export const ko = {
     deliveryPurpose: {
         judge: '판단', notify: '알림', collab_request: '협업 요청',
     } satisfies Record<DeliveryPurpose, string>,
+    collabStatus: {
+        requested: '수락 대기', question: '질문 중', accepted: '수락됨', declined: '거절됨', cancelled: '취소됨',
+    } satisfies Record<CollabStatus, string>,
+    collabRequirement: {
+        reference: '참고용', required: '완료에 필요',
+    } satisfies Record<CollabRequirement, string>,
+    collabAction: {
+        requested: '요청', asked: '질문', answered: '답변', accepted: '수락', declined: '거절', cancelled: '취소',
+        required: '필수로 지정', reference: '필수 해제', replaced: '대체',
+    } satisfies Record<CollabAction, string>,
     inboxKind: {
         task: '작업 제출', review: '리뷰', approval: '승인', tool_approval: '도구 사용 승인', question: 'AI 질문', budget: '예산 한도',
     } satisfies Record<InboxKind, string>,

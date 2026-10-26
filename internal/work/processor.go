@@ -28,8 +28,7 @@ type Result struct {
 type Handler func(ctx context.Context, d storage.Delivery) (Result, error)
 
 // Acknowledge records the delivery without asking anyone. Judge uses it
-// for deliveries that need no judgment (notifications, and collaboration
-// requests until stage 6).
+// for notifications.
 func Acknowledge(context.Context, storage.Delivery) (Result, error) {
 	return Result{Status: domain.DeliveryDone, Note: "전달을 기록했습니다."}, nil
 }

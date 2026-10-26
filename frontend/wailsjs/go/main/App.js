@@ -6,12 +6,20 @@ export function AIActivity(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['AIActivity'](arg1, arg2, arg3, arg4);
 }
 
+export function AcceptCollab(arg1, arg2, arg3) {
+  return window['go']['main']['App']['AcceptCollab'](arg1, arg2, arg3);
+}
+
 export function AcceptProposal(arg1, arg2, arg3) {
   return window['go']['main']['App']['AcceptProposal'](arg1, arg2, arg3);
 }
 
 export function AddWorkNote(arg1, arg2, arg3) {
   return window['go']['main']['App']['AddWorkNote'](arg1, arg2, arg3);
+}
+
+export function AnswerCollab(arg1, arg2, arg3) {
+  return window['go']['main']['App']['AnswerCollab'](arg1, arg2, arg3);
 }
 
 export function AnswerJudgment(arg1, arg2, arg3) {
@@ -32,6 +40,14 @@ export function ApplyPlanJob(arg1, arg2) {
 
 export function ApplyWorkflowAssist(arg1) {
   return window['go']['main']['App']['ApplyWorkflowAssist'](arg1);
+}
+
+export function AskCollab(arg1, arg2, arg3) {
+  return window['go']['main']['App']['AskCollab'](arg1, arg2, arg3);
+}
+
+export function CancelCollab(arg1, arg2, arg3) {
+  return window['go']['main']['App']['CancelCollab'](arg1, arg2, arg3);
 }
 
 export function CancelRun(arg1, arg2) {
@@ -94,6 +110,10 @@ export function DecideToolApproval(arg1, arg2, arg3) {
   return window['go']['main']['App']['DecideToolApproval'](arg1, arg2, arg3);
 }
 
+export function DeclineCollab(arg1, arg2, arg3) {
+  return window['go']['main']['App']['DeclineCollab'](arg1, arg2, arg3);
+}
+
 export function DeleteDepartmentTemplate(arg1) {
   return window['go']['main']['App']['DeleteDepartmentTemplate'](arg1);
 }
@@ -146,6 +166,10 @@ export function GetSettings() {
   return window['go']['main']['App']['GetSettings']();
 }
 
+export function GetWorkCollab(arg1, arg2) {
+  return window['go']['main']['App']['GetWorkCollab'](arg1, arg2);
+}
+
 export function GetWorkItem(arg1, arg2) {
   return window['go']['main']['App']['GetWorkItem'](arg1, arg2);
 }
@@ -180,6 +204,10 @@ export function LinkDocument(arg1, arg2, arg3) {
 
 export function ListAssignments(arg1) {
   return window['go']['main']['App']['ListAssignments'](arg1);
+}
+
+export function ListCollabRequests(arg1, arg2) {
+  return window['go']['main']['App']['ListCollabRequests'](arg1, arg2);
 }
 
 export function ListConnections() {
@@ -306,6 +334,14 @@ export function ReparseDesign(arg1) {
   return window['go']['main']['App']['ReparseDesign'](arg1);
 }
 
+export function ReplaceCollab(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['ReplaceCollab'](arg1, arg2, arg3, arg4);
+}
+
+export function RequestCollab(arg1, arg2) {
+  return window['go']['main']['App']['RequestCollab'](arg1, arg2);
+}
+
 export function RequestDepartmentCheck(arg1, arg2, arg3) {
   return window['go']['main']['App']['RequestDepartmentCheck'](arg1, arg2, arg3);
 }
@@ -380,6 +416,10 @@ export function SaveWorkflowDraft(arg1, arg2, arg3, arg4) {
 
 export function SetAutoPolicy(arg1, arg2) {
   return window['go']['main']['App']['SetAutoPolicy'](arg1, arg2);
+}
+
+export function SetCollabRequirement(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['SetCollabRequirement'](arg1, arg2, arg3, arg4);
 }
 
 export function SetConnectionKey(arg1, arg2) {

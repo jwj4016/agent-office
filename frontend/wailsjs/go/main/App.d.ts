@@ -10,9 +10,13 @@ import {templates} from '../models';
 
 export function AIActivity(arg1:string,arg2:string,arg3:string,arg4:number):Promise<storage.ActivityPage>;
 
+export function AcceptCollab(arg1:string,arg2:string,arg3:storage.CollabAcceptance):Promise<storage.CollabRequest>;
+
 export function AcceptProposal(arg1:string,arg2:string,arg3:storage.ProposalEdit):Promise<domain.WorkItem>;
 
 export function AddWorkNote(arg1:string,arg2:string,arg3:string):Promise<domain.WorkNote>;
+
+export function AnswerCollab(arg1:string,arg2:string,arg3:string):Promise<storage.CollabRequest>;
 
 export function AnswerJudgment(arg1:string,arg2:string,arg3:string):Promise<void>;
 
@@ -23,6 +27,10 @@ export function ApplyDesign(arg1:string,arg2:boolean):Promise<design.ApplyResult
 export function ApplyPlanJob(arg1:string,arg2:string):Promise<domain.WorkPlan>;
 
 export function ApplyWorkflowAssist(arg1:string):Promise<domain.Workflow>;
+
+export function AskCollab(arg1:string,arg2:string,arg3:string):Promise<storage.CollabRequest>;
+
+export function CancelCollab(arg1:string,arg2:string,arg3:string):Promise<storage.CollabRequest>;
 
 export function CancelRun(arg1:string,arg2:string):Promise<void>;
 
@@ -54,6 +62,8 @@ export function DecideProposals(arg1:string,arg2:Array<string>,arg3:boolean,arg4
 
 export function DecideToolApproval(arg1:string,arg2:string,arg3:boolean):Promise<main.ActionResult>;
 
+export function DeclineCollab(arg1:string,arg2:string,arg3:string):Promise<storage.CollabRequest>;
+
 export function DeleteDepartmentTemplate(arg1:string):Promise<void>;
 
 export function DeleteRole(arg1:string):Promise<void>;
@@ -80,6 +90,8 @@ export function GetRun(arg1:string,arg2:string):Promise<engine.RunDetail>;
 
 export function GetSettings():Promise<Record<string, string>>;
 
+export function GetWorkCollab(arg1:string,arg2:string):Promise<main.WorkCollab>;
+
 export function GetWorkItem(arg1:string,arg2:string):Promise<main.WorkDetail>;
 
 export function GetWorkPlan(arg1:string,arg2:string):Promise<main.WorkPlanView>;
@@ -97,6 +109,8 @@ export function InstructionPreview(arg1:string,arg2:string):Promise<main.Instruc
 export function LinkDocument(arg1:string,arg2:string,arg3:string):Promise<void>;
 
 export function ListAssignments(arg1:string):Promise<Array<domain.Assignment>>;
+
+export function ListCollabRequests(arg1:string,arg2:storage.CollabFilter):Promise<Array<storage.CollabRequest>>;
 
 export function ListConnections():Promise<Array<main.ConnectionView>>;
 
@@ -160,6 +174,10 @@ export function RejectProposal(arg1:string,arg2:string,arg3:string):Promise<void
 
 export function ReparseDesign(arg1:string):Promise<main.DesignView>;
 
+export function ReplaceCollab(arg1:string,arg2:string,arg3:storage.NewCollabRequest,arg4:string):Promise<storage.CollabRequest>;
+
+export function RequestCollab(arg1:string,arg2:storage.NewCollabRequest):Promise<storage.CollabRequest>;
+
 export function RequestDepartmentCheck(arg1:string,arg2:string,arg3:string):Promise<void>;
 
 export function RequestDocumentReview(arg1:string,arg2:string,arg3:Array<string>,arg4:string):Promise<number>;
@@ -197,6 +215,8 @@ export function SaveWorkflowDiagram(arg1:string):Promise<string>;
 export function SaveWorkflowDraft(arg1:string,arg2:string,arg3:number,arg4:string):Promise<domain.Workflow>;
 
 export function SetAutoPolicy(arg1:string,arg2:Array<string>):Promise<void>;
+
+export function SetCollabRequirement(arg1:string,arg2:string,arg3:string,arg4:string):Promise<storage.CollabRequest>;
 
 export function SetConnectionKey(arg1:string,arg2:string):Promise<main.ConnectionView>;
 

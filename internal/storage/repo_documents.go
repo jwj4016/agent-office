@@ -506,32 +506,36 @@ func (db *DB) LinkDocument(ctx context.Context, projectID, workItemID, versionID
 		if err != nil {
 			return err
 		}
-		v, err := versionTx(ctx, tx, projectID, versionID)
-		if err != nil {
-			return err
-		}
-		doc, err := documentTx(ctx, tx, projectID, v.DocumentID)
-		if err != nil {
-			return err
-		}
-		if v.WithdrawnAt != "" || doc.Status != "active" {
-			return invalid("철회된 자료는 연결할 수 없습니다")
-		}
-		if doc.Scope == "departments" && (w.DepartmentID == "" || !doc.VisibleTo(w.DepartmentID)) {
-			return invalid("이 업무의 부서는 이 자료를 볼 수 없습니다")
-		}
-		// One version of a document per work item: linking another
-		// version replaces the earlier link.
-		now := Now()
-		if _, err := tx.ExecContext(ctx, `UPDATE document_links SET unlinked_at = ? WHERE work_item_id = ? AND unlinked_at IS NULL
-			AND version_id IN (SELECT id FROM shared_document_versions WHERE document_id = ?) AND version_id <> ?`, now, workItemID, doc.ID, versionID); err != nil {
-			return err
-		}
-		_, err = tx.ExecContext(ctx, `INSERT INTO document_links (id, project_id, work_item_id, version_id, linked_at) VALUES (?, ?, ?, ?, ?)
-			ON CONFLICT(work_item_id, version_id) DO UPDATE SET unlinked_at = NULL, linked_at = excluded.linked_at`,
-			NewID("dlink"), projectID, workItemID, versionID, now)
-		return err
+		return linkDocumentTx(ctx, tx, projectID, w, versionID)
 	})
+}
+
+func linkDocumentTx(ctx context.Context, tx *sql.Tx, projectID string, w domain.WorkItem, versionID string) error {
+	v, err := versionTx(ctx, tx, projectID, versionID)
+	if err != nil {
+		return err
+	}
+	doc, err := documentTx(ctx, tx, projectID, v.DocumentID)
+	if err != nil {
+		return err
+	}
+	if v.WithdrawnAt != "" || doc.Status != "active" {
+		return invalid("철회된 자료는 연결할 수 없습니다")
+	}
+	if doc.Scope == "departments" && (w.DepartmentID == "" || !doc.VisibleTo(w.DepartmentID)) {
+		return invalid("이 업무의 부서는 이 자료를 볼 수 없습니다")
+	}
+	// One version of a document per work item: linking another version
+	// replaces the earlier link.
+	now := Now()
+	if _, err := tx.ExecContext(ctx, `UPDATE document_links SET unlinked_at = ? WHERE work_item_id = ? AND unlinked_at IS NULL
+		AND version_id IN (SELECT id FROM shared_document_versions WHERE document_id = ?) AND version_id <> ?`, now, w.ID, doc.ID, versionID); err != nil {
+		return err
+	}
+	_, err = tx.ExecContext(ctx, `INSERT INTO document_links (id, project_id, work_item_id, version_id, linked_at) VALUES (?, ?, ?, ?, ?)
+		ON CONFLICT(work_item_id, version_id) DO UPDATE SET unlinked_at = NULL, linked_at = excluded.linked_at`,
+		NewID("dlink"), projectID, w.ID, versionID, now)
+	return err
 }
 
 // UnlinkDocument removes a version from a work item's inputs; the link's

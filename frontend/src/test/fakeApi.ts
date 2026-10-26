@@ -60,7 +60,13 @@ export const fakeApi = {
     judgments: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []), answerJudgment: ok(undefined), closeJudgmentQuestion: ok(undefined),
     proposals: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []), acceptProposal: vi.fn(), rejectProposal: ok(undefined),
     decideProposals: vi.fn(async (..._args: unknown[]) => ({done: 0, errors: [] as string[]})),
-    pendingDecisions: vi.fn(async (): Promise<{questions: unknown[]; proposals: unknown[]}> => ({questions: [], proposals: []})),
+    pendingDecisions: vi.fn(async (): Promise<{questions: unknown[]; proposals: unknown[]; collabs: unknown[]; notices: unknown[]}> =>
+        ({questions: [], proposals: [], collabs: [], notices: []})),
+    workCollab: vi.fn(async (..._args: unknown[]): Promise<{requests: unknown[]; incoming: unknown[]; blockers: unknown[]; checks: unknown[]}> =>
+        ({requests: [], incoming: [], blockers: [], checks: []})),
+    collabRequests: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []),
+    requestCollab: vi.fn(), acceptCollab: vi.fn(), askCollab: vi.fn(), answerCollab: vi.fn(), declineCollab: vi.fn(), cancelCollab: vi.fn(),
+    setCollabRequirement: vi.fn(), replaceCollab: vi.fn(),
     requestDocumentReview: vi.fn(async (..._args: unknown[]) => 0),
     workPlan: vi.fn(async (..._args: unknown[]): Promise<WorkPlanView> => ({
         plan: {workItemId: '', projectId: '', assignmentId: '', instructions: '', materials: '', outputs: [{key: 'result', type: 'markdown'}], updatedAt: ''},

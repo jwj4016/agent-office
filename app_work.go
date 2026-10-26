@@ -592,24 +592,35 @@ func (a *App) DecideProposals(projectID string, proposalIDs []string, accept boo
 	return out, nil
 }
 
-// Decisions is what departments wait on a person for, across services.
+// Decisions is what departments wait on a person for, across services:
+// questions, proposals, collaboration requests to decide or answer, and
+// required collaboration that changed after work was finished.
 type Decisions struct {
-	Questions []storage.Judgment `json:"questions"`
-	Proposals []storage.Proposal `json:"proposals"`
+	Questions []storage.Judgment       `json:"questions"`
+	Proposals []storage.Proposal       `json:"proposals"`
+	Collabs   []storage.CollabRequest  `json:"collabs"`
+	Notices   []storage.RequiredNotice `json:"notices"`
 }
 
-// PendingDecisions lists open questions and undecided proposals of every
-// active service, for the inbox.
+// PendingDecisions lists what every active service waits on a person for,
+// for the inbox.
 func (a *App) PendingDecisions() (Decisions, error) {
 	if err := a.ready(); err != nil {
 		return Decisions{}, err
 	}
-	qs, err := a.db.Judgments(a.ctx, "", "open,manual")
-	if err != nil {
+	var d Decisions
+	var err error
+	if d.Questions, err = a.db.Judgments(a.ctx, "", "open,manual"); err != nil {
 		return Decisions{}, uiErr(err)
 	}
-	ps, err := a.db.Proposals(a.ctx, "", "proposed")
-	return Decisions{Questions: qs, Proposals: ps}, uiErr(err)
+	if d.Proposals, err = a.db.Proposals(a.ctx, "", "proposed"); err != nil {
+		return Decisions{}, uiErr(err)
+	}
+	if d.Collabs, err = a.db.CollabRequests(a.ctx, "", storage.CollabFilter{Open: true}); err != nil {
+		return Decisions{}, uiErr(err)
+	}
+	d.Notices, err = a.db.OpenRequiredNotices(a.ctx)
+	return d, uiErr(err)
 }
 
 // RequestDocumentReview asks a department to judge existing documents,
@@ -620,4 +631,126 @@ func (a *App) RequestDocumentReview(projectID, departmentID string, versionIDs [
 	}
 	n, err := a.db.RequestDocumentReview(a.ctx, projectID, departmentID, versionIDs, note)
 	return n, uiErr(err)
+}
+
+// ---- collaboration requests ----
+
+// WorkCollab is a work item's collaboration: what it asked of other
+// departments (for a goal also what its work asked), the request it is
+// the work of, the required requests that keep it from being completed,
+// and open checks about required work that changed.
+type WorkCollab struct {
+	Requests []storage.CollabRequest `json:"requests"`
+	Incoming []storage.CollabRequest `json:"incoming"`
+	Blockers []storage.CollabRequest `json:"blockers"`
+	Checks   []storage.ImpactCheck   `json:"checks"`
+}
+
+func (a *App) GetWorkCollab(projectID, workItemID string) (WorkCollab, error) {
+	if err := a.ready(); err != nil {
+		return WorkCollab{}, err
+	}
+	var c WorkCollab
+	var err error
+	if c.Requests, err = a.db.CollabRequests(a.ctx, projectID, storage.CollabFilter{WorkItemID: workItemID}); err != nil {
+		return WorkCollab{}, uiErr(err)
+	}
+	if c.Incoming, err = a.db.CollabRequests(a.ctx, projectID, storage.CollabFilter{ResultWorkItemID: workItemID}); err != nil {
+		return WorkCollab{}, uiErr(err)
+	}
+	if c.Blockers, err = a.db.CompletionBlockers(a.ctx, projectID, workItemID); err != nil {
+		return WorkCollab{}, uiErr(err)
+	}
+	checks, err := a.db.ImpactChecks(a.ctx, projectID, workItemID, "open")
+	c.Checks = []storage.ImpactCheck{}
+	for _, ch := range checks {
+		if ch.Cause == storage.CauseRequiredReopened {
+			c.Checks = append(c.Checks, ch)
+		}
+	}
+	return c, uiErr(err)
+}
+
+// ListCollabRequests lists a service's collaboration requests.
+func (a *App) ListCollabRequests(projectID string, filter storage.CollabFilter) ([]storage.CollabRequest, error) {
+	if err := a.ready(); err != nil {
+		return nil, err
+	}
+	list, err := a.db.CollabRequests(a.ctx, projectID, filter)
+	return list, uiErr(err)
+}
+
+// RequestCollab asks another department for help on a work item. It
+// reaches that department whatever it subscribes to.
+func (a *App) RequestCollab(projectID string, n storage.NewCollabRequest) (storage.CollabRequest, error) {
+	if err := a.ready(); err != nil {
+		return storage.CollabRequest{}, err
+	}
+	r, err := a.db.RequestCollab(a.ctx, projectID, n)
+	return r, uiErr(err)
+}
+
+// AcceptCollab takes a request on for the receiving department: new work
+// is registered for it, or one of its open work items is chosen.
+func (a *App) AcceptCollab(projectID, id string, acceptance storage.CollabAcceptance) (storage.CollabRequest, error) {
+	if err := a.ready(); err != nil {
+		return storage.CollabRequest{}, err
+	}
+	r, err := a.db.AcceptCollab(a.ctx, projectID, id, acceptance)
+	return r, uiErr(err)
+}
+
+// AskCollab records the receiving department's question about a request.
+func (a *App) AskCollab(projectID, id, question string) (storage.CollabRequest, error) {
+	if err := a.ready(); err != nil {
+		return storage.CollabRequest{}, err
+	}
+	r, err := a.db.AskCollab(a.ctx, projectID, id, question)
+	return r, uiErr(err)
+}
+
+// AnswerCollab answers that question for the asking department.
+func (a *App) AnswerCollab(projectID, id, answer string) (storage.CollabRequest, error) {
+	if err := a.ready(); err != nil {
+		return storage.CollabRequest{}, err
+	}
+	r, err := a.db.AnswerCollab(a.ctx, projectID, id, answer)
+	return r, uiErr(err)
+}
+
+// DeclineCollab declines a request for the receiving department.
+func (a *App) DeclineCollab(projectID, id, reason string) (storage.CollabRequest, error) {
+	if err := a.ready(); err != nil {
+		return storage.CollabRequest{}, err
+	}
+	r, err := a.db.DeclineCollab(a.ctx, projectID, id, reason)
+	return r, uiErr(err)
+}
+
+// CancelCollab withdraws a request that was not taken on.
+func (a *App) CancelCollab(projectID, id, reason string) (storage.CollabRequest, error) {
+	if err := a.ready(); err != nil {
+		return storage.CollabRequest{}, err
+	}
+	r, err := a.db.CancelCollab(a.ctx, projectID, id, reason)
+	return r, uiErr(err)
+}
+
+// SetCollabRequirement makes a request required or reference; releasing a
+// required one needs a reason.
+func (a *App) SetCollabRequirement(projectID, id, requirement, reason string) (storage.CollabRequest, error) {
+	if err := a.ready(); err != nil {
+		return storage.CollabRequest{}, err
+	}
+	r, err := a.db.SetCollabRequirement(a.ctx, projectID, id, requirement, reason)
+	return r, uiErr(err)
+}
+
+// ReplaceCollab hands a required request over to a new required request.
+func (a *App) ReplaceCollab(projectID, id string, n storage.NewCollabRequest, reason string) (storage.CollabRequest, error) {
+	if err := a.ready(); err != nil {
+		return storage.CollabRequest{}, err
+	}
+	r, err := a.db.ReplaceCollab(a.ctx, projectID, id, n, reason)
+	return r, uiErr(err)
 }

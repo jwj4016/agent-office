@@ -219,3 +219,31 @@ func TestJudgmentSchemaConstraints(t *testing.T) {
 	f.mustFail(t, "CHECK", prop, "p4", 2, "accepted", nil, now, now)
 	f.mustFail(t, "CHECK", prop, "p5", 2, "rejected", nil, nil, now)
 }
+
+// A collaboration request stays inside its service, never asks its own
+// department, and keeps its decision fields consistent with its status.
+func TestCollabSchemaConstraints(t *testing.T) {
+	f := newSchemaFixture(t)
+	now := Now()
+	dept := `INSERT INTO departments (id, project_id, name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`
+	f.mustExec(t, dept, "d-mkt", "game", "마케팅팀", now, now)
+	f.mustExec(t, dept, "d-dev", "game", "개발팀", now, now)
+	f.mustExec(t, dept, "d-other", "estate", "개발팀", now, now)
+	work := `INSERT INTO work_items (id, project_id, kind, department_id, title, created_at, updated_at) VALUES (?, 'game', 'work', 'd-mkt', ?, ?, ?)`
+	f.mustExec(t, work, "w1", "기획", now, now)
+	f.mustExec(t, work, "w2", "구현", now, now)
+	req := `INSERT INTO collab_requests (id, project_id, from_work_item_id, from_department_id, to_department_id, question, requirement, status,
+		follow_up, decided_by, decided_at, result_work_item_id, created_at, updated_at) VALUES (?, 'game', 'w1', 'd-mkt', ?, '검토', ?, ?, ?, ?, ?, ?, ?, ?)`
+	f.mustExec(t, req, "c1", "d-dev", "required", "requested", "", "", nil, nil, now, now)
+	f.mustFail(t, "FOREIGN KEY", req, "c2", "d-other", "reference", "requested", "", "", nil, nil, now, now)
+	f.mustFail(t, "CHECK", req, "c3", "d-mkt", "reference", "requested", "", "", nil, nil, now, now)
+	f.mustFail(t, "CHECK", req, "c4", "d-dev", "reference", "accepted", "", "user", now, nil, now, now)
+	f.mustFail(t, "CHECK", req, "c5", "d-dev", "required", "accepted", "", "ai", now, "w2", now, now)
+	f.mustFail(t, "CHECK", req, "c6", "d-dev", "reference", "question", "", "", nil, nil, now, now)
+	f.mustFail(t, "CHECK", req, "c7", "d-dev", "reference", "declined", "", "user", nil, nil, now, now)
+	f.mustFail(t, "CHECK", req, "c8", "d-dev", "maybe", "requested", "", "", nil, nil, now, now)
+	f.mustExec(t, req, "c9", "d-dev", "reference", "accepted", "", "ai", now, "w2", now, now)
+	f.mustFail(t, "UNIQUE", req, "c10", "d-dev", "reference", "accepted", "", "user", now, "w2", now, now)
+	f.mustFail(t, "FOREIGN KEY", `INSERT INTO collab_request_history (id, project_id, request_id, action, author, created_at) VALUES ('h1', 'estate', 'c1', 'asked', 'me', ?)`, now)
+	f.mustFail(t, "CHECK", `INSERT INTO collab_request_history (id, project_id, request_id, action, author, created_at) VALUES ('h2', 'game', 'c1', 'shrugged', 'me', ?)`, now)
+}

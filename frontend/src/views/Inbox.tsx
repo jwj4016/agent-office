@@ -9,6 +9,7 @@ import {
     useDetail, useToast,
 } from '../ui';
 import {ArtifactViewer} from './ArtifactViewer';
+import {InboxCollaboration} from './Collab';
 import {InboxDecisions} from './Judgments';
 
 const itemKey = (it: InboxItem) => `${it.kind}:${it.runId}:${it.attemptId}:${it.approvalId ?? ''}:${it.messageId ?? ''}`;
@@ -16,7 +17,8 @@ const itemKey = (it: InboxItem) => `${it.kind}:${it.runId}:${it.attemptId}:${it.
 export function Inbox({onOpenRun}: { onOpenRun: (projectId: string, runId: string) => void }) {
     const {data, error, reload} = useLoad(() => api.inbox(), [], '*');
     const decisions = useLoad(() => api.pendingDecisions(), [], '*');
-    const decisionCount = decisions.data ? decisions.data.questions.length + decisions.data.proposals.length : 0;
+    const decisionCount = decisions.data
+        ? decisions.data.questions.length + decisions.data.proposals.length + decisions.data.collabs.length + decisions.data.notices.length : 0;
     // Oldest first: what has waited longest is handled first.
     const items = [...(data ?? [])].sort((a, b) => a.since.localeCompare(b.since));
     const groups = new Map<string, InboxItem[]>();
@@ -25,8 +27,9 @@ export function Inbox({onOpenRun}: { onOpenRun: (projectId: string, runId: strin
     return (
         <div className="page narrow" style={{maxWidth: 880}}>
             <PageHeader title={t.nav.inbox} badges={items.length + decisionCount ? <span className="badge warn count">{items.length + decisionCount}</span> : null}
-                        desc="내가 맡은 작업·리뷰·승인, AI의 질문, 부서가 제안한 업무입니다. 처리하지 않으면 자동으로 승인되지 않습니다."/>
+                        desc="내가 맡은 작업·리뷰·승인, AI의 질문, 부서가 제안한 업무와 협업 요청입니다. 처리하지 않으면 자동으로 승인되지 않습니다."/>
             <ErrorBox error={error || decisions.error}/>
+            {decisions.data ? <InboxCollaboration collabs={decisions.data.collabs} notices={decisions.data.notices} onDone={decisions.reload}/> : null}
             {decisions.data ? <InboxDecisions data={decisions.data} onDone={decisions.reload}/> : null}
             {!data && !error ? <Loading/> : null}
             {data && items.length === 0 && decisionCount === 0 ? (

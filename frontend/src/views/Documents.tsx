@@ -292,7 +292,9 @@ export function ShareResult({project, artifactId, item, departments, categories,
 // next run is given them), changes to check, and linking more.
 export function WorkDocuments({project, item}: { project: Project; item: WorkItem }) {
     const links = useLoad(() => api.workDocuments(project.id, item.id), [project.id, item.id], project.id);
-    const checks = useLoad(() => api.impactChecks(project.id, item.id, 'open'), [project.id, item.id], project.id);
+    // Required collaboration checks are shown with the collaboration.
+    const checks = useLoad(async () => (await api.impactChecks(project.id, item.id, 'open')).filter((c) => c.cause !== 'required_reopened'),
+        [project.id, item.id], project.id);
     const visible = useLoad(() => api.documents(project.id, {visibleTo: item.departmentId}), [project.id, item.departmentId], project.id);
     const [pick, setPick] = useState('');
     const action = useAction();

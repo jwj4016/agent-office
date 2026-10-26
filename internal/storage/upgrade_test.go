@@ -185,6 +185,21 @@ func TestUpgradeToDepartmentsKeepsServices(t *testing.T) {
 	if props, err := db.Proposals(ctx, "prj-1", ""); err != nil || len(props) != 0 {
 		t.Fatalf("proposals after upgrade: %v %v", props, err)
 	}
+	fin, err := db.SaveDepartment(ctx, domain.Department{ProjectID: "prj-1", Name: "재무팀"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	work, err := db.CreateWorkItem(ctx, domain.WorkItem{ProjectID: "prj-1", DepartmentID: dept.ID, Title: "기획"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.RequestCollab(ctx, "prj-1", NewCollabRequest{FromWorkItemID: work.ID, ToDepartmentID: fin.ID, Question: "예산 확인",
+		Requirement: CollabRequired}); err != nil {
+		t.Fatalf("collaboration request after upgrade: %v", err)
+	}
+	if _, err := db.SetWorkStatus(ctx, "prj-1", work.ID, domain.WorkDone, ""); err == nil {
+		t.Fatal("required collaboration did not block after upgrade")
+	}
 	if rows, _ := db.Read().Query(`PRAGMA foreign_key_check`); rows.Next() {
 		rows.Close()
 		t.Fatal("foreign key violations after upgrade")
