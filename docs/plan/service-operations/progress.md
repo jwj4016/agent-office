@@ -5,9 +5,9 @@
 
 ## 현재 상태
 
-- 현재 단계: 6단계 완료. 다음은 7단계 — 자동 모드와 기존 워크플로 연결.
+- 현재 단계: 7단계 완료. 다음은 8단계 — 정기 제안과 새 부서의 참여.
 - 계획 버전: 6차 개정. 부서는 서비스 소속, 회사 공통은 부서 템플릿.
-- 기능 구현: 6단계까지 완료(부서·업무·공동 목표, 업무 사건과 부서 전달함, 업무 실행과 AI 계획 제안, 공유 자료함, 부서 판단과 업무 제안, 협업 요청과 공동 목표의 완료). 7단계부터 남음.
+- 기능 구현: 7단계까지 완료(부서·업무·공동 목표, 업무 사건과 부서 전달함, 업무 실행과 AI 계획 제안, 공유 자료함, 부서 판단과 업무 제안, 협업 요청과 공동 목표의 완료, 자동 모드와 기존 워크플로 연결). 8단계부터 남음.
 - 핵심 변경: 회사 전체의 고정 워크플로 대신 업무 사건·공유 문서·부서 구독으로 협업을 연결한다. 기존 엔진은 개별 업무 실행에 재사용한다.
 
 ## 단계별 완료 확인
@@ -21,7 +21,7 @@
 - [x] 4단계: 공유 자료함과 중간 산출물.
 - [x] 5단계: 사건을 보고 후속 업무 제안.
 - [x] 6단계: 협업 요청과 공동 목표 완료.
-- [ ] 7단계: 자동 모드와 기존 워크플로 연결.
+- [x] 7단계: 자동 모드와 기존 워크플로 연결.
 - [ ] 8단계: 정기 제안과 새 부서 참여.
 - [ ] 9단계: 운영 화면과 전체 인수 검증.
 
@@ -475,6 +475,70 @@
 ```text
 미검증 항목과 막힌 이유: 실제 앱 창에서의 화면 확인(GUI를 볼 수 없음). 서비스 내보내기(export)는 1~6단계에서 추가한 업무 운영 표를 아직 포함하지 않는다(9단계에서 정리).
 다음에 할 구체적인 작업: 7단계 — 업무에 기존 워크플로 확정 버전 연결, 부서 자동화 규칙과 화면, `collab_decision` AI 작업으로 참고용 협업 자동 결정과 되돌리기, 자동 시작 세 조건 검사.
+```
+
+## 2026-10-26 — 7단계 완료: 자동 모드와 기존 워크플로 연결
+
+```text
+날짜: 2026-10-26
+현재 단계: 7단계 완료 → 다음은 8단계
+완료한 체크리스트: 7단계 전체 8개 항목
+```
+
+**변경한 코드**
+
+- 저장 구조 `0015_automation.sql`:
+  - `work_plans`: 연결할 흐름 버전(`workflow_version_id`)과 시작 승인(`approved_hash`·`approved_by`·`approved_at`).
+  - `work_items.review_before_start`, `collab_requests.reviewed_at`.
+  - `collab_request_history`: `reverted`를 넣으려고 다시 만들었다(기존 행 복사).
+  - `auto_starts`: 업무당 하나. 검토에는 이유, 시작 뒤에는 실행이 필수다.
+- 도메인 `work.go`: `DepartmentAutomation`(자동 시작·분류·허용 연결·결과 형식·흐름 버전·자동 공유·참고용 협업 자동 결정)과 판단 함수, 연쇄당 자동 등록 업무 기본값 10(`DefaultChainWork`).
+- 저장소:
+  - `repo_automation.go`:
+    - 연쇄: 연쇄를 잇는 사건 만들기(`continueChainTx`), 연쇄 시작 번호 식을 한 곳에 둠(`chainRootExpr`), 연쇄 한도 검사(`ChainHold`).
+    - 흐름 버전 선택(`WorkflowChoices`), 부서 규칙 저장(`SetDepartmentAutomation`).
+    - 시작 승인(`WorkStartHash`·`ApproveWorkStart`·`WorkStartApproval`).
+    - 자동 시작 기록(`queueAutoStartTx`·`MoveAutoStart`·`SettleAutoStart`·`RetryAutoStart`·`DismissAutoStart`).
+  - `repo_collab_ai.go`: `CompleteCollabDecision`, `ReviewCollabDecision`, `RevertCollabDecision`.
+  - `repo_collab.go`: 수락을 `acceptCollabTx`로 나눠 사람·AI가 함께 쓴다. AI 1회차 질문에 답하면 2회차 작업을 만든다.
+  - `repo_work.go`: 업무를 만들 때 원인 사건이 있으면 자동 시작 대상을 남긴다. AI가 등록한 업무는 원인 사건의 연쇄를 잇는다.
+  - `repo_documents.go`: 자동 공유는 원인 사건의 연쇄를 잇는다.
+- 처리: `internal/work/collab.go`(협업 전달 → AI 결정 작업, `CollabKind`), `internal/work/auto.go`(`AutoStarter`). 앱 시작 시 함께 돌고, 저장 사건마다 깨운다.
+- 엔진 `work.go`: 연결된 흐름 버전을 그대로 실행(수정 요청 거부), `ShareRunResults`.
+- 바인딩:
+  - `StartWork`가 사람의 시작 승인을 남기고 남은 자동 시작을 닫는다. `GetWorkPlan`이 승인·자동 시작 상태와 흐름 미리보기를 준다.
+  - 새로 추가: `ListWorkflowChoices`, `SetDepartmentAutomation`, `ListAutoStarts`, `RetryAutoStart`, `DismissAutoStart`, `ReviewCollabDecision`, `RevertCollabDecision`.
+  - `PendingDecisions`에 AI 결정과 자동 시작 검토를 더했다. `frontend/wailsjs`를 다시 생성했다.
+- 화면:
+  - ‘팀’ 탭 부서 행의 ‘자동화’ 패널(`Automation.tsx`). 검토 모드면 적용되지 않는다고 알린다.
+  - 업무의 ‘작업 계획과 실행’:
+    - 실행 방식(작업 계획/업무 흐름 버전), ‘자동 모드에서도 시작 전에 직접 검토’.
+    - 시작 승인 상태와 무효 표시, 자동 시작 상태(다시 확인·직접 진행).
+  - 협업 카드: ‘AI 결정’ 표시, ‘대표 AI’ 이력, ‘AI 결정 확인’·‘AI 결정 되돌리기’(이유 필수).
+  - 받은 일 ‘부서 간 협업과 자동 처리’: 자동 시작 검토와 확인할 AI 결정.
+- `docs/decisions.md`에 결정 7건을 기록했다.
+
+**실행한 검증과 결과**
+
+| 명령 | 결과 |
+|---|---|
+| `go vet`, `go test`(`build/` 제외 전체) | 통과 |
+| 새 Go 시험 | `internal/work/auto_test.go` 5건(검토 조건 8가지 하위 시험), `repo_automation_test.go` 3건, `automation_internal_test.go` 1건, `schema_test.go` 자동 시작 제약 1건, 업그레이드 시험 1건, 바인딩 시험 `work_auto_bindings_test.go` 2건 |
+| `npm run typecheck`, `npm run build` | 통과 |
+| `npm test` | 통과(30개 파일, 149개 시험). 새 시험: `Automation.test.tsx` 2건, `Collab.test.tsx` 2건, `WorkRuns.test.tsx` 3건 |
+
+- 완료 기준 확인:
+  - `TestAutoModeRunsAllowedWorkAndSharesResults`: 마케팅의 참고용 요청 두 건을 개발·재무 대표 AI가 각각 수락한다. 각 업무에 AI 계획 → 시작 승인 → 서로 다른 실행 → 결과 초안 공유가 이어진다. 업무는 ‘대기: 결과를 확인’에서 사람을 기다리고, AI 호출은 결정 2건과 계획 2건뿐이다.
+  - `TestReviewModeWaits`: 검토 모드는 AI를 부르지 않고 실행도 하지 않는다.
+  - `TestAutoStartChecksSendWorkToReview`: 다음 경우 모두 실행 없이 검토로 간다. 분류, 결과 형식, 부서 허용 연결, 서비스 자동 정책, 시작 전 검토, 예산 미설정, 예산 소진, 사람 담당.
+  - `TestChangeVoidsStartApproval`: 승인 뒤 완료 조건이 바뀌면 실행하지 않는다. 다시 확인하면 새 승인으로 끝까지 간다.
+  - `TestAICollabDecisions`: 필수 요청은 AI가 결정하지 않는다. 거절 확인, 질문 → 답변 → 2회차 수락, 이유 없는 되돌리기 거부, 되돌리면 업무 취소와 이력이 남는다.
+  - `TestChainHoldLimits`: 연쇄 깊이와 연쇄당 자동 등록 업무 수 한도.
+  - `TestBindingsAutoModeStartsAllowedWork`·`TestBindingsWorkRunsLinkedWorkflow`: 앱에서 같은 흐름, 흐름 버전 실행, 사람의 시작 승인과 무효화를 확인한다.
+
+```text
+미검증 항목과 막힌 이유: 실제 앱 창에서의 화면 확인(GUI를 볼 수 없음). 실제 AI가 협업을 결정하고 계획을 쓰는 품질(시험은 정해 둔 응답을 씀). 연쇄 한도는 아직 서비스 설정이 아닌 기본값(깊이 3, 자동 등록 10)이다.
+다음에 할 구체적인 작업: 8단계 — 부서별 정기 점검 일정(매일·매주, 시각·요일·시간대), 회차 키 고유 제약, 앱 종료 중 놓친 회차는 최신 한 회차만, 새 부서의 이전 자료 검토 흐름 정리.
 ```
 
 ## 작업 기록 양식

@@ -1,7 +1,7 @@
 # Agent Office 개선 구현 계획서 — 사건과 산출물로 협업하는 작은 회사
 
 작성일·수정일: 2026-10-22  
-상태: 구현 중(6단계 완료), 6차 개정  
+상태: 구현 중(7단계 완료), 6차 개정  
 관련 파일: [진행 체크리스트](progress.md) · [현재/개선 후 업무 흐름](asis-tobe.html)
 
 ## 1. 목표와 설계 방향
@@ -574,16 +574,47 @@ Agent Office는 Go·Wails·React·TypeScript·SQLite 기반 데스크톱 앱이�
 
 **화면에서 보이는 변화:** 허용한 작업은 자동으로 시작하고, 반복 작업에는 기존 워크플로를 쓴다.
 
-- [ ] 업무에 기존 워크플로의 확정 버전을 선택해 연결하는 기능을 만든다.
-- [ ] 부서의 자동화 규칙(분류·허용 도구·작업 범위·자동 공유·참고용 협업 자동 결정)을 저장하고 화면을 만든다.
-- [ ] `collab_decision` AI 작업으로 참고용 협업 요청을 수락·거절·질문한다. 수락 시 업무 생성을 연쇄 한도에 포함하고, 필수 협업은 AI가 결정하지 않는다.
-- [ ] 사용자가 AI의 협업 결정을 확인·되돌릴 수 있게 하고, 되돌린 기록과 이유를 남긴다.
-- [ ] 4.6절의 세 조건을 모두 검사해 자동 시작하고, 맞지 않으면 검토함으로 보낸다.
-- [ ] 사건으로 만들어진 부서 업무들이 서로 다른 실행으로 병렬 처리되게 한다.
-- [ ] 계획·완료 조건·자료·담당자 변경 시 시작 승인을 무효로 한다.
-- [ ] 예산·권한·연쇄 한도 보류를 검증한다.
+- [x] 업무에 기존 워크플로의 확정 버전을 선택해 연결하는 기능을 만든다.
+- [x] 부서의 자동화 규칙(분류·허용 도구·작업 범위·자동 공유·참고용 협업 자동 결정)을 저장하고 화면을 만든다.
+- [x] `collab_decision` AI 작업으로 참고용 협업 요청을 수락·거절·질문한다. 수락 시 업무 생성을 연쇄 한도에 포함하고, 필수 협업은 AI가 결정하지 않는다.
+- [x] 사용자가 AI의 협업 결정을 확인·되돌릴 수 있게 하고, 되돌린 기록과 이유를 남긴다.
+- [x] 4.6절의 세 조건을 모두 검사해 자동 시작하고, 맞지 않으면 검토함으로 보낸다.
+- [x] 사건으로 만들어진 부서 업무들이 서로 다른 실행으로 병렬 처리되게 한다.
+- [x] 계획·완료 조건·자료·담당자 변경 시 시작 승인을 무효로 한다.
+- [x] 예산·권한·연쇄 한도 보류를 검증한다.
 
 **완료 기준:** 회사 전체의 고정 그래프 없이 개발과 재무가 자기 업무를 실행하고 중간 결과를 공유한다. 검토 모드는 기다리고, 자동 모드는 허용한 작업만 수행한다.
+
+구현 메모(7단계):
+- 파일:
+  - 마이그레이션 `0015_automation.sql`: `work_plans`에 연결 흐름 버전과 시작 승인, `work_items.review_before_start`, `collab_requests.reviewed_at`, 협업 이력 재생성(`reverted` 추가), `auto_starts`.
+  - 저장소 `repo_automation.go`(연쇄 한도, 흐름 버전 선택, 부서 규칙, 시작 승인, 자동 시작 기록), `repo_collab_ai.go`(AI 협업 결정 저장·확인·되돌리기).
+  - 작업 `internal/work/collab.go`(`CollabKind`), `internal/work/auto.go`(`AutoStarter`), 엔진 `work.go`(흐름 버전 실행, `ShareRunResults`).
+  - 바인딩 `app_work.go`, 화면 `views/Automation.tsx`, `WorkRuns.tsx`, `Collab.tsx`, `Team.tsx`, `Inbox.tsx`.
+- 부서 자동화 규칙(`departments.automation`, 모두 기본 꺼짐):
+  - 자동 시작, 자동 공유, 참고용 협업 자동 결정.
+  - 분류: 업무의 분류가 모두 목록 안이어야 하고, 비우면 모든 분류.
+  - 허용 도구: AI 연결. 서비스 자동 정책에도 있어야 하고, 비우면 서비스 정책 그대로.
+  - 작업 범위: 결과 형식. 비우면 문서·JSON·보고서만.
+  - 자동 실행할 수 있는 흐름 버전 목록.
+- 자동 시작:
+  - 사건에서 생긴 업무(제안 등록·협업 수락)만 대상이다. 서비스가 자동 모드이고 부서가 자동 시작을 켰을 때, 업무를 만드는 트랜잭션에서 `auto_starts`를 만든다.
+  - 처리기 `AutoStarter`의 순서:
+    1. 서비스 자동 모드, 예산 설정, 예산 보류, 부서 규칙(사용·자동 시작·분류), 업무의 ‘시작 전 검토’를 검사한다.
+    2. 계획이 없으면 담당 AI가 백그라운드 줄에서 계획을 쓴다(요청 키 `plan:{업무}:{자동 시작 ID}`).
+    3. 계획의 담당자가 AI이고 연결이 허용되며 결과 형식이 범위 안인지 검사한다. 흐름 버전이면 허용 목록에 있고 모든 단계의 담당자가 그런지 본다.
+    4. 그 계획에 시작 승인을 남기고, 다음 차례에 승인이 아직 유효한지 다시 확인한 뒤 실행한다.
+    5. 실행이 성공하고 부서가 자동 공유를 켰으면 결과를 초안으로 공유한다. 이 공유 사건은 원인 사건의 연쇄를 잇는다.
+  - 하나라도 맞지 않으면 ‘검토 필요’로 이유를 남긴다. 사람은 다시 확인하거나 직접 진행한다. 사람이 직접 시작하면 남은 자동 시작은 닫힌다.
+- 시작 승인:
+  - 업무 제목·설명·완료 조건, 계획(담당자·지침·자료·산출물·흐름 버전), 연결 자료 판의 해시를 남긴다.
+  - 사람이 시작하면 `user`, 자동 시작은 `auto`로 남긴다. 무엇이든 바뀌면 무효이고, 자동 시작은 실행하지 않고 검토로 보낸다.
+- AI 협업 결정(`collab_decision`, 백그라운드 줄):
+  - 자동 모드이고 부서가 허용하며 대표 담당자가 허용된 연결의 AI이고 요청이 참고용·미결정일 때만 한다. 필수 요청과 그 밖의 경우는 사람이 결정한다.
+  - 수락 업무는 요청 사건의 연쇄를 이어 자동 등록 업무로 센다. 작업을 만들기 전과 수락을 저장할 때 연쇄 깊이와 연쇄당 자동 등록 업무 수를 검사하고, 넘으면 전달을 보류한다.
+  - 1회차 질문은 요청한 부서가 답하면 2회차로 한 번 더 결정한다. 2회차 질문에 답하면 사람이 결정한다.
+  - 사람은 결정을 ‘확인’하거나 이유와 함께 ‘되돌린다’. 되돌리면 수락 업무는 취소되고(실행 중이면 거절) 요청은 다시 사람의 결정을 기다린다.
+- 기존 흐름 연결: 계획의 ‘실행 방식’에서 서비스 흐름의 확정 버전을 고르면 그 버전을 그대로 실행한다. 업무 설명·참고 공유 자료는 전달되지 않고 수정 요청은 받지 않는다.
 
 ### 8단계 — 정기 제안과 새 부서의 참여
 
@@ -727,12 +758,12 @@ Agent Office는 Go·Wails·React·TypeScript·SQLite 기반 데스크톱 앱이�
 | `departments` | 1 | `project_id`, `name`, `responsibility`, `lead_assignment_id`, `template_id`, `automation`(JSON), `limits`(JSON), `status` | `UNIQUE(project_id, name)`, 대표는 `(assignment_id, project_id)`로 참조, 템플릿 삭제 시 `template_id`만 비움 |
 | `department_members` | 1 | `assignment_id`, `project_id`, `department_id` | 기본 키 `assignment_id`: 담당자는 서비스 안에서 한 부서에만 소속. 담당자와 부서 모두 같은 서비스로 참조 |
 | `project_categories` | 1 | `project_id`, `name`, `position` | `UNIQUE(project_id, name)` |
-| `work_items` | 1 | `project_id`, `kind`(`goal`/`work`), `parent_id`, `department_id`, `assignee_assignment_id`, `title`, `description`, `done_criteria`, `priority`, `status`, `status_reason`, `categories`(JSON), `due_at`, `origin_event_sequence`, `origin_proposal_id`, `closed_at` | `parent_id`는 같은 서비스의 `goal`만, 공동 목표는 결과 책임 부서 필수 |
+| `work_items` | 1 | `project_id`, `kind`(`goal`/`work`), `parent_id`, `department_id`, `assignee_assignment_id`, `title`, `description`, `done_criteria`, `priority`, `status`, `status_reason`, `categories`(JSON), `due_at`, `origin_event_sequence`, `origin_proposal_id`, `closed_at`, `review_before_start`(7단계) | `parent_id`는 같은 서비스의 `goal`만, 공동 목표는 결과 책임 부서 필수 |
 | `work_item_notes` | 1 | `work_item_id`, `kind`(`note`/`status`), `body`, `from_status`, `to_status`, `author` | 상태 변경은 모두 `kind='status'` 기록으로 남김(사건 저장은 2단계) |
 | `subscriptions` | 2 | `project_id`, `department_id`, `event_kinds`(JSON), `categories`(JSON), `guidance`, `enabled` | 부서는 `(department_id, project_id)`로 참조. 지우지 않고 끈다(전달이 참조함) |
 | `event_deliveries` | 2 | `project_id`, `event_sequence`, `department_id`, `subscription_id`, `purpose`(`judge`/`notify`/`collab_request`), `status`(`pending`/`processing`/`waiting_answer`/`done`/`skipped`/`held`/`failed`), `note`, `error`, `hold_reason` | `UNIQUE(event_sequence, department_id, purpose)`; AI 호출 시도 수는 별도 시도 행에서 관리 |
 | `workflows.work_item_id` | 3 | 업무 전용 워크플로 표시 | 일반 목록에서 제외 |
-| `work_plans` | 3 | `work_item_id`(기본 키), `project_id`, `assignment_id`, `instructions`, `materials`, `outputs`(JSON) | 업무·담당자를 같은 서비스로 참조 |
+| `work_plans` | 3 | `work_item_id`(기본 키), `project_id`, `assignment_id`, `instructions`, `materials`, `outputs`(JSON), 7단계: `workflow_version_id`, `approved_hash`, `approved_by`(`user`/`auto`), `approved_at` | 업무·담당자를 같은 서비스로 참조. 흐름 버전은 같은 서비스의 일반 흐름인지 코드에서 검사 |
 | `runs.work_item_id` | 3 | 실행과 업무 연결 | 부분 고유 색인: `status IN ('running','waiting','paused')`인 실행은 업무당 하나 |
 | `work_ai_jobs` | 3 | `project_id`, `kind`(`plan`/`judgment`/`collab_decision`), `lane`(`interactive`/`background`), `request_key`, `assignment_id`, `connection_id`, `model`, `max_attempts`(기본 3, 사람의 재시도마다 +1), `applied_at`, `work_item_id`, `delivery_id`, `round`, `status`(`pending`/`working`/`waiting_answer`/`ready`/`held`/`failed`), `input_snapshot`, `input_hash`, `result`(JSON), `error`, `hold_reason` | `UNIQUE(project_id, request_key)`, `UNIQUE(delivery_id, round)`; `plan`은 업무 필수·전달/회차 없음·키 `plan:{work_item_id}:{요청 ID 또는 전달 ID}`, `judgment`·`collab_decision`은 전달 필수·회차 1 또는 2(`collab_decision`은 7단계에 추가) |
 | `work_ai_attempts` | 3 | `project_id`, `job_id`, `number`, `connection_id`, `model`, `status`(`working`/`succeeded`/`failed`/`interrupted`), `usage`(JSON), `usage_reported`, `started_at`, `ended_at`, `error` | `UNIQUE(job_id, number)`; 시도별 최신 누적 사용량을 저장하고 다른 시도는 합산 |
@@ -743,8 +774,9 @@ Agent Office는 Go·Wails·React·TypeScript·SQLite 기반 데스크톱 앱이�
 | `impact_checks` | 4 | `project_id`, `work_item_id`, `cause`(`revised`/`withdrawn`/`required_reopened`), `ref_id`, `document_id`, `summary`, `status`(`open`/`resolved`/`dismissed`), `note` | `UNIQUE(work_item_id, cause, ref_id)` |
 | `judgments` | 5 | `project_id`, `delivery_id`, `round`, `ai_job_id`, `department_id`, `outcome`(`none`/`propose`/`question`), `reason`, `evidence`(JSON), `question`, `answer`, `question_status`(질문 없으면 비움, `open`/`answered`/`manual`/`closed`) | `UNIQUE(delivery_id, round)`, `UNIQUE(ai_job_id)`; 질문 결과와 질문 상태는 CHECK로 함께 둠; 작업 상태와 비용은 AI 작업·시도에서 조회 |
 | `work_proposals` | 5 | `project_id`, `judgment_id`, `position`, `department_id`, `title`, `description`, `done_criteria`, `categories`(JSON), `priority`, `status`(`proposed`/`accepted`/`rejected`), `work_item_id`, `duplicate_of`, `decision_note`, `decided_at` | `UNIQUE(judgment_id, position)`, `UNIQUE(work_item_id)`; 등록된 제안만 `work_item_id`가 있음 |
-| `collab_requests` | 6 | `project_id`, `from_work_item_id`, `from_department_id`, `to_department_id`, `question`, `input_versions`(JSON), `requirement`(`reference`/`required`), `requirement_reason`, `status`(`requested`/`question`/`accepted`/`declined`/`cancelled`), `follow_up`(받는 부서의 질문), `decided_by`(`user`/`ai`), `decision_job_id`, `decision_reason`, `decided_at`, `reverted_at`, `revert_reason`, `result_work_item_id`, `replaces_id`, `due_at`, `event_sequence` | `UNIQUE(result_work_item_id)`; `decided_by='ai'`는 `requirement='reference'`일 때만 허용; 요청·받는 부서가 다름; 수락이면 수행 업무 필수; 질문 상태와 `follow_up`, 미결정 상태와 `decided_at`을 CHECK로 함께 둠 |
-| `collab_request_history` | 6 | `project_id`, `request_id`, `action`(`requested`/`asked`/`answered`/`accepted`/`declined`/`cancelled`/`required`/`reference`/`replaced`), `body`, `as_department_id`, `author` | 요청과 같은 서비스로 참조. 사람이 어느 부서로서 결정했는지 남김 |
+| `collab_requests` | 6 | `project_id`, `from_work_item_id`, `from_department_id`, `to_department_id`, `question`, `input_versions`(JSON), `requirement`(`reference`/`required`), `requirement_reason`, `status`(`requested`/`question`/`accepted`/`declined`/`cancelled`), `follow_up`(받는 부서의 질문), `decided_by`(`user`/`ai`), `decision_job_id`, `decision_reason`, `decided_at`, `reviewed_at`(7단계), `reverted_at`, `revert_reason`, `result_work_item_id`, `replaces_id`, `due_at`, `event_sequence` | `UNIQUE(result_work_item_id)`; `decided_by='ai'`는 `requirement='reference'`일 때만 허용; 요청·받는 부서가 다름; 수락이면 수행 업무 필수; 질문 상태와 `follow_up`, 미결정 상태와 `decided_at`을 CHECK로 함께 둠 |
+| `collab_request_history` | 6 | `project_id`, `request_id`, `action`(`requested`/`asked`/`answered`/`accepted`/`declined`/`cancelled`/`required`/`reference`/`replaced`/`reverted`), `body`, `as_department_id`, `author`(`local-owner` 또는 `ai:<작업>`) | 요청과 같은 서비스로 참조. 사람이 어느 부서로서 결정했는지 남김. 7단계에서 `reverted`를 넣으려고 다시 만듦 |
+| `auto_starts` | 7 | `project_id`, `work_item_id`, `cause_sequence`, `status`(`pending`/`planning`/`approved`/`started`/`finished`/`review`/`cancelled`), `plan_job_id`, `run_id`, `reason`, `note` | `UNIQUE(work_item_id)`; 검토에는 이유 필수, 시작 뒤에는 실행 필수; 업무·계획 작업·실행을 같은 서비스로 참조 |
 | `department_schedules` | 8 | `department_id`, `frequency`(`daily`/`weekly`), `time_of_day`, `weekday`, `timezone`, `enabled` | — |
 | `schedule_slots` | 8 | `schedule_id`, `slot_key`, `event_sequence` | `UNIQUE(schedule_id, slot_key)` |
 
