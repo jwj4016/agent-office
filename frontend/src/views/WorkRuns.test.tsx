@@ -1,4 +1,4 @@
-import {fireEvent, render, screen, waitFor, within} from '@testing-library/react';
+import {act, fireEvent, render, screen, waitFor, within} from '@testing-library/react';
 import type {ReactNode} from 'react';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 import {fakeApi} from '../test/fakeApi';
@@ -6,7 +6,7 @@ import {fakeApi} from '../test/fakeApi';
 vi.mock('../api', () => ({api: fakeApi, errorText: (e: unknown) => String(e)}));
 
 import {LiveProvider} from '../live';
-import type {AIJob, Assignment, PlanJobView, Project, RunDetail, WorkItem, WorkPlanView} from '../types';
+import type {AIJob, Assignment, PlanJobView, Project, RunDetail, StoredEvent, WorkItem, WorkPlanView} from '../types';
 import {ToastProvider} from '../ui';
 import {WorkRun} from './WorkRuns';
 
@@ -62,6 +62,22 @@ describe('work plan and runs', () => {
             projectId: 'prj-1', workItemId: 'w1', assignmentId: 'a-dev', instructions: '기존 화면을 먼저 본다',
             outputs: [{key: 'result', type: 'markdown'}, {key: 'schedule', type: 'json'}],
         })));
+    });
+
+    // Events of the service reload the plan; what the person is typing stays.
+    it('keeps an unsaved plan when the service records events', async () => {
+        fakeApi.workPlan.mockImplementation(async () => view()); // a fresh object per load, like the app
+        renderIt();
+        const form = await screen.findByRole('form', {name: '작업 계획'});
+        fireEvent.change(within(form).getByLabelText(/작업 지침/), {target: {value: '기존 화면을 먼저 본다'}});
+        const loads = fakeApi.workPlan.mock.calls.length;
+        const receive = (fakeApi.onEvents.mock.calls as unknown as Array<[(events: StoredEvent[]) => void]>)[0][0];
+        await act(async () => {
+            receive([{sequence: 99, id: 'ev', projectId: 'prj-1', runId: '', stepAttemptId: '', kind: 'run.completed', payload: {}, createdAt: ''} as never]);
+            await new Promise((r) => setTimeout(r, 150));
+        });
+        await waitFor(() => expect(fakeApi.workPlan.mock.calls.length).toBeGreaterThan(loads));
+        expect(within(screen.getByRole('form', {name: '작업 계획'})).getByLabelText(/작업 지침/)).toHaveValue('기존 화면을 먼저 본다');
     });
 
     it('runs the saved plan, shows the result and sends a change request', async () => {

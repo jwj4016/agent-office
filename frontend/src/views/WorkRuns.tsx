@@ -1,5 +1,5 @@
 import {Check, ExternalLink, FileText, MessageSquareWarning, Play, Plus, RotateCcw, Save, Share2, Sparkles, Trash2} from 'lucide-react';
-import {useEffect, useState} from 'react';
+import {useState} from 'react';
 import {api} from '../api';
 import {t} from '../i18n';
 import {useLoad} from '../live';
@@ -81,8 +81,10 @@ function StartGate({project, item, approval, onChanged}: {
 function PlanForm({project, itemId, initial, assignments, choices, disabled, onSaved}: {
     project: Project; itemId: string; initial: WorkPlan; assignments: Assignment[]; choices: WorkflowChoice[]; disabled: boolean; onSaved: () => void;
 }) {
+    // The form starts from the stored plan and is remounted (keyed by its
+    // save time) when a saved plan changes; reloads of the same plan, which
+    // any event of the service causes, keep what the person is typing.
     const [plan, setPlan] = useState<WorkPlan>(initial);
-    useEffect(() => setPlan(initial), [initial]);
     const action = useAction();
     const toast = useToast();
     const set = (patch: Partial<WorkPlan>) => setPlan({...plan, ...patch});
