@@ -1,7 +1,7 @@
 # Agent Office 개선 구현 계획서 — 사건과 산출물로 협업하는 작은 회사
 
 작성일·수정일: 2026-10-22  
-상태: 구현 중(5단계 완료), 6차 개정  
+상태: 구현 중(6단계 완료), 6차 개정  
 관련 파일: [진행 체크리스트](progress.md) · [현재/개선 후 업무 흐름](asis-tobe.html)
 
 ## 1. 목표와 설계 방향
@@ -537,17 +537,38 @@ Agent Office는 Go·Wails·React·TypeScript·SQLite 기반 데스크톱 앱이�
 
 **화면에서 보이는 변화:** 부서가 다른 부서에 도움을 요청하고, 필요한 결과를 기다릴 수 있다.
 
-- [ ] 협업 요청의 대상·질문·원본 업무·입력 자료를 저장한다.
-- [ ] 수락·추가 질문·거절과 받는 부서의 업무 생성을 구현한다. 화면에는 어느 부서로서 결정하는지 표시한다.
-- [ ] 참고용/필수 협업과 필수 지정·해제 이유를 기록한다.
-- [ ] 필수 업무가 미완료이거나 다시 열리면 공동 목표에 영향 확인을 표시한다.
-- [ ] 완료된 공동 목표를 몰래 다시 열지 않고 변경 검토를 요청한다.
-- [ ] 미완료 필수 협업이 있는 공동 목표의 완료와 필수 의존 순환을 차단한다.
-- [ ] 수행 업무가 없는 필수 요청도 검사한다. 대기·질문·거절·취소·기한 초과 상태의 필수 요청이 원본 업무와 공동 목표의 완료를 막는지 검증한다.
-- [ ] 필수 조건 해제·대체 이유를 저장하고, 완료 조건 검사와 완료 저장을 같은 트랜잭션에서 수행한다.
-- [ ] 협업 결과·정정·추가 질문을 원래 업무에서 찾아갈 수 있게 한다.
+- [x] 협업 요청의 대상·질문·원본 업무·입력 자료를 저장한다.
+- [x] 수락·추가 질문·거절과 받는 부서의 업무 생성을 구현한다. 화면에는 어느 부서로서 결정하는지 표시한다.
+- [x] 참고용/필수 협업과 필수 지정·해제 이유를 기록한다.
+- [x] 필수 업무가 미완료이거나 다시 열리면 공동 목표에 영향 확인을 표시한다.
+- [x] 완료된 공동 목표를 몰래 다시 열지 않고 변경 검토를 요청한다.
+- [x] 미완료 필수 협업이 있는 공동 목표의 완료와 필수 의존 순환을 차단한다.
+- [x] 수행 업무가 없는 필수 요청도 검사한다. 대기·질문·거절·취소·기한 초과 상태의 필수 요청이 원본 업무와 공동 목표의 완료를 막는지 검증한다.
+- [x] 필수 조건 해제·대체 이유를 저장하고, 완료 조건 검사와 완료 저장을 같은 트랜잭션에서 수행한다.
+- [x] 협업 결과·정정·추가 질문을 원래 업무에서 찾아갈 수 있게 한다.
 
 **완료 기준:** 마케팅이 개발과 재무에 따로 협업을 요청하고 두 팀이 병렬로 처리한다. 책임자는 필수 결과를 확인한 뒤 공동 목표를 완료한다.
+
+구현 메모(6단계):
+- 파일: 마이그레이션 `0014_collab_requests.sql`(`collab_requests`, `collab_request_history`), 저장소 `internal/storage/repo_collab.go`, 바인딩 `app_work.go`, 화면 `views/Collab.tsx`.
+- 요청:
+  - 요청하는 부서는 원본 업무의 담당 부서다. 담당 부서가 없거나 닫힌 업무, 같은 부서, 사용 안 함 부서, 받는 부서가 볼 수 없는 자료는 사건을 만들기 전에 거절한다.
+  - `work.collab_requested`는 받는 부서에만 `collab_request` 전달을 만들고, 처리기는 기록만 한다. 결정은 요청에서 한다.
+- 결정(사람이 부서를 대신함, `decided_by='user'`, 이력에 그 부서를 남김):
+  - 수락: 받는 부서의 새 업무를 만들거나 그 부서의 열린 업무를 고른다. 새 업무는 요청 사건을 원인으로, 원본 업무의 열린 목표 아래에 두고, 함께 보낸 자료 판을 연결한다.
+  - 질문: 요청하는 부서가 답하면 다시 결정을 기다린다.
+  - 거절은 이유가 필요하다. 요청 취소는 수락 전에만 할 수 있다.
+- 필수:
+  - 요청 상태가 `accepted`이고 수행 업무가 `done`일 때만 충족이다. 원본 업무와 그 목표의 완료는 `setWorkStatusTx`가 같은 트랜잭션에서 검사해 막는다(목표는 하위 업무의 요청도 검사).
+  - 해제는 이유가 필요하다. 대체는 한 트랜잭션에서 기존 요청을 참고용으로 바꾸고 새 필수 요청을 보낸다(`replaces_id`).
+  - 순환은 기존 업무를 수행 업무로 고를 때와 수락된 요청을 필수로 바꿀 때 검사한다.
+- 영향 확인(`required_reopened`, 대상은 요청 ID):
+  - 필수 수행 업무가 완료에서 벗어나면(다시 열기·취소) 원본 업무와 목표에 만든다.
+  - 완료된 목표 아래에 미충족 필수 요청이 생기면(필수 지정·새 요청·업무 이동) 그 목표에 만든다.
+  - 업무·목표는 다시 열지 않는다. 같은 요청의 확인은 다시 연다.
+- 화면:
+  - 업무 상세의 ‘협업’: 요청 보내기, 받는 부서·요청하는 부서·책임자로서 결정하는 버튼, 완료를 막는 필수 협업 목록, 맡은 업무에서 요청한 업무로 이동, 이력.
+  - 받은 일 화면의 ‘부서 간 협업’: 결정할 요청·답할 질문·거절된 필수 요청과 필수 영향 확인.
 
 ### 7단계 — 자동 모드와 기존 워크플로 연결
 
@@ -722,7 +743,8 @@ Agent Office는 Go·Wails·React·TypeScript·SQLite 기반 데스크톱 앱이�
 | `impact_checks` | 4 | `project_id`, `work_item_id`, `cause`(`revised`/`withdrawn`/`required_reopened`), `ref_id`, `document_id`, `summary`, `status`(`open`/`resolved`/`dismissed`), `note` | `UNIQUE(work_item_id, cause, ref_id)` |
 | `judgments` | 5 | `project_id`, `delivery_id`, `round`, `ai_job_id`, `department_id`, `outcome`(`none`/`propose`/`question`), `reason`, `evidence`(JSON), `question`, `answer`, `question_status`(질문 없으면 비움, `open`/`answered`/`manual`/`closed`) | `UNIQUE(delivery_id, round)`, `UNIQUE(ai_job_id)`; 질문 결과와 질문 상태는 CHECK로 함께 둠; 작업 상태와 비용은 AI 작업·시도에서 조회 |
 | `work_proposals` | 5 | `project_id`, `judgment_id`, `position`, `department_id`, `title`, `description`, `done_criteria`, `categories`(JSON), `priority`, `status`(`proposed`/`accepted`/`rejected`), `work_item_id`, `duplicate_of`, `decision_note`, `decided_at` | `UNIQUE(judgment_id, position)`, `UNIQUE(work_item_id)`; 등록된 제안만 `work_item_id`가 있음 |
-| `collab_requests` | 6 | `project_id`, `from_work_item_id`, `to_department_id`, `question`, `input_versions`(JSON), `requirement`(`reference`/`required`), `requirement_reason`, `status`(`requested`/`question`/`accepted`/`declined`/`cancelled`), `decided_by`(`user`/`ai`), `decision_job_id`, `decision_reason`, `reverted_at`, `revert_reason`, `result_work_item_id`, `due_at` | `UNIQUE(result_work_item_id)`; `decided_by='ai'`는 `requirement='reference'`일 때만 허용 |
+| `collab_requests` | 6 | `project_id`, `from_work_item_id`, `from_department_id`, `to_department_id`, `question`, `input_versions`(JSON), `requirement`(`reference`/`required`), `requirement_reason`, `status`(`requested`/`question`/`accepted`/`declined`/`cancelled`), `follow_up`(받는 부서의 질문), `decided_by`(`user`/`ai`), `decision_job_id`, `decision_reason`, `decided_at`, `reverted_at`, `revert_reason`, `result_work_item_id`, `replaces_id`, `due_at`, `event_sequence` | `UNIQUE(result_work_item_id)`; `decided_by='ai'`는 `requirement='reference'`일 때만 허용; 요청·받는 부서가 다름; 수락이면 수행 업무 필수; 질문 상태와 `follow_up`, 미결정 상태와 `decided_at`을 CHECK로 함께 둠 |
+| `collab_request_history` | 6 | `project_id`, `request_id`, `action`(`requested`/`asked`/`answered`/`accepted`/`declined`/`cancelled`/`required`/`reference`/`replaced`), `body`, `as_department_id`, `author` | 요청과 같은 서비스로 참조. 사람이 어느 부서로서 결정했는지 남김 |
 | `department_schedules` | 8 | `department_id`, `frequency`(`daily`/`weekly`), `time_of_day`, `weekday`, `timezone`, `enabled` | — |
 | `schedule_slots` | 8 | `schedule_id`, `slot_key`, `event_sequence` | `UNIQUE(schedule_id, slot_key)` |
 
