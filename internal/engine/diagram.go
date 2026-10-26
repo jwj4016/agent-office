@@ -100,8 +100,9 @@ func (d DiagramSkill) Check(ctx context.Context, path string) error {
 	}
 	ctx, cancel := context.WithTimeout(ctx, selfCheckTimeout)
 	defer cancel()
-	// -I: ignore the user's Python environment and site packages.
-	cmd := exec.CommandContext(ctx, d.Python, "-I", d.selfCheckScript(), path)
+	// -I: ignore the user's Python environment and site packages. -X utf8:
+	// print non-ASCII paths on Windows, where -I also ignores PYTHONUTF8.
+	cmd := exec.CommandContext(ctx, d.Python, "-I", "-X", "utf8", d.selfCheckScript(), path)
 	cmd.Dir = d.SkillDir()
 	cmd.Env = verifyEnv()
 	osproc.Hide(cmd)
