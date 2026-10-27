@@ -13,12 +13,13 @@ const toolLabel: Record<string, string> = {
 
 const baseName = (path: string) => path.split(/[\\/]/).pop() || path;
 
-// toolSummary says what a tool approval asks: what it does and on what.
+// toolSummary says what a tool approval asks: what it does, on which file
+// (named short), or the command in full (it is read before allowing it).
 export function toolSummary(t: ToolRequest | undefined, detail = '') {
-    if (!t) return {label: '도구 사용', target: detail};
+    if (!t) return {label: '도구 사용', target: '', command: detail};
     const label = toolLabel[t.name] ?? t.name;
-    if (t.path) return {label, target: t.input ? `${t.input} (${baseName(t.path)})` : baseName(t.path)};
-    return {label, target: t.command ?? ''};
+    if (t.path) return {label, target: t.input ? `${t.input} (${baseName(t.path)})` : baseName(t.path), command: ''};
+    return {label, target: '', command: t.command ?? ''};
 }
 
 // groupToolApprovals keeps items in order but puts the tool approvals of
@@ -88,19 +89,20 @@ export function ToolApprovalCard({items, onDone, onOpenRun}: { items: InboxItem[
                     const s = toolSummary(it.tool, it.detail);
                     const done = decided[it.approvalId!];
                     return (
-                        <li key={it.approvalId} className="card subtle tight row nowrap" aria-label={`${s.label} ${s.target}`}>
-                            <div className="stack tight" style={{flex: 1, minWidth: 0}}>
-                                <span><strong>{s.label}</strong>{s.target ? <> · <span className="truncate" title={it.tool?.path || it.tool?.command || it.detail}>{s.target}</span></> : null}</span>
+                        <li key={it.approvalId} className="card subtle tight tool-request" aria-label={`${s.label} ${s.target || s.command}`}>
+                            <div className="tool-request-body">
+                                <span><strong>{s.label}</strong>{s.target ? <> · <span className="tool-target" title={it.tool?.path}>{s.target}</span></> : null}</span>
+                                {s.command ? <code className="tool-command">{s.command}</code> : null}
                                 <details className="xsmall muted">
                                     <summary>자세히</summary>
                                     <span className="mono" style={{wordBreak: 'break-all'}}>{it.detail}</span>
                                 </details>
                             </div>
                             {done ? <StatusBadge tone={done === 'accepted' ? 'ok' : ''}>{done === 'accepted' ? '허용함' : '거절함'}</StatusBadge> : (
-                                <span className="row nowrap">
-                                    <Button size="sm" variant="primary" icon={ShieldCheck} disabled={action.busy} aria-label={`${s.label} ${s.target} 허용`}
+                                <span className="row nowrap tool-request-actions">
+                                    <Button size="sm" variant="primary" icon={ShieldCheck} disabled={action.busy} aria-label={`${s.label} ${s.target || s.command} 허용`}
                                             onClick={() => decide([it], true)}>허용</Button>
-                                    <Button size="sm" variant="danger" icon={ShieldX} disabled={action.busy} aria-label={`${s.label} ${s.target} 거절`}
+                                    <Button size="sm" variant="danger" icon={ShieldX} disabled={action.busy} aria-label={`${s.label} ${s.target || s.command} 거절`}
                                             onClick={() => decide([it], false)}>거절</Button>
                                 </span>
                             )}
