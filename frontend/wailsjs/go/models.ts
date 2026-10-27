@@ -1603,6 +1603,24 @@ export namespace engine {
 	        this.title = source["title"];
 	    }
 	}
+	export class ToolRequest {
+	    name: string;
+	    path?: string;
+	    command?: string;
+	    input?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ToolRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.path = source["path"];
+	        this.command = source["command"];
+	        this.input = source["input"];
+	    }
+	}
 	export class InboxItem {
 	    kind: string;
 	    projectId: string;
@@ -1620,6 +1638,7 @@ export namespace engine {
 	    approvalId?: string;
 	    messageId?: string;
 	    detail?: string;
+	    tool?: ToolRequest;
 	    inputs: number[];
 	    outputs: domain.Output[];
 	    reworkTargets: StepRef[];
@@ -1650,6 +1669,7 @@ export namespace engine {
 	        this.approvalId = source["approvalId"];
 	        this.messageId = source["messageId"];
 	        this.detail = source["detail"];
+	        this.tool = this.convertValues(source["tool"], ToolRequest);
 	        this.inputs = source["inputs"];
 	        this.outputs = this.convertValues(source["outputs"], domain.Output);
 	        this.reworkTargets = this.convertValues(source["reworkTargets"], StepRef);
@@ -1968,6 +1988,7 @@ export namespace engine {
 		    return a;
 		}
 	}
+	
 	
 	
 	export class Usage {

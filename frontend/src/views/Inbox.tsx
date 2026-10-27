@@ -1,4 +1,4 @@
-import {Check, CheckCircle2, ExternalLink, FileText, FolderGit2, MessagesSquare, PauseCircle, Send, ShieldCheck, ShieldX, Undo2} from 'lucide-react';
+import {Check, CheckCircle2, ExternalLink, FileText, FolderGit2, MessagesSquare, PauseCircle, Send, Undo2} from 'lucide-react';
 import {useState} from 'react';
 import {api} from '../api';
 import {t} from '../i18n';
@@ -11,6 +11,7 @@ import {
 import {ArtifactViewer} from './ArtifactViewer';
 import {decisionKindCounts, decisionKindLabel, decisionKinds, type DecisionKind, InboxGroups} from './InboxGroups';
 import {pendingCount} from './Judgments';
+import {groupToolApprovals, ToolApprovalCard} from './ToolApprovals';
 
 const itemKey = (it: InboxItem) => `${it.kind}:${it.runId}:${it.attemptId}:${it.approvalId ?? ''}:${it.messageId ?? ''}`;
 
@@ -24,7 +25,10 @@ export function Inbox({onOpenRun, onOpenWork}: {
     const items = [...(data ?? [])].sort((a, b) => a.since.localeCompare(b.since));
     const groups = new Map<string, InboxItem[]>();
     for (const it of items) groups.set(it.projectName, [...(groups.get(it.projectName) ?? []), it]);
-    const card = (it: InboxItem) => <InboxCard key={itemKey(it)} item={it} onDone={reload} onOpenRun={() => onOpenRun(it.projectId, it.runId)}/>;
+    // An AI step's tool requests share one card.
+    const cards = (list: InboxItem[]) => groupToolApprovals(list).map((g) => Array.isArray(g)
+        ? <ToolApprovalCard key={`tools:${g[0].attemptId}`} items={g} onDone={reload} onOpenRun={() => onOpenRun(g[0].projectId, g[0].runId)}/>
+        : <InboxCard key={itemKey(g)} item={g} onDone={reload} onOpenRun={() => onOpenRun(g.projectId, g.runId)}/>);
     // One kind at a time, or everything ('all'); 'run' is what runs wait for.
     const [show, setShow] = useState<'all' | 'run' | DecisionKind>('all');
     const counts = decisions.data ? decisionKindCounts(decisions.data) : undefined;
@@ -60,9 +64,9 @@ export function Inbox({onOpenRun, onOpenWork}: {
                     {groups.size > 1
                         ? [...groups].map(([name, list]) => (
                             <div key={name} className="stack" role="group" aria-label={name}>
-                                <span className="kind-head">{name} <span className="muted">{list.length}</span></span>{list.map(card)}</div>
+                                <span className="kind-head">{name} <span className="muted">{list.length}</span></span>{cards(list)}</div>
                         ))
-                        : <div className="stack">{items.map(card)}</div>}
+                        : <div className="stack">{cards(items)}</div>}
                 </Section>
             ) : null}
         </div>
@@ -154,14 +158,6 @@ function InboxCard({item, onDone, onOpenRun}: { item: InboxItem; onDone: () => v
                     {item.kind === 'approval' ? <ApprovalForm item={item} busy={action.busy} onSubmit={submit}/> : null}
                     {item.kind === 'review' ? <ReviewForm item={item} busy={action.busy} onSubmit={submit}/> : null}
                     {item.kind === 'task' ? <TaskForm item={item} busy={action.busy} onSubmit={submit}/> : null}
-                    {item.kind === 'tool_approval' ? (
-                        <div className="form-actions">
-                            <Button variant="primary" icon={ShieldCheck} busy={action.busy}
-                                    onClick={() => submit(() => api.decideTool(item.projectId, item.approvalId!, true))}>허용</Button>
-                            <Button variant="danger" icon={ShieldX} disabled={action.busy}
-                                    onClick={() => submit(() => api.decideTool(item.projectId, item.approvalId!, false))}>거절</Button>
-                        </div>
-                    ) : null}
                     {item.kind === 'question' ? <AnswerForm item={item} busy={action.busy} onSubmit={submit}/> : null}
                     {item.kind === 'budget' ? (
                         <p className="muted small">‘{item.stepTitle}’ 등 새 AI 업무가 시작되지 않고 있습니다. 해당 서비스의 ‘설정’ 탭에서 예산을 올리면 이어서 진행합니다.</p>

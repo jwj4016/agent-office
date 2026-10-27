@@ -129,3 +129,29 @@ describe('Inbox by kind and goal', () => {
         expect(screen.queryByRole('article', {name: '게임 기획 승인'})).not.toBeInTheDocument();
     });
 });
+
+describe('tool approvals', () => {
+    it('shows an AI step’s requests in one card, in words, and allows them all', async () => {
+        const read = (id: string, input: string, file: string) => inboxItem({kind: 'tool_approval', approvalId: id, attemptId: 'att-7', stepTitle: '법적 리스크 정리',
+            instructions: '출처 목록과 PRD를 기준으로 정리한다', detail: `Read: Read {"file_path":"/data/${file}"}`,
+            tool: {name: 'Read', path: `/data/${file}`, input}});
+        state.inbox = [read('apr-1', 'PRD', 'prd_doc-x.md'), read('apr-2', '데이터 출처 목록', 'source_catalog-y.json'),
+            inboxItem({kind: 'tool_approval', approvalId: 'apr-3', attemptId: 'att-7', stepTitle: '법적 리스크 정리', detail: 'Bash: Bash {"command":"ls"}',
+                tool: {name: 'Bash', command: 'ls'}})];
+        renderInbox();
+        const cards = await screen.findAllByRole('article');
+        expect(cards).toHaveLength(1);
+        const card = cards[0];
+        expect(within(card).getByText('도구 사용 승인 3건')).toBeInTheDocument();
+        expect(within(card).getByRole('listitem', {name: '파일 읽기 PRD (prd_doc-x.md)'})).toBeInTheDocument();
+        expect(within(card).getByRole('listitem', {name: '명령 실행 ls'})).toBeInTheDocument();
+        // The instructions are there but folded.
+        expect(within(card).getByText('업무 지침 보기').closest('details')).not.toHaveAttribute('open');
+        fireEvent.click(within(card).getByRole('button', {name: '명령 실행 ls 거절'}));
+        await waitFor(() => expect(fakeApi.decideTool).toHaveBeenCalledWith('prj-1', 'apr-3', false));
+        fireEvent.click(await within(card).findByRole('button', {name: '모두 허용 (2)'}));
+        await waitFor(() => expect(fakeApi.decideTool).toHaveBeenCalledTimes(3));
+        expect(fakeApi.decideTool).toHaveBeenCalledWith('prj-1', 'apr-1', true);
+        expect(fakeApi.decideTool).toHaveBeenCalledWith('prj-1', 'apr-2', true);
+    });
+});

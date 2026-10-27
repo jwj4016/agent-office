@@ -72,7 +72,7 @@ func (d DiagramSkill) Grant(req *providers.StartRequest) {
 		return
 	}
 	req.Plugins = []string{d.Plugin}
-	req.ReadableDirs = []string{d.Plugin}
+	req.ReadableDirs = append(req.ReadableDirs, d.Plugin)
 	if d.Python != "" {
 		req.CheckCommand = []string{d.Python, d.selfCheckScript()}
 	}

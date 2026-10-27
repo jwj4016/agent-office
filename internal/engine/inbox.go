@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"unicode/utf8"
 
 	"agent-office/internal/domain"
@@ -48,6 +49,7 @@ type InboxItem struct {
 	ApprovalID    string          `json:"approvalId,omitempty"`
 	MessageID     string          `json:"messageId,omitempty"`
 	Detail        string          `json:"detail,omitempty"`
+	Tool          *ToolRequest    `json:"tool,omitempty"` // what a tool approval asks, read out of Detail
 	Inputs        json.RawMessage `json:"inputs"`
 	Outputs       []domain.Output `json:"outputs"`
 	ReworkTargets []StepRef       `json:"reworkTargets"`
@@ -60,6 +62,61 @@ type InboxItem struct {
 	// Workspace is where a person's task or review works (Git runs).
 	Workspace *WorkspaceInfo `json:"workspace,omitempty"`
 	Since     string         `json:"since"`
+}
+
+// ToolRequest is what a tool approval asks, for the person: the tool as
+// the provider names it, and the file or command it is about. Input names
+// the step's input result when the file is one.
+type ToolRequest struct {
+	Name    string `json:"name"`
+	Path    string `json:"path,omitempty"`
+	Command string `json:"command,omitempty"`
+	Input   string `json:"input,omitempty"`
+}
+
+// parseToolRequest reads a provider's approval request. Claude sends the
+// tool and its input as "Read {...json...}"; Codex sends a command, or the
+// reason of a file change.
+func parseToolRequest(action, detail string) ToolRequest {
+	t := ToolRequest{Name: action}
+	if action == "command" {
+		t.Command = detail
+		return t
+	}
+	rest, ok := strings.CutPrefix(detail, action+" ")
+	if !ok {
+		return t
+	}
+	var in map[string]any
+	if json.Unmarshal([]byte(rest), &in) != nil {
+		return t
+	}
+	str := func(keys ...string) string {
+		for _, k := range keys {
+			if v, ok := in[k].(string); ok && v != "" {
+				return v
+			}
+		}
+		return ""
+	}
+	t.Path = str("file_path", "notebook_path", "path")
+	t.Command = str("command", "url", "pattern", "query")
+	return t
+}
+
+// inputNamed is the name of the input result stored at path, or "".
+func inputNamed(dataDir string, inputs json.RawMessage, path string) string {
+	if path == "" {
+		return ""
+	}
+	var manifest []ManifestEntry
+	json.Unmarshal(inputs, &manifest)
+	for _, m := range manifest {
+		if m.Path != "" && filepath.Clean(filepath.Join(dataDir, filepath.FromSlash(m.Path))) == filepath.Clean(path) {
+			return m.Name
+		}
+	}
+	return ""
 }
 
 // Inbox lists every open human item across active projects.
@@ -148,6 +205,9 @@ func (e *Engine) Inbox(ctx context.Context) ([]InboxItem, error) {
 					var t struct{ Action, Detail string }
 					json.Unmarshal([]byte(target), &t)
 					it.Detail = t.Action + ": " + t.Detail
+					tool := parseToolRequest(t.Action, t.Detail)
+					tool.Input = inputNamed(e.cfg.DataDir, base.Inputs, tool.Path)
+					it.Tool = &tool
 					items = append(items, it)
 				}
 				rows.Close()

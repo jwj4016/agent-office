@@ -133,10 +133,14 @@ export type InboxItem = {
     kind: InboxKind; projectId: string; projectName: string; runId: string; runTitle: string;
     versionNumber: number; stepId: string; stepTitle: string; instructions: string; attemptId: string;
     generation: number; attempt: number; round: number; approvalId?: string; messageId?: string;
-    detail?: string; inputs: ManifestEntry[] | null; outputs: WorkflowOutput[];
+    detail?: string; tool?: ToolRequest; inputs: ManifestEntry[] | null; outputs: WorkflowOutput[];
     reworkTargets: { id: string; title: string }[]; since: string;
     context?: ContextNote[] | null; escalation?: string; workspace?: WorkspaceInfo;
 };
+
+// ToolRequest is what a tool approval asks: the tool as the provider names
+// it, the file or command, and the input result the file is.
+export type ToolRequest = { name: string; path?: string; command?: string; input?: string };
 
 export type ContextNote = { label: string; ref: string; text: string };
 

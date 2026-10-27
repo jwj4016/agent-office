@@ -83,6 +83,9 @@ func (e *Engine) aiRequest(ctx context.Context, q querier, st *runState, n *doma
 			req.InputManifest = append(req.InputManifest, providers.InputRef{Name: m.Name, ArtifactID: m.ArtifactID, Path: filepath.Join(e.cfg.DataDir, m.Path), Hash: m.Hash})
 		}
 	}
+	if req.ReadableDirs, err = e.inputDirs(ctx, q, st.run.ID, manifest); err != nil {
+		return providers.StartRequest{}, err
+	}
 	for _, o := range n.Outputs {
 		req.OutputSpec = append(req.OutputSpec, providers.OutputSpec{Key: o.Key, Type: string(o.Type), Required: o.IsRequired() && !(o.Type == domain.OutCodeChange && ws.Kind == WsCode), Schema: o.Schema, Path: outputPath(dir, o)})
 	}
@@ -93,6 +96,41 @@ func (e *Engine) aiRequest(ctx context.Context, q querier, st *runState, n *doma
 		req.Limits.Timeout, _ = time.ParseDuration(n.Limits.Timeout)
 	}
 	return req, nil
+}
+
+// inputDirs are the folders holding what the step is given to read: its
+// input results and the shared documents pinned to the run. The AI reads
+// them without asking; writing there stays refused.
+func (e *Engine) inputDirs(ctx context.Context, q querier, runID string, manifest []ManifestEntry) ([]string, error) {
+	var rels []string
+	for _, m := range manifest {
+		if m.ArtifactID != "" && m.Path != "" {
+			rels = append(rels, m.Path)
+		}
+	}
+	rows, err := q.QueryContext(ctx, `SELECT v.path FROM document_pins p JOIN shared_document_versions v ON v.id = p.version_id
+		WHERE p.run_id = ?`, runID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var rel string
+		if err := rows.Scan(&rel); err != nil {
+			return nil, err
+		}
+		rels = append(rels, rel)
+	}
+	var dirs []string
+	seen := map[string]bool{}
+	for _, rel := range rels {
+		dir := filepath.Dir(filepath.Join(e.cfg.DataDir, filepath.FromSlash(rel)))
+		if !seen[dir] {
+			seen[dir] = true
+			dirs = append(dirs, dir)
+		}
+	}
+	return dirs, rows.Err()
 }
 
 // failStart records a provider that could not be started as an ordinary
