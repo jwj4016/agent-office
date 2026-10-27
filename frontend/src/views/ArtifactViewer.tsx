@@ -2,11 +2,20 @@ import {api} from '../api';
 import {t} from '../i18n';
 import {useLoad} from '../live';
 import type {CodeChange} from '../types';
-import {CheckCircle2, History, ShieldAlert, ShieldCheck} from 'lucide-react';
-import {DetailHeader, ErrorBox, Loading, StatusBadge} from '../ui';
+import {CheckCircle2, Download, FolderOpen, History, ShieldAlert, ShieldCheck} from 'lucide-react';
+import {Button, DetailHeader, ErrorBox, Loading, StatusBadge, useAction, useToast} from '../ui';
 
 export function ArtifactViewer({projectId, artifactId, onClose}: { projectId: string; artifactId: string; onClose: () => void }) {
     const {data, error} = useLoad(() => api.readArtifact(projectId, artifactId), [projectId, artifactId]);
+    const action = useAction();
+    const toast = useToast();
+    // A copy saved elsewhere opens in any program; the app's own file stays
+    // as recorded (its hash is checked).
+    const saveAs = () => action.run(async () => {
+        const path = await api.saveArtifactAs(projectId, artifactId);
+        if (path) toast(`저장했습니다: ${path}`);
+    });
+    const reveal = () => action.run(() => api.revealArtifact(projectId, artifactId));
     return (
         <div className="stack">
             <DetailHeader title="결과 보기" onClose={onClose}>
@@ -20,6 +29,12 @@ export function ArtifactViewer({projectId, artifactId, onClose}: { projectId: st
                         {data.hashOk ? <StatusBadge tone="ok" icon={ShieldCheck}>파일 확인됨</StatusBadge> : <StatusBadge tone="bad" icon={ShieldAlert}>파일이 기록과 다릅니다</StatusBadge>}
                         <span className="mono muted" title={data.hash}>sha256 {data.hash.slice(0, 12)}…</span>
                     </div>
+                    <div className="row">
+                        <Button size="sm" icon={Download} busy={action.busy} onClick={saveAs}>파일로 저장…</Button>
+                        <Button size="sm" variant="ghost" icon={FolderOpen} disabled={action.busy} onClick={reveal}>폴더에서 보기</Button>
+                        <span className="muted xsmall">다른 프로그램에서 열려면 저장한 사본을 쓰세요. 앱 폴더의 파일을 고치면 ‘파일이 기록과 다릅니다’가 됩니다.</span>
+                    </div>
+                    <ErrorBox error={action.error}/>
                     {data.binary ? <p className="muted">텍스트가 아닌 파일입니다.</p>
                         : data.type === 'code_change' ? <CodeChangeView content={data.content}/>
                             : data.type === 'diagram' && !data.truncated ? <DiagramView content={data.content} title={`${data.stepId}.${data.outputKey}`}/>

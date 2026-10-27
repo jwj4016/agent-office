@@ -167,6 +167,9 @@ export const api = {
     cancelRun: (projectId: string, runId: string) => call<void>(Go.CancelRun(projectId, runId)),
     retryStep: (projectId: string, runId: string, stepId: string) => call<void>(Go.RetryStep(projectId, runId, stepId)),
     readArtifact: (projectId: string, artifactId: string) => call<ArtifactContent>(Go.ReadArtifact(projectId, artifactId)),
+    // saveArtifactAs returns '' when the person cancelled the save dialog.
+    saveArtifactAs: (projectId: string, artifactId: string) => call<string>(Go.SaveArtifactAs(projectId, artifactId)),
+    revealArtifact: (projectId: string, artifactId: string) => call<void>(Go.RevealArtifact(projectId, artifactId)),
     runMessages: (projectId: string, runId: string) => call<MessageView[]>(Go.RunMessages(projectId, runId)),
     postNote: (projectId: string, runId: string, stepId: string, kind: 'proposal' | 'decision', body: string) =>
         call<string>(Go.PostNote(projectId, runId, stepId, kind, body)),

@@ -81,12 +81,14 @@ type App struct {
 
 	// saveDialog asks where to save a file; tests replace it.
 	saveDialog func(ctx context.Context, o runtime.SaveDialogOptions) (string, error)
+	// reveal shows a file in the system's file manager; tests replace it.
+	reveal func(path string) error
 	// folderDialog asks for a folder (tests replace it).
 	folderDialog func(ctx context.Context, o runtime.OpenDialogOptions) (string, error)
 }
 
 func NewApp() *App {
-	return &App{emit: runtime.EventsEmit, deltas: map[string]*Delta{}, saveDialog: runtime.SaveFileDialog, folderDialog: runtime.OpenDirectoryDialog,
+	return &App{emit: runtime.EventsEmit, deltas: map[string]*Delta{}, saveDialog: runtime.SaveFileDialog, reveal: revealInFolder, folderDialog: runtime.OpenDirectoryDialog,
 		started: make(chan struct{})}
 }
 
@@ -1423,6 +1425,53 @@ func (a *App) SaveWorkflowDiagram(id string) (string, error) {
 		path += ".html"
 	}
 	return path, os.WriteFile(path, []byte(html), 0o644)
+}
+
+// SaveArtifactAs copies an AI result file where the person chooses, so
+// other programs can open it. The app's own copy stays as it is. It
+// returns "" when the dialog is cancelled.
+func (a *App) SaveArtifactAs(projectID, artifactID string) (string, error) {
+	if err := a.ready(); err != nil {
+		return "", err
+	}
+	c, full, err := a.eng.ArtifactFile(a.ctx, projectID, artifactID)
+	if err != nil {
+		return "", uiErr(err)
+	}
+	ext := filepath.Ext(full)
+	opts := runtime.SaveDialogOptions{Title: "결과 파일 저장", DefaultFilename: c.OutputKey + ext}
+	if ext != "" {
+		opts.Filters = []runtime.FileFilter{{DisplayName: strings.TrimPrefix(ext, ".") + " 파일 (*" + ext + ")", Pattern: "*" + ext}}
+	}
+	path, err := a.saveDialog(a.ctx, opts)
+	if err != nil || path == "" {
+		return "", err
+	}
+	if ext != "" && !strings.EqualFold(filepath.Ext(path), ext) {
+		path += ext
+	}
+	data, err := os.ReadFile(full)
+	if err != nil {
+		return "", uiErr(err)
+	}
+	return path, os.WriteFile(path, data, 0o644)
+}
+
+// RevealArtifact shows an AI result file in the system's file manager
+// (Finder, Explorer). Opening it there must not change it: the app checks
+// the file against its recorded hash.
+func (a *App) RevealArtifact(projectID, artifactID string) error {
+	if err := a.ready(); err != nil {
+		return err
+	}
+	_, full, err := a.eng.ArtifactFile(a.ctx, projectID, artifactID)
+	if err != nil {
+		return uiErr(err)
+	}
+	if _, err := os.Stat(full); err != nil {
+		return errors.New("결과 파일이 데이터 폴더에 없습니다")
+	}
+	return a.reveal(full)
 }
 
 // SetAutoPolicy sets which connections auto mode may use in a project.

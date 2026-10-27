@@ -55,7 +55,7 @@ export const fakeApi = {
     workItems: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []), workItem: vi.fn(), createWorkItem: vi.fn(), updateWorkItem: vi.fn(),
     setWorkStatus: vi.fn(), addWorkNote: vi.fn(),
     workEvents: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []), subscriptions: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []),
-    saveSubscription: vi.fn(), schedules: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []), saveSchedule: vi.fn(), deliveries: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []),
+    saveSubscription: vi.fn(), saveArtifactAs: vi.fn(), revealArtifact: vi.fn(), schedules: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []), saveSchedule: vi.fn(), deliveries: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []),
     requestDepartmentCheck: ok(undefined), retryDelivery: ok(undefined), skipDelivery: ok(undefined),
     judgments: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []), answerJudgment: ok(undefined), closeJudgmentQuestion: ok(undefined),
     proposals: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []), acceptProposal: vi.fn(), rejectProposal: ok(undefined),

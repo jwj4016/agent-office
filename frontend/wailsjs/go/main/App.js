@@ -398,6 +398,10 @@ export function RetryStep(arg1, arg2, arg3) {
   return window['go']['main']['App']['RetryStep'](arg1, arg2, arg3);
 }
 
+export function RevealArtifact(arg1, arg2) {
+  return window['go']['main']['App']['RevealArtifact'](arg1, arg2);
+}
+
 export function RevertCollabDecision(arg1, arg2, arg3) {
   return window['go']['main']['App']['RevertCollabDecision'](arg1, arg2, arg3);
 }
@@ -408,6 +412,10 @@ export function ReviewCollabDecision(arg1, arg2) {
 
 export function RunMessages(arg1, arg2) {
   return window['go']['main']['App']['RunMessages'](arg1, arg2);
+}
+
+export function SaveArtifactAs(arg1, arg2) {
+  return window['go']['main']['App']['SaveArtifactAs'](arg1, arg2);
 }
 
 export function SaveAssignment(arg1) {

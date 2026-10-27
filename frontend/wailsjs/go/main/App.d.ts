@@ -206,11 +206,15 @@ export function RetryDelivery(arg1:string,arg2:string):Promise<void>;
 
 export function RetryStep(arg1:string,arg2:string,arg3:string):Promise<void>;
 
+export function RevealArtifact(arg1:string,arg2:string):Promise<void>;
+
 export function RevertCollabDecision(arg1:string,arg2:string,arg3:string):Promise<storage.CollabRequest>;
 
 export function ReviewCollabDecision(arg1:string,arg2:string):Promise<storage.CollabRequest>;
 
 export function RunMessages(arg1:string,arg2:string):Promise<Array<engine.MessageView>>;
+
+export function SaveArtifactAs(arg1:string,arg2:string):Promise<string>;
 
 export function SaveAssignment(arg1:domain.Assignment):Promise<domain.Assignment>;
 

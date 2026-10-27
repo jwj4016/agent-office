@@ -258,22 +258,32 @@ type ArtifactContent struct {
 
 const maxArtifactRead = 1 << 20
 
-// ReadArtifact returns an artifact's content after checking it belongs
-// to the project and its file still matches the recorded hash.
-func (e *Engine) ReadArtifact(ctx context.Context, projectID, artifactID string) (ArtifactContent, error) {
+// ArtifactFile returns an artifact of the project and the full path of
+// its file, which stays inside the data folder.
+func (e *Engine) ArtifactFile(ctx context.Context, projectID, artifactID string) (ArtifactContent, string, error) {
 	if err := e.db.CheckScope(ctx, projectID, storage.Ref{Kind: storage.RefArtifact, ID: artifactID}); err != nil {
-		return ArtifactContent{}, err
+		return ArtifactContent{}, "", err
 	}
 	var c ArtifactContent
 	err := e.db.Read().QueryRowContext(ctx, `SELECT a.id, a.output_key, a.version, a.type, a.path, a.hash, a.validity, s.step_id
 		FROM artifacts a JOIN step_attempts s ON s.id = a.step_attempt_id WHERE a.id = ?`, artifactID).
 		Scan(&c.ID, &c.OutputKey, &c.Version, &c.Type, &c.Path, &c.Hash, &c.Validity, &c.StepID)
 	if err != nil {
-		return c, err
+		return c, "", err
 	}
 	full, err := e.resolveInside(filepath.Join(e.cfg.DataDir, filepath.FromSlash(c.Path)))
 	if err != nil {
-		return c, fmt.Errorf("결과 파일을 열 수 없습니다: %w", err)
+		return c, "", fmt.Errorf("결과 파일을 열 수 없습니다: %w", err)
+	}
+	return c, full, nil
+}
+
+// ReadArtifact returns an artifact's content after checking it belongs
+// to the project and its file still matches the recorded hash.
+func (e *Engine) ReadArtifact(ctx context.Context, projectID, artifactID string) (ArtifactContent, error) {
+	c, full, err := e.ArtifactFile(ctx, projectID, artifactID)
+	if err != nil {
+		return c, err
 	}
 	data, err := os.ReadFile(full)
 	if err != nil {
