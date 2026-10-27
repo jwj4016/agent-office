@@ -252,6 +252,8 @@ export function SetProjectCategories(arg1:string,arg2:Array<string>):Promise<Arr
 
 export function SetSetting(arg1:string,arg2:string):Promise<void>;
 
+export function SetWindowFocused(arg1:boolean):Promise<void>;
+
 export function SetWorkStatus(arg1:string,arg2:string,arg3:string,arg4:string):Promise<domain.WorkItem>;
 
 export function ShareArtifact(arg1:string,arg2:string,arg3:storage.NewDocumentVersion):Promise<storage.DocumentVersion>;

@@ -212,6 +212,9 @@ export const api = {
     eventsAfter: (projectId: string, after: number) => call<StoredEvent[]>(Go.EventsAfter(projectId, after)),
 
     onEvents: (cb: (evs: StoredEvent[]) => void) => EventsOn('events', cb),
+    // onOpenInbox: a to-do notification was clicked (Go: EventOpenInbox).
+    onOpenInbox: (cb: () => void) => EventsOn('app.openInbox', cb),
+    setWindowFocused: (focused: boolean) => call<void>(Go.SetWindowFocused(focused)),
     onDeltas: (cb: (ds: Delta[]) => void) => EventsOn('deltas', cb),
 };
 

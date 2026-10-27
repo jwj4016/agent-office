@@ -87,7 +87,7 @@ export const fakeApi = {
     runDocuments: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []),
     impactChecks: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []), closeImpactCheck: ok(undefined),
     requestWorkPlan: vi.fn(), planJobs: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []), applyPlanJob: vi.fn(), retryAIJob: ok(undefined), workRuns: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []),
-    onEvents: vi.fn(() => () => {}),
+    onEvents: vi.fn(() => () => {}), onOpenInbox: vi.fn(() => () => {}), setWindowFocused: vi.fn(async () => undefined),
     onDeltas: vi.fn(() => () => {}),
 };
 

@@ -85,11 +85,19 @@ type App struct {
 	reveal func(path string) error
 	// folderDialog asks for a folder (tests replace it).
 	folderDialog func(ctx context.Context, o runtime.OpenDialogOptions) (string, error)
+
+	// watcher notices new to-dos; notify shows an OS notification. notify
+	// is set once the window exists (domReady); tests set their own.
+	watcher    *todoWatcher
+	notify     func(title, body string) error
+	notifyOnce sync.Once
+	// ectx lives as long as the engine and the background loops.
+	ectx context.Context
 }
 
 func NewApp() *App {
 	return &App{emit: runtime.EventsEmit, deltas: map[string]*Delta{}, saveDialog: runtime.SaveFileDialog, reveal: revealInFolder, folderDialog: runtime.OpenDirectoryDialog,
-		started: make(chan struct{})}
+		started: make(chan struct{}), watcher: newTodoWatcher()}
 }
 
 // waitStarted blocks until startup has finished (Apps built without
@@ -165,6 +173,7 @@ func (a *App) startup(ctx context.Context) {
 	a.work = work.New(a.db, work.Judge(a.db, a.ai.Wake))
 	a.sched = work.NewScheduler(a.db, nil)
 	a.db.Subscribe(func(evs []storage.EventRecord) {
+		a.watcher.Wake() // a new to-do may be among them
 		a.emit(a.ctx, EventStored, evs)
 		a.auto.Wake() // runs, plans and new work move auto starts on
 		for _, ev := range evs {
@@ -175,6 +184,7 @@ func (a *App) startup(ctx context.Context) {
 		}
 	})
 	ectx, cancel := context.WithCancel(context.Background())
+	a.ectx = ectx
 	a.stopEngine, a.engineDone, a.workDone, a.aiDone, a.autoDone = cancel, make(chan struct{}), make(chan struct{}), make(chan struct{}), make(chan struct{})
 	a.schedDone = make(chan struct{})
 	a.design = &design.Service{DB: a.db, Engine: a.eng, Providers: a.providerFor, Connections: a.designConnections, Ctx: ectx,

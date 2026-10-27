@@ -490,6 +490,10 @@ export function SetSetting(arg1, arg2) {
   return window['go']['main']['App']['SetSetting'](arg1, arg2);
 }
 
+export function SetWindowFocused(arg1) {
+  return window['go']['main']['App']['SetWindowFocused'](arg1);
+}
+
 export function SetWorkStatus(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['SetWorkStatus'](arg1, arg2, arg3, arg4);
 }

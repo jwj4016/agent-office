@@ -1,4 +1,4 @@
-import {Cpu, Database, Info, Monitor, Moon, Package, Sun} from 'lucide-react';
+import {Bell, Cpu, Database, Info, Monitor, Moon, Package, Sun} from 'lucide-react';
 import {useState} from 'react';
 import {api} from '../api';
 import {t} from '../i18n';
@@ -13,6 +13,8 @@ const themes: { id: ThemePref; label: string; icon: typeof Sun }[] = [
 
 // MAX_ACTIVE is how many AI steps may run at once (Go: storage.SettingMaxActive).
 const MAX_ACTIVE = 'engine.maxActive';
+// NOTIFY_TODOS is 'off' when notifications of new to-dos are off (Go: storage.SettingNotifyTodos).
+const NOTIFY_TODOS = 'ui.notifyTodos';
 const limits = [1, 2, 3, 4, 5, 6];
 
 export function Settings() {
@@ -24,6 +26,7 @@ export function Settings() {
     const reduced = settings.data?.[REDUCED_MOTION] === 'true';
     const theme = (settings.data?.[THEME] as ThemePref | undefined) ?? 'system';
     const maxActive = Number(settings.data?.[MAX_ACTIVE] ?? '2');
+    const notifyTodos = settings.data?.[NOTIFY_TODOS] !== 'off';
     const save = (key: string, value: string, apply: () => void, done = '화면 설정을 바꿨습니다') =>
         api.setSetting(key, value).then(() => { apply(); settings.reload(); toast(done); }, (err) => setError(String(err)));
     return (
@@ -51,6 +54,20 @@ export function Settings() {
                         }}/>
                         <span>모션 줄이기 <span className="muted small">— 사무실 캐릭터 동작과 화면 전환 효과를 멈춥니다. OS 설정도 따릅니다.</span></span>
                     </label>
+                </div>
+            </Section>
+
+            <Section title={<><Icon icon={Bell} size={18}/>알림</>} label="알림">
+                <div className="card stack">
+                    <label className="check">
+                        <input type="checkbox" checked={notifyTodos} onChange={(e) => {
+                            const on = e.target.checked;
+                            save(NOTIFY_TODOS, on ? 'on' : 'off', () => {}, on ? '할 일 알림을 켰습니다' : '할 일 알림을 껐습니다');
+                        }}/>
+                        <span>할 일 알림 <span className="muted small">— 승인·리뷰·질문·협업 요청처럼 내가 처리할 일이 새로 생기면 OS 알림으로 알립니다.
+                            앱 창을 보고 있을 때는 알리지 않습니다. 알림을 누르면 내 할 일이 열립니다.</span></span>
+                    </label>
+                    <p className="muted small" style={{margin: 0}}>처음 알림을 보낼 때 OS가 허용을 묻습니다. 거절했다면 OS 설정(macOS: 시스템 설정 › 알림)에서 Agent Office를 허용하세요.</p>
                 </div>
             </Section>
 

@@ -127,6 +127,28 @@ function Workspace({perf}: { perf: boolean | undefined }) {
         if (r.view === 'project') api.setSetting(LAST_PROJECT, r.projectId).catch(() => {});
     };
 
+    // Go sends no to-do notification while the person looks at the window;
+    // a clicked notification opens the inbox.
+    useEffect(() => {
+        // A blur is reported as is: during it the document may still claim focus.
+        const report = (e?: Event) => {
+            const looking = e?.type === 'blur' ? false : e?.type === 'focus' ? true : document.hasFocus() && document.visibilityState === 'visible';
+            api.setWindowFocused(looking).catch(() => {});
+        };
+        report();
+        window.addEventListener('focus', report);
+        window.addEventListener('blur', report);
+        document.addEventListener('visibilitychange', report);
+        const off = api.onOpenInbox(() => go({view: 'inbox'}));
+        return () => {
+            window.removeEventListener('focus', report);
+            window.removeEventListener('blur', report);
+            document.removeEventListener('visibilitychange', report);
+            off();
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
     const projects = (dash.data ?? []).map((s) => ({...s, inbox: s.inbox + pendingCount(decisions.data, s.project.id)}));
     const current = route.view === 'project' ? dash.data?.find((p) => p.project.id === route.projectId) : undefined;
     // A remembered project that no longer exists (or is archived) falls back.

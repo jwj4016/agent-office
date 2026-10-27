@@ -1,4 +1,4 @@
-import {fireEvent, render, screen, waitFor, within} from '@testing-library/react';
+import {act, fireEvent, render, screen, waitFor, within} from '@testing-library/react';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 import {fakeApi, inboxItem, state} from './test/fakeApi';
 
@@ -93,6 +93,19 @@ describe('App shell', () => {
         state.inbox = [inboxItem(), inboxItem({projectId: 'prj-2', projectName: '부동산', attemptId: 'att-2', approvalId: 'apr-2'})];
         render(<App/>);
         expect(await screen.findByLabelText('2건')).toBeInTheDocument();
+    });
+});
+
+describe('To-do notifications', () => {
+    it('reports whether the window is looked at and opens the inbox from a notification', async () => {
+        let open: () => void = () => {};
+        fakeApi.onOpenInbox.mockImplementation(((cb: () => void) => { open = cb; return () => {}; }) as never);
+        render(<App/>);
+        await waitFor(() => expect(fakeApi.setWindowFocused).toHaveBeenCalled());
+        fireEvent.blur(window);
+        await waitFor(() => expect(fakeApi.setWindowFocused).toHaveBeenLastCalledWith(false));
+        await act(async () => { open(); });
+        expect(await screen.findByRole('heading', {name: /내 할 일/})).toBeInTheDocument();
     });
 });
 

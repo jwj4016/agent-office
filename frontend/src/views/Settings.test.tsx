@@ -24,4 +24,15 @@ describe('Settings', () => {
         await waitFor(() => expect(within(group).getByRole('button', {name: '3개'})).toHaveAttribute('aria-pressed', 'true'));
         expect(within(group).getByRole('button', {name: '2개'})).toHaveAttribute('aria-pressed', 'false');
     });
+
+    it('turns to-do notifications off and on (on by default)', async () => {
+        render(<LiveProvider><Settings/></LiveProvider>);
+        const box = await screen.findByRole('checkbox', {name: /할 일 알림/});
+        await waitFor(() => expect(box).toBeChecked());
+        fireEvent.click(box);
+        await waitFor(() => expect(fakeApi.setSetting).toHaveBeenCalledWith('ui.notifyTodos', 'off'));
+        await waitFor(() => expect(box).not.toBeChecked());
+        fireEvent.click(box);
+        await waitFor(() => expect(fakeApi.setSetting).toHaveBeenCalledWith('ui.notifyTodos', 'on'));
+    });
 });
