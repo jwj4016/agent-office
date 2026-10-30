@@ -12,7 +12,7 @@ import type {
     DocumentContent, DocumentFilter, DocumentVersion, ImpactCheck, LinkedDocument, NewDocumentVersion, SharedDocument,
     Decisions, Judgment, Operations, Proposal, ProposalBatch, ProposalEdit, WorkLineage,
     CollabAcceptance, CollabRequest, CollabRequirement, NewCollabRequest, WorkCollab,
-    AutoStart, DepartmentAutomation, WorkflowChoice,
+    AutoStart, DepartmentAutomation, WorkflowChoice, CodeDeliveryRecord, DeliveryMethod, FinalCode,
 } from './types';
 
 // The generated d.ts types differ from the real JSON for raw fields, so
@@ -170,6 +170,9 @@ export const api = {
     // saveArtifactAs returns '' when the person cancelled the save dialog.
     saveArtifactAs: (projectId: string, artifactId: string) => call<string>(Go.SaveArtifactAs(projectId, artifactId)),
     revealArtifact: (projectId: string, artifactId: string) => call<void>(Go.RevealArtifact(projectId, artifactId)),
+    finalCode: (projectId: string, runId: string) => call<FinalCode>(Go.FinalCode(projectId, runId)),
+    deliverCode: (d: { projectId: string; runId: string; method: DeliveryMethod; folder?: string; useAsWorkspace?: boolean }) =>
+        call<CodeDeliveryRecord>(Go.DeliverCode(d as never)),
     runMessages: (projectId: string, runId: string) => call<MessageView[]>(Go.RunMessages(projectId, runId)),
     postNote: (projectId: string, runId: string, stepId: string, kind: 'proposal' | 'decision', body: string) =>
         call<string>(Go.PostNote(projectId, runId, stepId, kind, body)),

@@ -1484,6 +1484,26 @@ func (a *App) RevealArtifact(projectID, artifactID string) error {
 	return a.reveal(full)
 }
 
+// FinalCode shows what delivering a succeeded run's code would hand over.
+func (a *App) FinalCode(projectID, runID string) (engine.FinalCode, error) {
+	if err := a.ready(); err != nil {
+		return engine.FinalCode{}, err
+	}
+	fc, err := a.eng.FinalCode(a.ctx, projectID, runID)
+	return fc, uiErr(err)
+}
+
+// DeliverCode hands a run's code over: it moves the service's base code
+// and copies it into a folder, or makes a result branch in the person's
+// repository. The UI asks for the folder first.
+func (a *App) DeliverCode(in engine.DeliverInput) (engine.CodeDelivery, error) {
+	if err := a.ready(); err != nil {
+		return engine.CodeDelivery{}, err
+	}
+	d, err := a.eng.DeliverCode(a.ctx, in)
+	return d, uiErr(err)
+}
+
 // SetAutoPolicy sets which connections auto mode may use in a project.
 func (a *App) SetAutoPolicy(projectID string, allowedConnectionIDs []string) error {
 	if err := a.ready(); err != nil {

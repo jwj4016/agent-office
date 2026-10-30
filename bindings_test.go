@@ -155,6 +155,14 @@ func TestBindingsTwoServicesEndToEnd(t *testing.T) {
 	if c := need(a.ReadArtifact(game.ID, art.ID)); !c.HashOK {
 		t.Fatal("the app's copy changed")
 	}
+	// A run's code is looked at and handed over only within its service.
+	need(a.FinalCode(game.ID, gameRun))
+	if _, err := a.FinalCode(estate.ID, gameRun); err == nil {
+		t.Fatal("read another service's code result")
+	}
+	if _, err := a.DeliverCode(engine.DeliverInput{ProjectID: estate.ID, RunID: gameRun, Method: engine.DeliverBase}); err == nil {
+		t.Fatal("delivered another service's code")
+	}
 	if len(need(a.Inbox())) != 0 {
 		t.Fatal("inbox not empty after both runs finished")
 	}

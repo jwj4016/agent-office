@@ -11,6 +11,7 @@ import {
 } from '../ui';
 import {ArtifactViewer} from './ArtifactViewer';
 import {AIActivityPanel} from './AIActivity';
+import {CodeHandover} from './CodeDelivery';
 
 export function Runs({project, runId, onOpen, onInbox = () => {}}: { project: Project; runId?: string; onOpen: (runId?: string) => void; onInbox?: () => void }) {
     const list = useLoad(() => api.runs(project.id), [project.id], project.id);
@@ -96,6 +97,7 @@ function RunView({project, runId, onBack, onInbox}: { project: Project; runId: s
             {run.paused ? <Banner tone="warn" icon={Pause} title="일시 정지 중">진행 중인 업무는 계속되고, 새 업무는 시작하지 않습니다.</Banner> : null}
             {run.status === 'cancelled' ? <Banner tone="info" title="취소된 실행">이미 만들어진 파일이나 외부 조치는 되돌려지지 않았습니다.</Banner> : null}
             {run.status === 'succeeded' ? <Banner tone="ok" title="모든 업무를 마쳤습니다">결과물은 각 업무 아래에서 열어 볼 수 있습니다.</Banner> : null}
+            {run.status === 'succeeded' && run.repo?.kind === 'base' ? <CodeHandover project={project} run={run}/> : null}
 
             {blocked.length ? (
                 <Section title="실행이 멈춘 이유" label="실행이 멈춘 이유">

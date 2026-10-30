@@ -258,6 +258,59 @@ func (g *Git) CommitAll(ctx context.Context, dir, message string) (string, error
 	return g.Head(ctx, dir)
 }
 
+// FastForward moves the work tree's current branch to commit, refusing
+// anything but a fast-forward.
+func (g *Git) FastForward(ctx context.Context, dir, commit string) error {
+	_, err := g.run(ctx, dir, "merge", "--ff-only", "--quiet", commit)
+	return err
+}
+
+// CurrentBranch returns the branch HEAD is on, or "" when HEAD is
+// detached.
+func (g *Git) CurrentBranch(ctx context.Context, dir string) string {
+	out, err := g.run(ctx, dir, "symbolic-ref", "--quiet", "--short", "HEAD")
+	if err != nil {
+		return ""
+	}
+	return out
+}
+
+// BranchCommit returns the commit a local branch points at, or "" when
+// there is no such branch.
+func (g *Git) BranchCommit(ctx context.Context, dir, branch string) string {
+	out, err := g.run(ctx, dir, "rev-parse", "--verify", "--quiet", "refs/heads/"+branch+"^{commit}")
+	if err != nil {
+		return ""
+	}
+	return out
+}
+
+// CreateBranch makes a branch at commit without checking it out.
+func (g *Git) CreateBranch(ctx context.Context, dir, branch, commit string) error {
+	_, err := g.run(ctx, dir, "branch", "--no-track", branch, commit)
+	return err
+}
+
+// DeleteBranch removes a local branch, merged or not.
+func (g *Git) DeleteBranch(ctx context.Context, dir, branch string) error {
+	_, err := g.run(ctx, dir, "branch", "-D", branch)
+	return err
+}
+
+// Clone copies repository src into dst (missing or empty) with its
+// current branch checked out, and drops the link back to src.
+func (g *Git) Clone(ctx context.Context, src, dst string) error {
+	parent := filepath.Dir(dst)
+	if err := os.MkdirAll(parent, 0o755); err != nil {
+		return err
+	}
+	if _, err := g.run(ctx, parent, "clone", "--quiet", "--no-hardlinks", src, dst); err != nil {
+		return err
+	}
+	_, err := g.run(ctx, dst, "remote", "remove", "origin")
+	return err
+}
+
 // Change is one changed path between two commits.
 type Change struct {
 	Path   string `json:"path"`

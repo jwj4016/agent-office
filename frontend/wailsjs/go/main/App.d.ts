@@ -68,6 +68,8 @@ export function DeleteDepartmentTemplate(arg1:string):Promise<void>;
 
 export function DeleteRole(arg1:string):Promise<void>;
 
+export function DeliverCode(arg1:engine.DeliverInput):Promise<engine.CodeDelivery>;
+
 export function DetectPaths():Promise<main.DetectedPaths>;
 
 export function DiscardDesign(arg1:string):Promise<void>;
@@ -81,6 +83,8 @@ export function EnsureTestConnection():Promise<domain.ProviderConnection>;
 export function EventsAfter(arg1:string,arg2:number):Promise<Array<storage.EventRecord>>;
 
 export function ExportProject(arg1:string):Promise<main.ExportResult>;
+
+export function FinalCode(arg1:string,arg2:string):Promise<engine.FinalCode>;
 
 export function GetDesign(arg1:string):Promise<main.DesignView>;
 

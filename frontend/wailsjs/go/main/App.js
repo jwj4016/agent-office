@@ -122,6 +122,10 @@ export function DeleteRole(arg1) {
   return window['go']['main']['App']['DeleteRole'](arg1);
 }
 
+export function DeliverCode(arg1) {
+  return window['go']['main']['App']['DeliverCode'](arg1);
+}
+
 export function DetectPaths() {
   return window['go']['main']['App']['DetectPaths']();
 }
@@ -148,6 +152,10 @@ export function EventsAfter(arg1, arg2) {
 
 export function ExportProject(arg1) {
   return window['go']['main']['App']['ExportProject'](arg1);
+}
+
+export function FinalCode(arg1, arg2) {
+  return window['go']['main']['App']['FinalCode'](arg1, arg2);
 }
 
 export function GetDesign(arg1) {

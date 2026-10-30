@@ -116,6 +116,17 @@ export type RunDetail = {
     status: RunStatus; paused: boolean; steps: StepView[]; repo?: RepoInfo;
 };
 
+// A run's code handed over to the person (company-requests plan §4.6).
+export type DeliveryMethod = 'base' | 'folder' | 'branch' | 'advance';
+export type FinalStep = { stepId: string; title: string; commit: string };
+export type CodeDeliveryRecord = {
+    method: DeliveryMethod; commit?: string; branch?: string; folder?: string; workspace?: boolean; note?: string; error?: string; at: string;
+};
+export type FinalCode = {
+    runId: string; repo: string; appRepo: boolean; base: string; steps: FinalStep[]; commit?: string;
+    stat: { files: number; insertions: number; deletions: number }; included: boolean; deliveries: CodeDeliveryRecord[];
+};
+
 export type CodeChange = {
     baseCommit: string; startCommit: string; commit: string; branch: string;
     changes: { path: string; status: string; from?: string }[];

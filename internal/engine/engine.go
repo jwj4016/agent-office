@@ -90,6 +90,8 @@ type Engine struct {
 	// consultSlot queues AI answers to other AIs' questions: one at a
 	// time, besides the step slots (spec §8 "대기열에서 처리").
 	consultSlot chan struct{}
+	// deliverMu runs code deliveries one at a time (they move branches).
+	deliverMu sync.Mutex
 }
 
 // activeAttempt is an attempt with live provider work. A meeting runs
