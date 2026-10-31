@@ -13,7 +13,7 @@ import type {
     Decisions, Judgment, Operations, Proposal, ProposalBatch, ProposalEdit, WorkLineage,
     CollabAcceptance, CollabRequest, CollabRequirement, NewCollabRequest, WorkCollab,
     AutoStart, DepartmentAutomation, WorkflowChoice, CodeDeliveryRecord, DeliveryMethod, FinalCode,
-    DeskView, IntakeDesk, RequestItem, ServiceRequest, WorkProposalPayload,
+    DeskView, IntakeDesk, RequestItem, ServiceRequest, WorkProposalPayload, OrgApplied, OrgView,
 } from './types';
 
 // The generated d.ts types differ from the real JSON for raw fields, so
@@ -177,6 +177,12 @@ export const api = {
     deskView: (projectId: string) => call<DeskView>(Go.GetIntakeDesk(projectId)),
     saveDesk: (d: IntakeDesk) => call<IntakeDesk>(Go.SaveIntakeDesk(d as never)),
     removeDesk: (projectId: string) => call<void>(Go.RemoveIntakeDesk(projectId)),
+    // An existing service's organization: proposeOrganization waits for the AI.
+    latestOrgProposal: (projectId: string) => call<OrgView>(Go.LatestOrgProposal(projectId)),
+    proposeOrganization: (projectId: string) => call<OrgView>(Go.ProposeOrganization(projectId)),
+    applyOrganization: (projectId: string, proposalId: string, allow: string[]) =>
+        call<OrgApplied>(Go.ApplyOrganization(projectId, proposalId, allow)),
+    discardOrgProposal: (projectId: string, proposalId: string) => call<void>(Go.DiscardOrgProposal(projectId, proposalId)),
     // staffDesk has an AI set up a new desk ('' for the company); rewriteDesk
     // has it write the desk's instructions again. Both wait for the AI.
     staffDesk: (projectId: string) => call<IntakeDesk>(Go.StaffIntakeDesk(projectId)),

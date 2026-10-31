@@ -109,8 +109,25 @@ func TestDesignReviewModeNewService(t *testing.T) {
 			plans++
 		}
 	}
-	if plans != 1 || len(roles) != 6 {
+	// Five roles of the design and the shared desk role.
+	if plans != 1 || len(roles) != 7 {
 		t.Fatalf("roles = %d (기획 %d)", len(roles), plans)
+	}
+	// The organization came with it: departments with members, lead and
+	// watches (off in review mode), and the desk written for the service.
+	if out.Org == nil || len(out.Org.Departments) != 2 || out.Org.Desk != "작은 웹 게임 접수 담당" || len(out.Org.Problems) != 0 || out.Org.AutoStart {
+		t.Fatalf("org = %+v", out.Org)
+	}
+	depts, _ := e.db.Departments(e.ctx, p.ID)
+	if len(depts) != 2 || depts[0].LeadAssignmentID == "" || len(depts[1].MemberIDs)+len(depts[0].MemberIDs) != 5 ||
+		domain.ParseAutomation(depts[0].Automation).AutoStart {
+		t.Fatalf("departments = %+v", depts)
+	}
+	if subs, _ := e.db.Subscriptions(e.ctx, p.ID, ""); len(subs) != 1 || subs[0].EventKinds[0] != domain.EventDocumentShared {
+		t.Fatalf("subscriptions = %+v", subs)
+	}
+	if d, ok, _ := e.db.IntakeDesk(e.ctx, p.ID); !ok || d.Name != "작은 웹 게임 접수 담당" {
+		t.Fatalf("desk = %+v", d)
 	}
 	list, _ := e.db.Assignments(e.ctx, p.ID)
 	var owner domain.Assignment
@@ -167,6 +184,11 @@ func TestDesignAutoModeStartsAndWaitsForPeople(t *testing.T) {
 	d, _ := e.eng.RunDetail(e.ctx, out.Applied.ProjectID, out.RunID)
 	if d.Status != engine.RunWaiting || d.Step("dev").Status != engine.StPending {
 		t.Fatalf("auto mode skipped the approval: %s", d.Status)
+	}
+	// An auto-mode service's departments start work on their own.
+	depts, _ := e.db.Departments(e.ctx, out.Applied.ProjectID)
+	if out.Org == nil || !out.Org.AutoStart || len(depts) != 2 || !domain.ParseAutomation(depts[1].Automation).AutoStart {
+		t.Fatalf("auto org = %+v / %+v", out.Org, depts)
 	}
 }
 

@@ -29,7 +29,23 @@ type Proposal struct {
 	// RoleChanges suggests edits to existing company roles. They are shown
 	// separately and never applied automatically.
 	RoleChanges []RoleChange `json:"roleChanges"`
-	Notes       Text         `json:"notes"`
+	// Departments group the proposed assignees into teams (members and
+	// leads are assignment refs); IntakeDesk is the service's desk, written
+	// for it (company-requests plan, 4th revision). Older designs have
+	// neither.
+	Departments []domain.PlannedDepartment `json:"departments"`
+	IntakeDesk  *domain.PlannedDesk        `json:"intakeDesk"`
+	Notes       Text                       `json:"notes"`
+}
+
+// OrgPlan is the organization part of the proposal; a desk without a
+// name counts as none.
+func (p *Proposal) OrgPlan() domain.OrgPlan {
+	plan := domain.OrgPlan{Departments: p.Departments}
+	if p.IntakeDesk != nil && strings.TrimSpace(p.IntakeDesk.Name) != "" {
+		plan.IntakeDesk = p.IntakeDesk
+	}
+	return plan
 }
 
 // Text is a display-only string that also accepts an array of strings
@@ -128,6 +144,11 @@ func Schema() map[string]any {
 		"humanSteps":  arr(obj(map[string]any{"request": str, "stepId": str}, "request", "stepId")),
 		"missing":     arr(obj(map[string]any{"kind": map[string]any{"type": "string", "enum": []string{"connection", "material", "scope"}}, "detail": str}, "kind", "detail")),
 		"roleChanges": arr(obj(map[string]any{"roleId": str, "instructions": str, "reason": str}, "roleId", "instructions", "reason")),
-		"notes":       str,
-	}, "project", "roles", "assignments", "workflow", "humanSteps", "missing", "roleChanges", "notes")
+		"departments": arr(obj(map[string]any{"name": str, "responsibility": str, "members": arr(str), "lead": str,
+			"watches": arr(obj(map[string]any{"eventKinds": arr(map[string]any{"type": "string", "enum": domain.WatchableEvents}), "guidance": str},
+				"eventKinds", "guidance"))},
+			"name", "responsibility", "members", "lead", "watches")),
+		"intakeDesk": obj(map[string]any{"name": str, "instructions": str}, "name", "instructions"),
+		"notes":      str,
+	}, "project", "roles", "assignments", "workflow", "humanSteps", "missing", "roleChanges", "departments", "intakeDesk", "notes")
 }

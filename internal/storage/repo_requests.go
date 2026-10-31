@@ -1087,6 +1087,10 @@ func (db *DB) RecoverRequests(ctx context.Context) error {
 			WHERE status = 'working'`, now); err != nil {
 			return err
 		}
+		if _, err := c.Tx.ExecContext(ctx, `UPDATE org_proposals SET status = 'interrupted', error = '앱이 다시 시작되어 중단되었습니다', ended_at = ?
+			WHERE status = 'working'`, now); err != nil {
+			return err
+		}
 		if _, err := c.Tx.ExecContext(ctx, `UPDATE requests SET status = CASE
 				WHEN (SELECT COUNT(*) FROM request_attempts a WHERE a.request_id = requests.id AND a.round = requests.round) >= max_attempts THEN 'failed'
 				ELSE 'received' END,

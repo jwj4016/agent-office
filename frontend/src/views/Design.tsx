@@ -8,6 +8,7 @@ import {
     ActorBadge, Banner, Button, ConfirmButton, EmptyState, ErrorBox, Field, Icon, IssueList, Loading, nodeKindIcon, PageHeader, relativeTime, Section,
     StatusBadge, type Tone, useAction, useToast,
 } from '../ui';
+import {appliedText, OrgPlanView} from './Organize';
 
 const statusLabel: Record<DesignView['status'], [string, Tone]> = {
     drafting: ['설계 중', 'info'], ready: ['검토 대기', 'warn'], failed: ['실패', 'bad'], applied: ['적용됨', 'ok'], discarded: ['버림', ''],
@@ -207,7 +208,8 @@ function DesignDetail({id, onBack, onOpenWorkflow, onOpenRun, onChanged}: {
         setIssues(res.issues);
         onChanged();
         if (res.applied) {
-            toast(auto ? '적용하고 실행을 시작했습니다' : '설계안을 적용했습니다');
+            toast(`${auto ? '적용하고 실행을 시작했습니다' : '설계안을 적용했습니다'}${res.org ? ` · ${appliedText(res.org)}` : ''}`);
+            if (res.org?.problems.length) toast(`조직 일부를 만들지 못했습니다: ${res.org.problems.join(' · ')}`, 'bad');
             if (res.runId) onOpenRun(res.applied.projectId, res.runId);
             else if (!auto) onOpenWorkflow(res.applied.projectId, res.applied.workflowId);
         }
@@ -307,6 +309,14 @@ function ProposalView({view}: { view: DesignView }) {
                     </table>
                 </div>
             </Section>
+
+            {(r.proposal.departments ?? []).length || r.proposal.intakeDesk?.name ? (
+                <Section title={<><Icon icon={Users} size={18}/>부서와 접수 담당</>} label="부서와 접수 담당">
+                    <OrgPlanView plan={{departments: r.proposal.departments ?? [], intakeDesk: r.proposal.intakeDesk?.name ? r.proposal.intakeDesk : null}}
+                                 name={(ref) => (d.assignments ?? []).find((a) => a.ref === ref)?.displayName ?? ref}/>
+                    {view.mode === 'auto' ? <p className="small muted">자동 모드라 부서는 업무를 스스로 시작합니다(허용한 연결과 예산 안에서).</p> : null}
+                </Section>
+            ) : null}
 
             <Section title={<><Icon icon={Workflow} size={18}/>업무 흐름: {r.proposal.workflow.title}</>} label="업무 흐름">
                 <ol className="timeline card">

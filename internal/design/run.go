@@ -111,11 +111,21 @@ func BuildPrompt(req Request, c Context, project *domain.Project) string {
 	}
 	b.WriteString("\n" + workflowFormat("assignments[].ref") + workflowRules + `- 조건 분기(condition)·합류(join)는 쓰지 않는다.
 
+# 조직 (departments, intakeDesk)
+서비스는 작은 회사처럼 일한다. 담당자를 팀(부서)으로 묶고, 대표의 요청을 받을 접수 담당을 둔다.
+- departments: 함께 일하는 담당자끼리 부서로 묶는다(보통 2~5개). 담당자는 한 부서에만 넣고, 사람 담당자는 부서에 넣지 않아도 된다.
+  {name: 부서 이름, responsibility: 이 부서가 책임지는 일 한두 문장, members: [assignments[].ref], lead: members 중 AI 담당자 ref,
+   watches: [{eventKinds: [work.created|work.completed|document.shared|document.revised], guidance: 그 사건을 볼 때 이 부서가 확인할 것}]}
+  watches는 다른 부서의 일이나 자료를 보고 이 부서가 할 일이 생기는 경우에만 둔다(예: 검증 부서는 개발 부서의 자료 공유를 본다).
+- intakeDesk: 이 서비스의 접수 담당. {name: ‘서비스이름 접수 담당’ 같은 이름, instructions: 이 서비스에 맞춘 접수 지침(서비스 단계, 요청을 어느 부서·담당자에게 맡길지, 대표에게 올릴 결정, 보고 방식)}.
+  앱이 공통 역할 ‘접수 담당’으로 만들고 연결은 앱이 고르므로, assignments에는 넣지 않는다.
+
 # 출력
 지정한 결과 파일(design)에 아래 키만 가진 JSON 객체 하나를 쓴다:
 project{name,goal,instructions}, roles[{ref,reuseRoleId,name,mission,instructions,parentRef}],
 assignments[{ref,roleRef,actorKind,displayName,connectionId,model,instructions}], workflow, humanSteps[{request,stepId}],
-missing[{kind: connection|material|scope, detail}], roleChanges[{roleId,instructions,reason}], notes.
+missing[{kind: connection|material|scope, detail}], roleChanges[{roleId,instructions,reason}],
+departments[{name,responsibility,members,lead,watches[{eventKinds,guidance}]}], intakeDesk{name,instructions}, notes.
 모든 키를 빠짐없이 쓰고 해당 없으면 빈 문자열이나 빈 배열을 쓴다. 기존 역할을 바꾸고 싶으면 roleChanges에 제안만 한다.
 `)
 	return b.String()

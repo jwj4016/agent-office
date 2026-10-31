@@ -43,5 +43,11 @@
   "humanSteps": [{"request": "코드 리뷰", "stepId": "review"}],
   "missing": [],
   "roleChanges": [],
+  "departments": [
+    {"name": "기획팀", "responsibility": "게임의 방향과 시장, 법률 확인을 맡는다.", "members": ["a-planner", "a-market", "a-legal"], "lead": "a-planner", "watches": []},
+    {"name": "개발팀", "responsibility": "게임을 만들고 품질을 확인한다.", "members": ["a-dev", "a-qa"], "lead": "a-dev",
+     "watches": [{"eventKinds": ["document.shared"], "guidance": "기획팀이 공유한 기획안에 개발할 일이 있는지 본다."}]}
+  ],
+  "intakeDesk": {"name": "작은 웹 게임 접수 담당", "instructions": "출시 준비 단계다. 개발 요청은 개발팀, 시장·법률은 기획팀에 맡긴다."},
   "notes": "기존 '기획' 역할을 재사용했습니다. 실제 배포는 출시 승인 뒤 패키지와 안내로 대신합니다."
 }

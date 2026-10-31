@@ -218,6 +218,8 @@ func (s *Service) Recheck(ctx context.Context, id string) (Result, StoredInput, 
 // ApplyResult reports what applying did.
 type ApplyResult struct {
 	Applied *storage.DesignApplied `json:"applied"`
+	// Org says which departments and desk were created with the service.
+	Org *storage.OrgApplied `json:"org,omitempty"`
 	// Issues explain why applying (or, in auto mode, starting) was refused.
 	Issues  []domain.Issue `json:"issues"`
 	RunID   string         `json:"runId,omitempty"`
@@ -287,11 +289,17 @@ func (s *Service) Apply(ctx context.Context, id string, auto bool) (ApplyResult,
 	if err != nil {
 		return ApplyResult{}, err
 	}
+	// The organization goes in after the assignees it groups exist. A part
+	// that cannot be created is reported with the result, not fatal.
+	org, err := s.DB.ApplyOrgPlan(ctx, applied.ProjectID, res.Proposal.OrgPlan(), applied.AssignmentIDs)
+	if err != nil {
+		org.Problems = append(org.Problems, err.Error())
+	}
 	appliedJSON, _ := json.Marshal(applied)
 	if ok, err := s.DB.UpdateDesign(ctx, id, StatusApplied, nil, nil, appliedJSON, "", applied.ProjectID, StatusReady); err != nil || !ok {
 		return ApplyResult{Applied: &applied}, fmt.Errorf("설계 기록 갱신 실패: %v", err)
 	}
-	out := ApplyResult{Applied: &applied, Issues: []domain.Issue{}}
+	out := ApplyResult{Applied: &applied, Org: &org, Issues: []domain.Issue{}}
 	if !auto {
 		return out, nil
 	}

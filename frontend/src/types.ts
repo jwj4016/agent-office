@@ -198,8 +198,30 @@ export type DesignDiff = {
     steps: { id: string; title: string; kind: NodeKind; assignee: string; human: boolean }[] | null;
     missing: { kind: string; detail: string }[] | null;
 };
+// An organization: departments and an intake desk (company-requests plan,
+// 4th revision). Members and leads are assignment refs in a design, ids
+// for an existing service.
+export type PlannedDepartment = {
+    name: string; responsibility: string; members: string[] | null; lead: string;
+    watches: { eventKinds: string[] | null; guidance: string }[] | null;
+};
+export type OrgPlan = { departments: PlannedDepartment[] | null; intakeDesk: { name: string; instructions: string } | null };
+export type OrgApplied = {
+    departments: string[]; skipped: string[]; desk: string; autoStart: boolean; adoptedWork: number; problems: string[];
+};
+export type OrgProposal = {
+    id: string; projectId: string; status: 'working' | 'ready' | 'failed' | 'interrupted' | 'applied' | 'discarded';
+    connectionId: string; model: string; plan: OrgPlan; applied?: OrgApplied; error: string; startedAt: string; endedAt: string;
+};
+export type OrgView = {
+    proposal?: OrgProposal; names: Record<string, string>; autoMode: boolean;
+    allowed: { id: string; name: string }[]; suggestAllow: { id: string; name: string }[]; hasBudget: boolean;
+};
 export type DesignResult = {
-    proposal: { project: { name: string; goal: string; instructions: string }; notes: string; workflow: WorkflowSpec };
+    proposal: {
+        project: { name: string; goal: string; instructions: string }; notes: string; workflow: WorkflowSpec;
+        departments?: PlannedDepartment[] | null; intakeDesk?: { name: string; instructions: string } | null;
+    };
     issues: Issue[]; diff: DesignDiff; canApply: boolean; canStart: boolean;
 };
 export type DesignStatus = 'drafting' | 'ready' | 'failed' | 'applied' | 'discarded';
@@ -211,6 +233,7 @@ export type DesignView = {
 };
 export type ApplyResult = {
     applied: { projectId: string; workflowId: string; newProject: boolean } | null; issues: Issue[]; runId?: string; version?: number;
+    org?: OrgApplied;
 };
 
 export type ExportResult = {

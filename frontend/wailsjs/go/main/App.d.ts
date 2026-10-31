@@ -28,6 +28,8 @@ export function AnswerRequest(arg1:string,arg2:string,arg3:string):Promise<void>
 
 export function ApplyDesign(arg1:string,arg2:boolean):Promise<design.ApplyResult>;
 
+export function ApplyOrganization(arg1:string,arg2:string,arg3:Array<string>):Promise<storage.OrgApplied>;
+
 export function ApplyPlanJob(arg1:string,arg2:string):Promise<domain.WorkPlan>;
 
 export function ApplyWorkflowAssist(arg1:string):Promise<domain.Workflow>;
@@ -86,6 +88,8 @@ export function DetectPaths():Promise<main.DetectedPaths>;
 
 export function DiscardDesign(arg1:string):Promise<void>;
 
+export function DiscardOrgProposal(arg1:string,arg2:string):Promise<void>;
+
 export function DiscardWorkflowAssist(arg1:string):Promise<void>;
 
 export function DismissAutoStart(arg1:string,arg2:string,arg3:string):Promise<void>;
@@ -129,6 +133,8 @@ export function ImportDepartmentTemplate(arg1:string,arg2:string):Promise<domain
 export function Inbox():Promise<Array<engine.InboxItem>>;
 
 export function InstructionPreview(arg1:string,arg2:string):Promise<main.InstructionPreview>;
+
+export function LatestOrgProposal(arg1:string):Promise<main.OrgView>;
 
 export function LinkDocument(arg1:string,arg2:string,arg3:string):Promise<void>;
 
@@ -199,6 +205,8 @@ export function PostNote(arg1:string,arg2:string,arg3:string,arg4:string,arg5:st
 export function ProjectCategories(arg1:string):Promise<Array<string>>;
 
 export function ProjectUsage(arg1:string):Promise<engine.Usage>;
+
+export function ProposeOrganization(arg1:string):Promise<main.OrgView>;
 
 export function ReadArtifact(arg1:string,arg2:string):Promise<engine.ArtifactContent>;
 

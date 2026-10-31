@@ -253,6 +253,15 @@ func Check(p *Proposal, c Context, newProject bool) Result {
 		}
 	}
 
+	// The organization: members and leads are assignment refs.
+	members := map[string]bool{}
+	for _, a := range p.Assignments {
+		members[a.Ref] = a.ActorKind == "ai"
+	}
+	for _, msg := range p.OrgPlan().Check(members) {
+		add(issue(domain.SevError, "bad_org", "%s", msg))
+	}
+
 	diff.Missing = append(diff.Missing, p.Missing...)
 	for _, m := range p.Missing {
 		add(issue(domain.SevRun, "missing_"+m.Kind, "부족한 항목: %s", m.Detail))

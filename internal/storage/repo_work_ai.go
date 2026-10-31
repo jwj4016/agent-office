@@ -346,7 +346,8 @@ type AIAttemptUsage struct {
 func SumAIAttemptUsage(ctx context.Context, q rowsQueryer, projectID string) (AIAttemptUsage, error) {
 	return sumUsageRows(ctx, q, `SELECT usage, usage_reported FROM work_ai_attempts WHERE project_id = ?
 		UNION ALL SELECT usage, usage_reported FROM request_attempts WHERE project_id = ?
-		UNION ALL SELECT usage, usage_reported FROM desk_staffing WHERE project_id = ?`, projectID, projectID, projectID)
+		UNION ALL SELECT usage, usage_reported FROM desk_staffing WHERE project_id = ?
+		UNION ALL SELECT usage, usage_reported FROM org_proposals WHERE project_id = ?`, projectID, projectID, projectID, projectID)
 }
 
 func sumUsageRows(ctx context.Context, q rowsQueryer, query string, args ...any) (AIAttemptUsage, error) {

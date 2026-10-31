@@ -5,6 +5,7 @@ import {t} from '../i18n';
 import {useLoad} from '../live';
 import type {ActiveStatus, ActorKind, Assignment, Department, DepartmentTemplate, Project, Role} from '../types';
 import {ServiceDeskSettings} from './IntakeDesk';
+import {OrganizeService} from './Organize';
 import {AutomationPanel, rulesOf} from './Automation';
 import {SubscriptionPanel} from './Judgments';
 import {scheduleLabel} from './Schedule';
@@ -57,6 +58,7 @@ export function Team({project}: { project: Project }) {
     if (!list.data) return <Loading/>;
     return (
         <div className="stack loose">
+            <OrganizeService project={project} onApplied={list.reload}/>
             <ServiceDepartments project={project} assignments={list.data} roles={roles.data ?? []} onChanged={list.reload}/>
             <ServiceDeskSettings project={project}/>
             <Section title={<><Icon icon={Users} size={18}/>담당자</>} label="담당자" count={list.data.length}>

@@ -54,6 +54,8 @@ export const fakeApi = {
         instructions: '', budget: {}, enabled: true}, exists: true, suggestedConnectionId: '', suggestedModel: ''})),
     saveDesk: vi.fn(async (d: unknown) => d), removeDesk: ok(undefined), staffDesk: vi.fn(async () => ({})), rewriteDesk: vi.fn(async () => ({})),
     createDeskAssignee: vi.fn(async () => ({})),
+    latestOrgProposal: vi.fn(async (..._args: unknown[]): Promise<unknown> => ({names: {}, autoMode: false, allowed: [], suggestAllow: [], hasBudget: false})),
+    proposeOrganization: vi.fn(), applyOrganization: vi.fn(), discardOrgProposal: ok(undefined),
     submitRequest: vi.fn(), requests: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []), request: vi.fn(),
     answerRequest: ok(undefined), closeRequest: ok(undefined), cancelRequest: ok(undefined), retryRequest: ok(undefined),
     acceptRequestWork: vi.fn(), rejectRequestItem: ok(undefined), confirmRequestAction: ok(undefined), runRequestAction: vi.fn(),

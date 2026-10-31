@@ -42,6 +42,10 @@ export function ApplyDesign(arg1, arg2) {
   return window['go']['main']['App']['ApplyDesign'](arg1, arg2);
 }
 
+export function ApplyOrganization(arg1, arg2, arg3) {
+  return window['go']['main']['App']['ApplyOrganization'](arg1, arg2, arg3);
+}
+
 export function ApplyPlanJob(arg1, arg2) {
   return window['go']['main']['App']['ApplyPlanJob'](arg1, arg2);
 }
@@ -158,6 +162,10 @@ export function DiscardDesign(arg1) {
   return window['go']['main']['App']['DiscardDesign'](arg1);
 }
 
+export function DiscardOrgProposal(arg1, arg2) {
+  return window['go']['main']['App']['DiscardOrgProposal'](arg1, arg2);
+}
+
 export function DiscardWorkflowAssist(arg1) {
   return window['go']['main']['App']['DiscardWorkflowAssist'](arg1);
 }
@@ -244,6 +252,10 @@ export function Inbox() {
 
 export function InstructionPreview(arg1, arg2) {
   return window['go']['main']['App']['InstructionPreview'](arg1, arg2);
+}
+
+export function LatestOrgProposal(arg1) {
+  return window['go']['main']['App']['LatestOrgProposal'](arg1);
 }
 
 export function LinkDocument(arg1, arg2, arg3) {
@@ -384,6 +396,10 @@ export function ProjectCategories(arg1) {
 
 export function ProjectUsage(arg1) {
   return window['go']['main']['App']['ProjectUsage'](arg1);
+}
+
+export function ProposeOrganization(arg1) {
+  return window['go']['main']['App']['ProposeOrganization'](arg1);
 }
 
 export function ReadArtifact(arg1, arg2) {

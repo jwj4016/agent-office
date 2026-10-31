@@ -578,3 +578,106 @@ func slicesContain(list []string, v string) bool {
 	}
 	return false
 }
+
+// An existing service without departments (like 빌라노트 was) gets its
+// organization proposed by an AI and applied by the person: departments
+// of its AI assignees with auto start in auto mode, a desk, the chosen
+// connection allowed for auto mode, and its waiting request work moved
+// into the assignee's new department and queued for the auto starter.
+func TestOrganizeExistingService(t *testing.T) {
+	f := newIntakeFixture(t)
+	ctx := context.Background()
+	p, _ := f.db.CreateProject(ctx, domain.Project{Name: "검증 서비스", Goal: "리포트를 검증한다", Mode: domain.ModeAuto})
+	role, _ := f.db.SaveRole(ctx, domain.Role{Name: "분석"})
+	ai := func(name string) domain.Assignment {
+		a, _ := f.db.SaveAssignment(ctx, domain.Assignment{ProjectID: p.ID, RoleID: role.ID, ActorKind: domain.ActorAI, DisplayName: name, ConnectionID: f.conn.ID, Model: "m"})
+		return a
+	}
+	planner, dev, qa := ai("기획 AI"), ai("개발 AI"), ai("검증 AI")
+	// Work a desk registered before there were departments: it waits.
+	if _, err := f.db.SaveIntakeDesk(ctx, domain.IntakeDesk{ProjectID: p.ID, AssignmentID: planner.ID, Enabled: true}); err != nil {
+		t.Fatal(err)
+	}
+	f.answer = func(desk, prompt string) (string, error) {
+		switch desk {
+		case "조직 정비 AI":
+			if !strings.Contains(prompt, qa.ID) || strings.Contains(prompt, "intakeDesk.instructions에는") {
+				return "", errors.New("unexpected organize prompt")
+			}
+			return asJSON(map[string]any{"intakeDesk": map[string]string{"name": "", "instructions": ""}, "departments": []map[string]any{
+				{"name": "기획팀", "responsibility": "방향", "members": []string{planner.ID}, "lead": planner.ID, "watches": []any{}},
+				{"name": "개발팀", "responsibility": "개발과 검증", "members": []string{dev.ID, qa.ID}, "lead": dev.ID,
+					"watches": []map[string]any{{"eventKinds": []string{"document.shared"}, "guidance": "기획안을 본다"}}}}}), nil
+		}
+		return asJSON(map[string]any{"outcome": "work", "reason": "검증", "work": []map[string]any{{"title": "리포트 검증", "assigneeAssignmentId": qa.ID}}}), nil
+	}
+	r := f.submit(t, p.ID, "리포트 검증해 줘")
+	f.drain(t)
+	r = f.get(t, p.ID, r.ID)
+	if len(r.Items) != 1 || r.Items[0].WorkItemID == "" {
+		t.Fatalf("request = %+v", r)
+	}
+	if starts, _ := f.db.AutoStarts(ctx, p.ID, storage.AutoStartFilter{}); len(starts) != 0 {
+		t.Fatalf("work without a department was queued: %+v", starts)
+	}
+
+	prop, err := f.in.ProposeOrg(ctx, p.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if prop.Status != "ready" || len(prop.Plan.Departments) != 2 || prop.Plan.IntakeDesk != nil {
+		t.Fatalf("proposal = %+v", prop)
+	}
+	applied, err := f.in.ApplyOrgProposal(ctx, p.ID, prop.ID, []string{f.conn.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(applied.Departments) != 2 || !applied.AutoStart || applied.AdoptedWork != 1 || len(applied.Problems) != 0 {
+		t.Fatalf("applied = %+v", applied)
+	}
+	depts, _ := f.db.Departments(ctx, p.ID)
+	for _, d := range depts {
+		if !domain.ParseAutomation(d.Automation).AutoStart {
+			t.Fatalf("department %s does not start work on its own", d.Name)
+		}
+	}
+	w, _ := f.db.WorkItem(ctx, p.ID, r.Items[0].WorkItemID)
+	if dev2 := depts[1]; w.DepartmentID == "" || (w.DepartmentID != dev2.ID && w.DepartmentID != depts[0].ID) {
+		t.Fatalf("work = %+v", w)
+	}
+	if starts, _ := f.db.AutoStarts(ctx, p.ID, storage.AutoStartFilter{}); len(starts) != 1 || starts[0].WorkItemID != w.ID {
+		t.Fatalf("auto starts = %+v", starts)
+	}
+	proj, _ := f.db.Project(ctx, p.ID)
+	if !strings.Contains(string(proj.AutoPolicy), f.conn.ID) {
+		t.Fatalf("auto policy = %s", proj.AutoPolicy)
+	}
+	if _, err := f.in.ApplyOrgProposal(ctx, p.ID, prop.ID, nil); err == nil {
+		t.Fatal("a proposal was applied twice")
+	}
+	if u, _ := f.eng.ProjectUsage(ctx, p.ID); u.Attempts != 2 {
+		t.Fatalf("usage = %+v", u)
+	}
+
+	// Nobody is left to place and the desk exists: nothing to propose.
+	if _, err := f.in.ProposeOrg(ctx, p.ID); err == nil {
+		t.Fatal("proposed an organization for a fully organized service")
+	}
+}
+
+// A proposal naming someone who is not an eligible assignee is refused
+// and kept as failed.
+func TestOrganizeRefusesUnknownMembers(t *testing.T) {
+	f := newIntakeFixture(t)
+	ctx := context.Background()
+	f.answer = func(desk, prompt string) (string, error) {
+		return asJSON(map[string]any{"intakeDesk": map[string]string{"name": "블로그 접수 담당", "instructions": "글을 다룬다"},
+			"departments": []map[string]any{{"name": "편집팀", "responsibility": "편집", "members": []string{f.villaAI.ID}, "lead": f.villaAI.ID, "watches": []any{}}}}), nil
+	}
+	if _, err := f.in.ProposeOrg(ctx, f.blog.ID); err == nil || !strings.Contains(err.Error(), "찾을 수 없습니다") {
+		t.Fatalf("propose: %v", err)
+	}
+	if p, ok, _ := f.db.LatestOrgProposal(ctx, f.blog.ID); !ok || p.Status != "failed" {
+		t.Fatalf("latest = %+v", p)
+	}
+}

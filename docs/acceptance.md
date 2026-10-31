@@ -171,3 +171,11 @@ CI 수치는 run 38581308212에서 나왔다. CI는 가상 머신이고, 첫 실
 | 새로 만들기·기존 인원 지정·AI에게 맡기기 | 🟡 | `TestBindingsDeskAssignees`, 화면 `IntakeDesk.test.tsx` |
 | 요청에 적은 위치를 폴더로 제안·미리 채움(홈 안만) | 🟡 | `TestSuggestedFolder`, 화면 `Requests.test.tsx` |
 | 실제 AI | ✅(표본 1) | 실제 데이터 사본, 사장님이 보낸 대기 요청으로 `TestRealDeskStaffing`: Claude가 ‘빌라노트 접수 담당’을 배치(지침: 서비스 단계, 범위 밖 요청 처리, 담당자별 배정 기준, 대표에게 올릴 결정, 보고 방식), 새 접수 담당이 deliver_code와 폴더 `~/dev/workspace/villanote`를 제안. 34초, 배치 호출 $0.12. 승인은 하지 않음 |
+
+### 서비스 시작 때 조직 구성 (회사 요청 4차 개정, 2026-10-31)
+
+| 항목 | 상태 | 증거 |
+|---|---|---|
+| 설계안에 부서·접수 담당이 들어가고 적용 때 함께 만들어짐(검토 모드는 자동 시작 꺼짐, 자동 모드는 켜짐) | 🟡 | `TestDesignReviewModeNewService`, `TestDesignAutoModeStartsAndWaitsForPeople`, 설계 검사 `bad_org` |
+| 기존 서비스의 조직 정비 제안·적용, 연결 허용, 멈춘 업무를 부서로 옮겨 자동 시작 대기열에 넣음 | 🟡 | `TestOrganizeExistingService`, `TestOrganizeRefusesUnknownMembers`, `TestBindingsOrganization`, 화면 `Organize.test.tsx` |
+| 실제 AI | ✅(표본 1) | 실제 데이터 사본 `TestRealOrganize`(67초): 빌라노트 조직 제안 4개 부서(기획·분석실, 데이터·플랫폼팀, 제품팀, 품질·보안 검증실)와 받아 볼 사건이 서비스에 맞게 나옴. 적용 → 멈췄던 업무 2건이 부서로 들어가 자동 시작 대기열에 올랐고, 예산이 없어 ‘자동 시작 검토’로 넘어감(미리보기의 경고대로). 새 목표 설계(동네 카페 웹페이지)는 부서 2개와 접수 담당을 함께 내고 적용됨 |

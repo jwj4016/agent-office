@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"agent-office/internal/connect"
+	"agent-office/internal/design"
 	"agent-office/internal/domain"
 	"agent-office/internal/engine"
 	"agent-office/internal/storage"
@@ -292,5 +293,102 @@ func TestRealDeskStaffing(t *testing.T) {
 		note("staffing %s %s usage=%s %s", kind, status, usage, errText)
 	}
 	rows.Close()
+	note("took %s", time.Since(start).Round(time.Second))
+}
+
+// TestRealOrganize checks the 4th revision with the real Claude on a copy
+// of real data: an organization proposal for the service (applied in the
+// copy, with its suggested connections allowed), and a new-service design
+// that comes with departments and a desk. Off by default:
+//
+//	AGENT_OFFICE_REAL_ORGANIZE=sonnet AGENT_OFFICE_REAL_REQUESTS_DATA=<copied data dir> \
+//	  [AGENT_OFFICE_REAL_REQUESTS_OUT=<file>] go test . -run TestRealOrganize -v -timeout 40m
+func TestRealOrganize(t *testing.T) {
+	model, data := os.Getenv("AGENT_OFFICE_REAL_ORGANIZE"), os.Getenv("AGENT_OFFICE_REAL_REQUESTS_DATA")
+	if model == "" || data == "" {
+		t.Skip("set AGENT_OFFICE_REAL_ORGANIZE=<model> and AGENT_OFFICE_REAL_REQUESTS_DATA=<copied data dir>")
+	}
+	service := envOr("AGENT_OFFICE_REAL_REQUESTS_SERVICE", "prj-7olsrrxzajyaje7sqefa")
+	var report []string
+	note := func(format string, args ...any) {
+		line := fmt.Sprintf(format, args...)
+		report = append(report, line)
+		t.Log(line)
+	}
+	t.Cleanup(func() {
+		if out := os.Getenv("AGENT_OFFICE_REAL_REQUESTS_OUT"); out != "" {
+			os.WriteFile(out, []byte(strings.Join(report, "\n")+"\n"), 0o644)
+		}
+	})
+	keyring.MockInit()
+	t.Setenv("AGENT_OFFICE_DATA_DIR", data)
+	a := NewApp()
+	a.emit = func(context.Context, string, ...interface{}) {}
+	a.startup(context.Background())
+	if st := a.SystemStatus(); st.Error != "" {
+		t.Fatal(st.Error)
+	}
+	t.Cleanup(func() { a.shutdown(context.Background()) })
+	start := time.Now()
+
+	v, err := a.ProposeOrganization(service)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, d := range v.Proposal.Plan.Departments {
+		var names []string
+		for _, m := range d.Members {
+			names = append(names, v.Names[m])
+		}
+		note("dept %s (lead %s): %s | members %s | watches %+v", d.Name, v.Names[d.Lead], d.Responsibility, strings.Join(names, ", "), d.Watches)
+	}
+	if d := v.Proposal.Plan.IntakeDesk; d != nil {
+		note("desk %s", d.Name)
+	}
+	note("auto=%v allowed=%v suggest=%v budget=%v (%s)", v.AutoMode, v.Allowed, v.SuggestAllow, v.HasBudget, time.Since(start).Round(time.Second))
+	var allow []string
+	for _, c := range v.SuggestAllow {
+		allow = append(allow, c.ID)
+	}
+	applied := need(a.ApplyOrganization(service, v.Proposal.ID, allow))
+	note("applied %+v", applied)
+	time.Sleep(5 * time.Second)
+	for _, s := range need(a.ListAutoStarts(service, storage.AutoStartFilter{})) {
+		note("auto start %q: %s %s", s.WorkTitle, s.Status, s.Reason)
+	}
+
+	var conn string
+	a.db.Read().QueryRow(`SELECT id FROM provider_connections WHERE provider = 'claude' LIMIT 1`).Scan(&conn)
+	rec, err := a.design.Start(a.ctx, design.StoredInput{Request: design.Request{Goal: "동네 카페의 메뉴와 이벤트를 알리는 웹페이지를 만든다. 문구 최종 검토는 내가 할게.",
+		HumanTasks: []string{"문구 최종 검토"}, Mode: "review"}, Model: model}, conn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.design.Wait()
+	dv := need(a.GetDesign(rec.ID))
+	note("design %s %s", dv.Status, dv.Error)
+	if dv.Result != nil {
+		names := map[string]string{}
+		for _, x := range dv.Result.Proposal.Assignments {
+			names[x.Ref] = x.DisplayName
+		}
+		for _, d := range dv.Result.Proposal.Departments {
+			var ms []string
+			for _, m := range d.Members {
+				ms = append(ms, names[m])
+			}
+			note("design dept %s (lead %s): %s | %s | watches %+v", d.Name, names[d.Lead], d.Responsibility, strings.Join(ms, ", "), d.Watches)
+		}
+		if d := dv.Result.Proposal.IntakeDesk; d != nil {
+			note("design desk %s: %s", d.Name, clip(d.Instructions, 400))
+		}
+		for _, i := range dv.Result.Issues {
+			note("design issue %s %s", i.Severity, i.Message)
+		}
+		if dv.Result.CanApply {
+			out := need(a.ApplyDesign(rec.ID, false))
+			note("design applied: org %+v", out.Org)
+		}
+	}
 	note("took %s", time.Since(start).Round(time.Second))
 }

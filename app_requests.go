@@ -346,3 +346,144 @@ func requestOf(a *App, itemID string) string {
 	a.db.Read().QueryRowContext(a.ctx, `SELECT request_id FROM request_items WHERE id = ?`, itemID).Scan(&id)
 	return id
 }
+
+// OrgView is a service's organization proposal with what the person needs
+// to judge it: assignee names, and whether auto mode could start the new
+// departments' work (connections allowed, a budget).
+type OrgView struct {
+	Proposal *storage.OrgProposal `json:"proposal,omitempty"`
+	Names    map[string]string    `json:"names"`
+	AutoMode bool                 `json:"autoMode"`
+	// Allowed are the connections auto mode may use now; SuggestAllow are
+	// the ones the proposal's AI members use that it may not yet.
+	Allowed      []ConnectionChoice `json:"allowed"`
+	SuggestAllow []ConnectionChoice `json:"suggestAllow"`
+	HasBudget    bool               `json:"hasBudget"`
+}
+
+// ConnectionChoice names a connection.
+type ConnectionChoice struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+func (a *App) orgView(projectID string, p *storage.OrgProposal) (OrgView, error) {
+	v := OrgView{Proposal: p, Names: map[string]string{}, Allowed: []ConnectionChoice{}, SuggestAllow: []ConnectionChoice{}}
+	proj, err := a.db.Project(a.ctx, projectID)
+	if err != nil {
+		return v, err
+	}
+	v.AutoMode = proj.Mode == domain.ModeAuto
+	var b engine.Budget
+	json.Unmarshal(proj.Budget, &b)
+	v.HasBudget = b.MaxTokens != nil || b.MaxCostUSD != nil
+	var policy struct {
+		AllowedConnectionIDs []string `json:"allowedConnectionIds"`
+	}
+	json.Unmarshal(proj.AutoPolicy, &policy)
+	people, err := a.db.Assignments(a.ctx, projectID)
+	if err != nil {
+		return v, err
+	}
+	connOf := map[string]string{}
+	for _, x := range people {
+		v.Names[x.ID] = x.DisplayName
+		connOf[x.ID] = x.ConnectionID
+	}
+	name := func(id string) string {
+		if c, err := a.db.Connection(a.ctx, id); err == nil {
+			return c.Name
+		}
+		return id
+	}
+	for _, id := range policy.AllowedConnectionIDs {
+		v.Allowed = append(v.Allowed, ConnectionChoice{ID: id, Name: name(id)})
+	}
+	if p != nil {
+		seen := map[string]bool{}
+		for _, d := range p.Plan.Departments {
+			for _, m := range d.Members {
+				c := connOf[m]
+				if c == "" || seen[c] || slicesContains(policy.AllowedConnectionIDs, c) {
+					continue
+				}
+				seen[c] = true
+				if conn, err := a.db.Connection(a.ctx, c); err == nil && (conn.Provider == "test" || conn.Verified()) {
+					v.SuggestAllow = append(v.SuggestAllow, ConnectionChoice{ID: c, Name: conn.Name})
+				}
+			}
+		}
+	}
+	return v, nil
+}
+
+func slicesContains(list []string, s string) bool {
+	for _, x := range list {
+		if x == s {
+			return true
+		}
+	}
+	return false
+}
+
+// LatestOrgProposal returns a service's last organization proposal.
+func (a *App) LatestOrgProposal(projectID string) (OrgView, error) {
+	if err := a.ready(); err != nil {
+		return OrgView{}, err
+	}
+	if err := a.db.CheckScope(a.ctx, projectID); err != nil {
+		return OrgView{}, uiErr(err)
+	}
+	p, ok, err := a.db.LatestOrgProposal(a.ctx, projectID)
+	if err != nil {
+		return OrgView{}, uiErr(err)
+	}
+	if !ok {
+		v, err := a.orgView(projectID, nil)
+		return v, uiErr(err)
+	}
+	v, err := a.orgView(projectID, &p)
+	return v, uiErr(err)
+}
+
+// ProposeOrganization has an AI propose the service's departments (and a
+// desk when it has none). It waits for the AI and uses its quota.
+func (a *App) ProposeOrganization(projectID string) (OrgView, error) {
+	if err := a.ready(); err != nil {
+		return OrgView{}, err
+	}
+	if err := a.db.CheckScope(a.ctx, projectID); err != nil {
+		return OrgView{}, uiErr(err)
+	}
+	p, err := a.intake.ProposeOrg(a.ctx, projectID)
+	if err != nil {
+		return OrgView{}, uiErr(err)
+	}
+	v, err := a.orgView(projectID, &p)
+	return v, uiErr(err)
+}
+
+// ApplyOrganization creates a proposal's departments and desk. allow are
+// connections auto mode may now use (the person's choice).
+func (a *App) ApplyOrganization(projectID, proposalID string, allow []string) (storage.OrgApplied, error) {
+	if err := a.ready(); err != nil {
+		return storage.OrgApplied{}, err
+	}
+	if err := a.db.CheckScope(a.ctx, projectID); err != nil {
+		return storage.OrgApplied{}, uiErr(err)
+	}
+	out, err := a.intake.ApplyOrgProposal(a.ctx, projectID, proposalID, allow)
+	if err == nil {
+		a.auto.Wake()
+		a.intake.Wake()
+	}
+	return out, uiErr(err)
+}
+
+// DiscardOrgProposal sets a proposal aside without applying it.
+func (a *App) DiscardOrgProposal(projectID, proposalID string) error {
+	if err := a.ready(); err != nil {
+		return err
+	}
+	return uiErr(a.db.CloseOrgProposal(a.ctx, projectID, proposalID, "discarded", nil))
+}

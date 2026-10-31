@@ -232,3 +232,28 @@ func TestBindingsDeskAssignees(t *testing.T) {
 		t.Fatal("a nameless desk was made")
 	}
 }
+
+// Organization proposals through the bindings: a provider that writes no
+// organization leaves a failed proposal the screen can show; a proposal of
+// one service cannot be applied in another.
+func TestBindingsOrganization(t *testing.T) {
+	a := startApp(t)
+	villa, _ := buildService(t, a, "빌라노트")
+	blog, _ := buildService(t, a, "블로그")
+	if v := need(a.LatestOrgProposal(villa.ID)); v.Proposal != nil || len(v.Names) == 0 {
+		t.Fatalf("before = %+v", v)
+	}
+	if _, err := a.ProposeOrganization(villa.ID); err == nil {
+		t.Fatal("an empty organization was accepted")
+	}
+	v := need(a.LatestOrgProposal(villa.ID))
+	if v.Proposal == nil || v.Proposal.Status != "failed" {
+		t.Fatalf("after = %+v", v.Proposal)
+	}
+	if _, err := a.ApplyOrganization(blog.ID, v.Proposal.ID, nil); err == nil {
+		t.Fatal("applied another service's proposal")
+	}
+	if _, err := a.LatestOrgProposal("prj-none"); err == nil {
+		t.Fatal("read an unknown service")
+	}
+}
