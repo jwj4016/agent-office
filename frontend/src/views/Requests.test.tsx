@@ -78,6 +78,33 @@ describe('RequestCard', () => {
     });
 });
 
+describe('following a request to the end', () => {
+    it('shows the goal, progress, order and why a start waits, then the report to confirm', async () => {
+        const build = item({id: 'rqi-b', kind: 'work', status: 'accepted', workItemId: 'w-b', workTitle: '지표 구현', workStatus: 'done',
+            payload: {title: '지표 구현', index: 1}});
+        const check = item({id: 'rqi-c', kind: 'work', status: 'accepted', workItemId: 'w-c', workTitle: '지표 검증', workStatus: 'received',
+            payload: {title: '지표 검증', index: 2, after: [1]}, autoStatus: 'review', autoNote: '자동 실행에는 서비스 예산을 먼저 정해야 합니다'});
+        const req: ServiceRequest = {...base, status: 'in_progress', outcome: 'work', goalId: 'goal-1', goalTitle: '역전세 지표 출시', items: [build, check]};
+        const onOpenWork = vi.fn();
+        const {rerender} = render(<LiveProvider><RequestCard req={req} onChanged={() => {}} onOpenWork={onOpenWork}/></LiveProvider>);
+        const progress = screen.getByRole('group', {name: '업무 진행'});
+        expect(progress).toHaveTextContent('업무 2건 중 1건 완료');
+        expect(progress).toHaveTextContent('모두 끝나면 접수 담당이 완료 보고를 씁니다');
+        fireEvent.click(within(progress).getByRole('button', {name: '역전세 지표 출시'}));
+        expect(onOpenWork).toHaveBeenCalledWith('prj-1', 'goal-1');
+        const checkGroup = screen.getByRole('group', {name: '업무 제안: 지표 검증'});
+        expect(checkGroup).toHaveTextContent('앞 업무: ‘지표 구현’');
+        expect(checkGroup).toHaveTextContent('자동 시작 못 함: 자동 실행에는 서비스 예산을 먼저 정해야 합니다');
+
+        rerender(<LiveProvider><RequestCard req={{...req, status: 'done', report: '## 요약\n지표를 출시했습니다.', items: [build, {...check, workStatus: 'done'}]}}
+                                            onChanged={() => {}} onOpenWork={onOpenWork}/></LiveProvider>);
+        const report = screen.getByRole('group', {name: '완료 보고'});
+        expect(report).toHaveTextContent('지표를 출시했습니다.');
+        fireEvent.click(within(report).getByRole('button', {name: '확인했습니다'}));
+        await waitFor(() => expect(fakeApi.markReportRead).toHaveBeenCalledWith('prj-1', 'req-1'));
+    });
+});
+
 describe('request screens', () => {
     it('says when the service has no desk and still takes the request', async () => {
         fakeApi.deskView.mockResolvedValueOnce({desk: {projectId: 'prj-1', name: '', assignmentId: '', connectionId: '', model: '', instructions: '',

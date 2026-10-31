@@ -487,3 +487,12 @@ func (a *App) DiscardOrgProposal(projectID, proposalID string) error {
 	}
 	return uiErr(a.db.CloseOrgProposal(a.ctx, projectID, proposalID, "discarded", nil))
 }
+
+// MarkReportRead records that the person read a request's completion
+// report; it then leaves the to-dos.
+func (a *App) MarkReportRead(projectID, id string) error {
+	if err := a.ready(); err != nil {
+		return err
+	}
+	return uiErr(a.db.MarkReportRead(a.ctx, projectID, id))
+}

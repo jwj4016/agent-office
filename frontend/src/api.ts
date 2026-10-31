@@ -197,6 +197,7 @@ export const api = {
     answerRequest: (projectId: string, id: string, reply: string) => call<void>(Go.AnswerRequest(projectId, id, reply)),
     closeRequest: (projectId: string, id: string, note: string) => call<void>(Go.CloseRequest(projectId, id, note)),
     cancelRequest: (projectId: string, id: string) => call<void>(Go.CancelRequest(projectId, id)),
+    markReportRead: (projectId: string, id: string) => call<void>(Go.MarkReportRead(projectId, id)),
     retryRequest: (projectId: string, id: string) => call<void>(Go.RetryRequest(projectId, id)),
     acceptRequestWork: (projectId: string, itemId: string, edit: WorkProposalPayload) =>
         call<WorkItem>(Go.AcceptRequestWork(projectId, itemId, edit as never)),

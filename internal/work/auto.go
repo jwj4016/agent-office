@@ -116,6 +116,12 @@ func (s *AutoStarter) step(ctx context.Context, a storage.AutoStart) (bool, erro
 	}
 	switch a.Status {
 	case storage.AutoPending:
+		// Work that waits for other work starts after it is closed.
+		if open, err := db.WorkWaitingFor(ctx, w); err != nil {
+			return false, err
+		} else if len(open) > 0 {
+			return false, db.NoteAutoStart(ctx, a.ID, "앞 업무가 끝나기를 기다립니다: "+strings.Join(open, ", "))
+		}
 		if issue, err := s.workIssue(ctx, w); err != nil || issue != "" {
 			return s.reviewOrErr(ctx, a, issue, err)
 		}

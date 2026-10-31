@@ -190,6 +190,8 @@ export function ListWorkflowChoices(arg1:string):Promise<Array<storage.WorkflowC
 
 export function ListWorkflows(arg1:string):Promise<Array<domain.Workflow>>;
 
+export function MarkReportRead(arg1:string,arg2:string):Promise<void>;
+
 export function OperationsOverview(arg1:string):Promise<main.Operations>;
 
 export function PauseRun(arg1:string,arg2:string):Promise<void>;

@@ -347,3 +347,59 @@ func TestUpgradeToRequestsKeepsWork(t *testing.T) {
 		t.Fatal("foreign key violations after upgrade")
 	}
 }
+
+// The 5th revision follows requests to the end: a request marked done
+// while the work it registered is still open becomes in progress again;
+// one whose work is closed stays done.
+func TestUpgradeFollowsRequestsToTheEnd(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "v19.db")
+	raw, err := sql.Open("sqlite", "file:"+path+"?_pragma=foreign_keys(1)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ms, _ := loadMigrations()
+	exec := func(q string, args ...any) {
+		t.Helper()
+		if _, err := raw.Exec(q, args...); err != nil {
+			t.Fatalf("%s: %v", q, err)
+		}
+	}
+	exec(`CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at TEXT NOT NULL)`)
+	for _, m := range ms {
+		if m.version > 19 {
+			break
+		}
+		exec(m.sql)
+		exec(`INSERT INTO schema_migrations VALUES (?, ?, ?)`, m.version, m.name, Now())
+	}
+	now := Now()
+	exec(`INSERT INTO projects (id, organization_id, name, created_at, updated_at) VALUES ('prj-1', 'org-default', '서비스', ?, ?)`, now, now)
+	for _, w := range []struct{ id, status, closed string }{{"w-open", "received", ""}, {"w-done", "done", now}} {
+		if w.closed == "" {
+			exec(`INSERT INTO work_items (id, project_id, kind, title, status, created_at, updated_at) VALUES (?, 'prj-1', 'work', ?, ?, ?, ?)`, w.id, w.id, w.status, now, now)
+		} else {
+			exec(`INSERT INTO work_items (id, project_id, kind, title, status, closed_at, created_at, updated_at) VALUES (?, 'prj-1', 'work', ?, ?, ?, ?, ?)`, w.id, w.id, w.status, now, now, now)
+		}
+	}
+	for _, r := range []struct{ id, work string }{{"req-open", "w-open"}, {"req-closed", "w-done"}} {
+		exec(`INSERT INTO requests (id, organization_id, project_id, body, status, outcome, created_at, updated_at, closed_at)
+			VALUES (?, 'org-default', 'prj-1', '요청', 'done', 'work', ?, ?, ?)`, r.id, now, now, now)
+		exec(`INSERT INTO request_items (id, request_id, project_id, round, position, kind, status, work_item_id, decided_by, decided_at, created_at, updated_at)
+			VALUES (?, ?, 'prj-1', 1, 1, 'work', 'accepted', ?, 'user', ?, ?, ?)`, "i-"+r.id, r.id, r.work, now, now, now)
+	}
+	raw.Close()
+
+	db := openTemp(t, path)
+	defer db.Close()
+	ctx := context.Background()
+	if r, err := db.Request(ctx, "prj-1", "req-open"); err != nil || r.Status != domain.ReqInProgress || r.ClosedAt != "" {
+		t.Fatalf("open work's request = %+v %v", r, err)
+	}
+	if r, err := db.Request(ctx, "prj-1", "req-closed"); err != nil || r.Status != domain.ReqDone {
+		t.Fatalf("closed work's request = %+v %v", r, err)
+	}
+	if rows, _ := db.Read().Query(`PRAGMA foreign_key_check`); rows.Next() {
+		rows.Close()
+		t.Fatal("foreign key violations after upgrade")
+	}
+}

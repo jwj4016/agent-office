@@ -179,3 +179,12 @@ CI 수치는 run 38581308212에서 나왔다. CI는 가상 머신이고, 첫 실
 | 설계안에 부서·접수 담당이 들어가고 적용 때 함께 만들어짐(검토 모드는 자동 시작 꺼짐, 자동 모드는 켜짐) | 🟡 | `TestDesignReviewModeNewService`, `TestDesignAutoModeStartsAndWaitsForPeople`, 설계 검사 `bad_org` |
 | 기존 서비스의 조직 정비 제안·적용, 연결 허용, 멈춘 업무를 부서로 옮겨 자동 시작 대기열에 넣음 | 🟡 | `TestOrganizeExistingService`, `TestOrganizeRefusesUnknownMembers`, `TestBindingsOrganization`, 화면 `Organize.test.tsx` |
 | 실제 AI | ✅(표본 1) | 실제 데이터 사본 `TestRealOrganize`(67초): 빌라노트 조직 제안 4개 부서(기획·분석실, 데이터·플랫폼팀, 제품팀, 품질·보안 검증실)와 받아 볼 사건이 서비스에 맞게 나옴. 적용 → 멈췄던 업무 2건이 부서로 들어가 자동 시작 대기열에 올랐고, 예산이 없어 ‘자동 시작 검토’로 넘어감(미리보기의 경고대로). 새 목표 설계(동네 카페 웹페이지)는 부서 2개와 접수 담당을 함께 내고 적용됨 |
+
+### 협업 요청의 끝까지 처리 (회사 요청 5차 개정, 2026-10-31)
+
+| 항목 | 상태 | 증거 |
+|---|---|---|
+| 요청이 업무가 닫힐 때까지 ‘진행 중’, 완료 보고로 끝남, 보고는 확인할 때까지 할 일 | 🟡 | `TestServiceDeskDecides`, `TestAutoWorkAndActions`(모두 취소되면 보고 없이 끝남), `TestUpgradeFollowsRequestsToTheEnd`, 화면 `Requests.test.tsx` |
+| 공동 목표와 업무 순서, 자동 시작이 앞 업무를 기다림, 순서와 다르게 등록해도 관계 유지 | 🟡 | `TestGoalAndOrderedWork` |
+| 보고 세부 내용이 글·목록·객체 어느 것으로 와도 읽을 수 있게 씀 | 🟡 | `TestRenderReport` |
+| 실제 AI | ✅(표본 1) | 실제 데이터 사본 `TestRealFollowThrough`: 조직 정비 뒤 “역전세 지표를 추가해 줘…검증까지” 요청 → 공동 목표(책임 데이터·개발부)와 업무 4건(기준 → 계산 → 화면 → 검증, 앞 업무 연결). 자동 시작은 첫 업무만 진행(예산이 없어 검토로)하고 나머지는 앞 업무를 기다림. 처음에는 AI가 세부 내용을 객체로 보내 보고 호출 3회가 실패($0.16씩)하고 앱이 기록으로 보고를 대신 썼음 → 형식에 관대하게 고친 뒤 다시 돌려 AI 보고가 쓰임($0.15). 사본에서 결과물 없이 완료로 표시했더니 보고가 “결과물이 없어 이뤄졌다고 판단할 근거가 없다”고 정직하게 씀 |

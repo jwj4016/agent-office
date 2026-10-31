@@ -848,6 +848,24 @@ export namespace domain {
 	        this.monthlyCostUsd = source["monthlyCostUsd"];
 	    }
 	}
+	export class GoalPayload {
+	    title: string;
+	    description: string;
+	    doneCriteria: string;
+	    departmentId: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new GoalPayload(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.title = source["title"];
+	        this.description = source["description"];
+	        this.doneCriteria = source["doneCriteria"];
+	        this.departmentId = source["departmentId"];
+	    }
+	}
 	export class Input {
 	    name: string;
 	    fromStep: string;
@@ -1305,6 +1323,8 @@ export namespace domain {
 	    workTitle: string;
 	    workStatus: string;
 	    childRequestId: string;
+	    autoStatus?: string;
+	    autoNote?: string;
 	    result: number[];
 	    error: string;
 	    decidedBy: string;
@@ -1330,6 +1350,8 @@ export namespace domain {
 	        this.workTitle = source["workTitle"];
 	        this.workStatus = source["workStatus"];
 	        this.childRequestId = source["childRequestId"];
+	        this.autoStatus = source["autoStatus"];
+	        this.autoNote = source["autoNote"];
 	        this.result = source["result"];
 	        this.error = source["error"];
 	        this.decidedBy = source["decidedBy"];
@@ -1361,6 +1383,11 @@ export namespace domain {
 	    updatedAt: string;
 	    closedAt: string;
 	    staffedDesk?: string;
+	    goalPlan?: GoalPayload;
+	    goalId?: string;
+	    goalTitle?: string;
+	    report?: string;
+	    reportReadAt?: string;
 	    items: RequestItem[];
 	    children: Request[];
 	
@@ -1392,6 +1419,11 @@ export namespace domain {
 	        this.updatedAt = source["updatedAt"];
 	        this.closedAt = source["closedAt"];
 	        this.staffedDesk = source["staffedDesk"];
+	        this.goalPlan = this.convertValues(source["goalPlan"], GoalPayload);
+	        this.goalId = source["goalId"];
+	        this.goalTitle = source["goalTitle"];
+	        this.report = source["report"];
+	        this.reportReadAt = source["reportReadAt"];
 	        this.items = this.convertValues(source["items"], RequestItem);
 	        this.children = this.convertValues(source["children"], Request);
 	    }
@@ -1494,6 +1526,7 @@ export namespace domain {
 	    updatedAt: string;
 	    closedAt: string;
 	    originRequestId?: string;
+	    afterIds?: string[];
 	
 	    static createFrom(source: any = {}) {
 	        return new WorkItem(source);
@@ -1520,6 +1553,7 @@ export namespace domain {
 	        this.updatedAt = source["updatedAt"];
 	        this.closedAt = source["closedAt"];
 	        this.originRequestId = source["originRequestId"];
+	        this.afterIds = source["afterIds"];
 	    }
 	}
 	export class WorkNote {
@@ -1601,6 +1635,8 @@ export namespace domain {
 	    departmentId?: string;
 	    assigneeAssignmentId?: string;
 	    goalId?: string;
+	    index?: number;
+	    after?: number[];
 	
 	    static createFrom(source: any = {}) {
 	        return new WorkProposalPayload(source);
@@ -1616,6 +1652,8 @@ export namespace domain {
 	        this.departmentId = source["departmentId"];
 	        this.assigneeAssignmentId = source["assigneeAssignmentId"];
 	        this.goalId = source["goalId"];
+	        this.index = source["index"];
+	        this.after = source["after"];
 	    }
 	}
 	export class Workflow {

@@ -97,6 +97,9 @@ type WorkItem struct {
 	ClosedAt          string `json:"closedAt"`
 	// OriginRequestID is the request the work was registered from.
 	OriginRequestID string `json:"originRequestId,omitempty"`
+	// AfterIDs are the work items this one waits for: automatic start
+	// holds it until they are all closed.
+	AfterIDs []string `json:"afterIds,omitempty"`
 }
 
 // Work note kinds: a person's memo, or a status change kept as history.

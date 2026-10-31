@@ -392,3 +392,90 @@ func TestRealOrganize(t *testing.T) {
 	}
 	note("took %s", time.Since(start).Round(time.Second))
 }
+
+// TestRealFollowThrough checks the 5th revision with the real Claude on a
+// copy of real data: after organizing the service, a request that needs
+// several departments gets a shared goal and an order; its work is then
+// marked done in the copy and the desk writes the completion report. Off
+// by default:
+//
+//	AGENT_OFFICE_REAL_FOLLOW=sonnet AGENT_OFFICE_REAL_REQUESTS_DATA=<copied data dir> \
+//	  [AGENT_OFFICE_REAL_REQUESTS_OUT=<file>] go test . -run TestRealFollowThrough -v -timeout 40m
+func TestRealFollowThrough(t *testing.T) {
+	if os.Getenv("AGENT_OFFICE_REAL_FOLLOW") == "" || os.Getenv("AGENT_OFFICE_REAL_REQUESTS_DATA") == "" {
+		t.Skip("set AGENT_OFFICE_REAL_FOLLOW=<model> and AGENT_OFFICE_REAL_REQUESTS_DATA=<copied data dir>")
+	}
+	data := os.Getenv("AGENT_OFFICE_REAL_REQUESTS_DATA")
+	service := envOr("AGENT_OFFICE_REAL_REQUESTS_SERVICE", "prj-7olsrrxzajyaje7sqefa")
+	var report []string
+	note := func(format string, args ...any) {
+		line := fmt.Sprintf(format, args...)
+		report = append(report, line)
+		t.Log(line)
+	}
+	t.Cleanup(func() {
+		if out := os.Getenv("AGENT_OFFICE_REAL_REQUESTS_OUT"); out != "" {
+			os.WriteFile(out, []byte(strings.Join(report, "\n")+"\n"), 0o644)
+		}
+	})
+	keyring.MockInit()
+	t.Setenv("AGENT_OFFICE_DATA_DIR", data)
+	a := NewApp()
+	a.emit = func(context.Context, string, ...interface{}) {}
+	a.startup(context.Background())
+	if st := a.SystemStatus(); st.Error != "" {
+		t.Fatal(st.Error)
+	}
+	t.Cleanup(func() { a.shutdown(context.Background()) })
+	ctx := a.ctx
+	start := time.Now()
+	for _, r := range need(a.ListRequests(storage.RequestFilter{ProjectID: service})) {
+		note("existing request %q: %s", clip(r.Body, 40), r.Status)
+	}
+	v := need(a.ProposeOrganization(service))
+	need(a.ApplyOrganization(service, v.Proposal.ID, nil))
+	for _, d := range need(a.ListDepartments(service)) {
+		note("department %s", d.Name)
+	}
+	settle := func(id string) domain.Request {
+		deadline := time.Now().Add(10 * time.Minute)
+		for {
+			r := need(a.GetRequest(service, id))
+			if r.Status != domain.ReqReceived && r.Status != domain.ReqTriaging || time.Now().After(deadline) {
+				return r
+			}
+			time.Sleep(time.Second)
+		}
+	}
+	r := need(a.SubmitRequest(service, "실거래가 화면에 역전세 위험 지표를 추가해 줘. 기준을 정하고, 계산을 구현하고, 화면에 보여 준 다음 검증까지 해 줘.", ""))
+	r = settle(r.ID)
+	note("request %s/%s reason=%q goal=%+v", r.Status, r.Outcome, clip(r.Reason, 300), r.GoalPlan)
+	for _, it := range r.Items {
+		var p domain.WorkProposalPayload
+		json.Unmarshal(it.Payload, &p)
+		note("  %s %s #%d %q dept=%s after=%v", it.Kind, it.Status, p.Index, p.Title, p.DepartmentID, p.After)
+	}
+	// Register what waits for the person, then close all of it as done.
+	for _, it := range r.Items {
+		if it.Kind == domain.ItemWork && it.Status == domain.ItemProposed {
+			need(a.AcceptRequestWork(service, it.ID, domain.WorkProposalPayload{}))
+		}
+	}
+	r = need(a.GetRequest(service, r.ID))
+	note("goal %q (%s), status %s", r.GoalTitle, r.GoalID, r.Status)
+	for _, it := range r.Items {
+		if it.WorkItemID != "" {
+			w := need(a.db.WorkItem(ctx, service, it.WorkItemID))
+			note("  work %q after=%v auto=%s %s", w.Title, w.AfterIDs, it.AutoStatus, it.AutoNote)
+			need(a.db.SetWorkStatus(ctx, service, w.ID, domain.WorkDone, "사본에서 완료로 표시"))
+		}
+	}
+	a.intake.Wake()
+	deadline := time.Now().Add(10 * time.Minute)
+	for r.Report == "" && time.Now().Before(deadline) {
+		time.Sleep(2 * time.Second)
+		r = need(a.GetRequest(service, r.ID))
+	}
+	note("after the work: %s, report:\n%s", r.Status, r.Report)
+	note("took %s", time.Since(start).Round(time.Second))
+}

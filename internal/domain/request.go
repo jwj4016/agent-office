@@ -117,9 +117,18 @@ type Request struct {
 	UpdatedAt string `json:"updatedAt"`
 	ClosedAt  string `json:"closedAt"`
 	// StaffedDesk names the desk an AI set up because of this request.
-	StaffedDesk string        `json:"staffedDesk,omitempty"`
-	Items       []RequestItem `json:"items"`
-	Children    []Request     `json:"children"`
+	StaffedDesk string `json:"staffedDesk,omitempty"`
+	// GoalPlan is the shared goal the desk proposed for work of several
+	// departments; GoalID and GoalTitle name the goal made from it.
+	GoalPlan  *GoalPayload `json:"goalPlan,omitempty"`
+	GoalID    string       `json:"goalId,omitempty"`
+	GoalTitle string       `json:"goalTitle,omitempty"`
+	// Report is the desk's completion report, written once all the
+	// request's work is closed; ReportReadAt is when the person read it.
+	Report       string        `json:"report,omitempty"`
+	ReportReadAt string        `json:"reportReadAt,omitempty"`
+	Items        []RequestItem `json:"items"`
+	Children     []Request     `json:"children"`
 }
 
 // RequestItem is one route, piece of work or action a desk asked for.
@@ -136,12 +145,16 @@ type RequestItem struct {
 	WorkTitle      string          `json:"workTitle"`
 	WorkStatus     string          `json:"workStatus"`
 	ChildRequestID string          `json:"childRequestId"`
-	Result         json.RawMessage `json:"result"`
-	Error          string          `json:"error"`
-	DecidedBy      string          `json:"decidedBy"`
-	DecisionNote   string          `json:"decisionNote"`
-	DecidedAt      string          `json:"decidedAt"`
-	CreatedAt      string          `json:"createdAt"`
+	// AutoStatus and AutoNote say where the auto starter is with the
+	// item's work (empty when it is not queued), and why it waits.
+	AutoStatus   string          `json:"autoStatus,omitempty"`
+	AutoNote     string          `json:"autoNote,omitempty"`
+	Result       json.RawMessage `json:"result"`
+	Error        string          `json:"error"`
+	DecidedBy    string          `json:"decidedBy"`
+	DecisionNote string          `json:"decisionNote"`
+	DecidedAt    string          `json:"decidedAt"`
+	CreatedAt    string          `json:"createdAt"`
 }
 
 // WorkProposalPayload is the work a desk proposes.
@@ -154,6 +167,19 @@ type WorkProposalPayload struct {
 	DepartmentID         string   `json:"departmentId,omitempty"`
 	AssigneeAssignmentID string   `json:"assigneeAssignmentId,omitempty"`
 	GoalID               string   `json:"goalId,omitempty"`
+	// Index is the work's place (from 1) in the desk's decision; After
+	// lists the places of the work it waits for.
+	Index int   `json:"index,omitempty"`
+	After []int `json:"after,omitempty"`
+}
+
+// GoalPayload is a shared goal a desk proposes for work that several
+// departments do; DepartmentID is the department answerable for it.
+type GoalPayload struct {
+	Title        string `json:"title"`
+	Description  string `json:"description"`
+	DoneCriteria string `json:"doneCriteria"`
+	DepartmentID string `json:"departmentId"`
 }
 
 // ActionPayload is the action a desk proposes and what it applies to.
@@ -185,6 +211,7 @@ type IntakeDecision struct {
 	Question string                `json:"question,omitempty"`
 	Reason   string                `json:"reason,omitempty"`
 	Routes   []RoutePayload        `json:"routes,omitempty"`
+	Goal     *GoalPayload          `json:"goal,omitempty"`
 	Work     []WorkProposalPayload `json:"work,omitempty"`
 	Actions  []ActionPayload       `json:"actions,omitempty"`
 }

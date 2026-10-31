@@ -449,3 +449,37 @@ func (db *DB) RunStatus(ctx context.Context, runID string) (string, error) {
 	err := db.sql.QueryRowContext(ctx, `SELECT status FROM runs WHERE id = ?`, runID).Scan(&s)
 	return s, err
 }
+
+// WorkWaitingFor names the work a work item waits for that is not closed.
+func (db *DB) WorkWaitingFor(ctx context.Context, w domain.WorkItem) ([]string, error) {
+	var open []string
+	for _, id := range w.AfterIDs {
+		x, err := workTx(ctx, db.sql, w.ProjectID, id)
+		if err != nil {
+			continue // gone: nothing to wait for
+		}
+		if !domain.WorkClosed(x.Status) {
+			open = append(open, "‘"+x.Title+"’")
+		}
+	}
+	return open, nil
+}
+
+// NoteAutoStart says why a pending automatic start waits, without moving
+// it; nothing is written when the note is already there.
+func (db *DB) NoteAutoStart(ctx context.Context, id, note string) error {
+	_, err := db.Change(ctx, func(c *Change) error {
+		var projectID, cur string
+		if err := c.Tx.QueryRowContext(ctx, `SELECT project_id, note FROM auto_starts WHERE id = ? AND status = 'pending'`, id).Scan(&projectID, &cur); err != nil {
+			return nil
+		}
+		if cur == note {
+			return nil
+		}
+		if _, err := c.Tx.ExecContext(ctx, `UPDATE auto_starts SET note = ?, updated_at = ? WHERE id = ?`, note, Now(), id); err != nil {
+			return err
+		}
+		return c.Emit(projectID, "", "", "autostart.updated", map[string]string{"autoStartId": id, "status": AutoPending})
+	})
+	return err
+}

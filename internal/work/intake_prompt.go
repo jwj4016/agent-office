@@ -174,6 +174,8 @@ func (in *Intake) servicePrompt(ctx context.Context, r domain.Request, dc deskCa
 	b.WriteString(`## 처리 방법
 - answer: 아래 정보만으로 답할 수 있는 질문에 답한다. 아래에 없는 내용은 지어내지 않는다. 답하려면 결과 파일을 읽어야 하면 그 일을 업무로 제안한다.
 - work: 담당자가 해야 할 일을 업무로 제안한다. 부서나 담당자, 공동 목표를 정할 수 있으면 아래 목록의 id를 쓴다.
+  여러 부서가 함께 해야 하는 일이면 goal에 새 공동 목표(결과를 책임질 부서 포함)를 적어 업무를 그 아래에 묶는다.
+  앞 업무가 끝나야 시작할 수 있는 업무는 after에 앞 업무의 순번(work 배열에서 1부터)을 적는다. 자동 시작은 앞 업무가 끝날 때까지 기다린다.
 - action: 앱이 정해진 방식으로 하는 일(아래 ‘쓸 수 있는 조치’)을 제안한다. 대표가 승인해야 실행된다. 조치 뒤에 할 업무가 있으면 work 배열에 함께 넣는다.
 - question: 꼭 필요한 정보가 없을 때만 한 가지를 묻는다.
 - decline: 이 앱으로 할 수 없는 일이다. reason에 이유와 대표가 직접 할 수 있는 일을 적는다.
@@ -401,7 +403,9 @@ func outputSpec(company bool, f intakeFacts) string {
  "question": outcome이 question일 때 대표에게 물을 한 가지,
  "actions": [{"action": "deliver_code" | "save_result" | "export_service" | "start_workflow", "runId": …, "artifactId": …, "versionId": …, "folder": deliver_code의 제안 폴더, "reason": 왜 이 조치인지}],
  "work": [{"title": 업무 제목, "description": 할 일, "doneCriteria": 완료 조건, "categories": [%s 중에서], "priority": "urgent"|"high"|"normal"|"low",
-           "departmentId": ‘부서’의 id(없으면 비움), "assigneeAssignmentId": ‘담당자’의 id(없으면 비움), "goalId": ‘공동 목표’의 id(없으면 비움)}]}
+           "departmentId": ‘부서’의 id(없으면 비움), "assigneeAssignmentId": ‘담당자’의 id(없으면 비움), "goalId": 기존 ‘공동 목표’의 id(없으면 비움),
+           "after": [이 업무보다 앞선 업무의 순번]}],
+ "goal": 여러 부서의 업무를 새로 묶을 때만 {"title": 공동 목표 제목, "description": 설명, "doneCriteria": 완료 조건, "departmentId": 결과를 책임질 ‘부서’의 id}, 아니면 비운 객체 {}}
 - 조치는 %d개까지, 조치와 업무를 합쳐 %d개까지. id는 위 목록에 있는 것만 쓴다.
 - reason과 answer는 대표가 읽는다. id 대신 이름(실행 제목, 부서·담당자 이름)을 쓴다.
 - outcome이 action이면 actions가, work이면 work가 하나 이상 있어야 한다.
@@ -422,7 +426,9 @@ func intakeSchema(company bool) json.RawMessage {
 		props["work"] = map[string]any{"type": "array", "maxItems": intakeMaxItems, "items": map[string]any{"type": "object", "required": []string{"title"},
 			"properties": map[string]any{"title": str, "description": str, "doneCriteria": str,
 				"categories": map[string]any{"type": "array", "items": str}, "priority": map[string]any{"type": "string", "enum": domain.WorkPriorities},
-				"departmentId": str, "assigneeAssignmentId": str, "goalId": str}}}
+				"departmentId": str, "assigneeAssignmentId": str, "goalId": str,
+				"after": map[string]any{"type": "array", "items": map[string]any{"type": "integer"}}}}}
+		props["goal"] = map[string]any{"type": "object", "properties": map[string]any{"title": str, "description": str, "doneCriteria": str, "departmentId": str}}
 	}
 	b, _ := json.Marshal(map[string]any{"type": "object", "required": []string{"outcome", "reason"}, "properties": props})
 	return b
@@ -544,6 +550,28 @@ func acceptIntake(r domain.Request, f intakeFacts, raw []byte) (domain.IntakeDec
 			}
 		}
 		work = append(work, w)
+	}
+	// Order: a work item may wait only for work listed before it. The
+	// places are those of the work kept above.
+	for i := range work {
+		var after []int
+		for _, a := range work[i].After {
+			if a >= 1 && a <= i && !slices.Contains(after, a) {
+				after = append(after, a)
+			}
+		}
+		work[i].After = after
+	}
+	// A new shared goal needs a title, an answerable department and work
+	// to put under it.
+	if g := d.Goal; g != nil {
+		g.Title = strings.TrimSpace(g.Title)
+		switch {
+		case g.Title == "" || len(work) == 0:
+			d.Goal = nil
+		case f.departments[g.DepartmentID] == "":
+			return d, fmt.Errorf("공동 목표의 책임 부서가 목록에 없습니다: %q", g.DepartmentID)
+		}
 	}
 	if d.Outcome == domain.OutcomeAction && len(actions) == 0 {
 		return d, errors.New("조치를 제안하기로 했지만 조치가 없습니다")

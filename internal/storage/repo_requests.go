@@ -191,14 +191,24 @@ const requestCols = `r.id, r.organization_id, COALESCE(r.project_id, ''), COALES
 	r.body, r.status, r.outcome, r.round, r.answer, r.question, r.reply, r.reason, r.error, r.hold_reason, r.max_attempts,
 	(SELECT COUNT(*) FROM request_attempts a WHERE a.request_id = r.id AND a.round = r.round), r.created_at, r.updated_at, COALESCE(r.closed_at, ''),
 	COALESCE((SELECT json_extract(s.result, '$.name') FROM desk_staffing s WHERE s.request_id = r.id AND s.kind = 'create' AND s.status = 'succeeded'
-		ORDER BY s.started_at DESC LIMIT 1), '')`
+		ORDER BY s.started_at DESC LIMIT 1), ''),
+	COALESCE(r.goal_plan, ''), COALESCE(r.goal_id, ''), COALESCE((SELECT g.title FROM work_items g WHERE g.id = r.goal_id), ''),
+	COALESCE(r.report, ''), COALESCE(r.report_read_at, '')`
 
 const requestFrom = ` FROM requests r LEFT JOIN projects p ON p.id = r.project_id`
 
 func scanRequest(s interface{ Scan(...any) error }) (domain.Request, error) {
 	var r domain.Request
+	var goal string
 	err := s.Scan(&r.ID, &r.OrganizationID, &r.ProjectID, &r.ProjectName, &r.ParentID, &r.PreviousID, &r.Body, &r.Status, &r.Outcome, &r.Round,
-		&r.Answer, &r.Question, &r.Reply, &r.Reason, &r.Error, &r.HoldReason, &r.MaxAttempts, &r.Attempts, &r.CreatedAt, &r.UpdatedAt, &r.ClosedAt, &r.StaffedDesk)
+		&r.Answer, &r.Question, &r.Reply, &r.Reason, &r.Error, &r.HoldReason, &r.MaxAttempts, &r.Attempts, &r.CreatedAt, &r.UpdatedAt, &r.ClosedAt, &r.StaffedDesk,
+		&goal, &r.GoalID, &r.GoalTitle, &r.Report, &r.ReportReadAt)
+	if goal != "" {
+		var g domain.GoalPayload
+		if json.Unmarshal([]byte(goal), &g) == nil {
+			r.GoalPlan = &g
+		}
+	}
 	r.Items, r.Children = []domain.RequestItem{}, []domain.Request{}
 	return r, err
 }
@@ -223,7 +233,9 @@ func scopedRequestTx(ctx context.Context, q queryer, projectID, id string) (doma
 
 const itemCols = `i.id, i.request_id, COALESCE(i.project_id, ''), i.round, i.position, i.kind, i.payload, i.status, COALESCE(i.work_item_id, ''),
 	COALESCE(w.title, ''), COALESCE(w.status, ''), COALESCE(i.child_request_id, ''), i.result, i.error, i.decided_by, i.decision_note,
-	COALESCE(i.decided_at, ''), i.created_at`
+	COALESCE(i.decided_at, ''), i.created_at,
+	COALESCE((SELECT a.status FROM auto_starts a WHERE a.work_item_id = i.work_item_id), ''),
+	COALESCE((SELECT CASE WHEN a.reason <> '' THEN a.reason ELSE a.note END FROM auto_starts a WHERE a.work_item_id = i.work_item_id), '')`
 
 const itemFrom = ` FROM request_items i LEFT JOIN work_items w ON w.id = i.work_item_id`
 
@@ -231,7 +243,8 @@ func scanItem(s interface{ Scan(...any) error }) (domain.RequestItem, error) {
 	var it domain.RequestItem
 	var payload, result string
 	err := s.Scan(&it.ID, &it.RequestID, &it.ProjectID, &it.Round, &it.Position, &it.Kind, &payload, &it.Status, &it.WorkItemID,
-		&it.WorkTitle, &it.WorkStatus, &it.ChildRequestID, &result, &it.Error, &it.DecidedBy, &it.DecisionNote, &it.DecidedAt, &it.CreatedAt)
+		&it.WorkTitle, &it.WorkStatus, &it.ChildRequestID, &result, &it.Error, &it.DecidedBy, &it.DecisionNote, &it.DecidedAt, &it.CreatedAt,
+		&it.AutoStatus, &it.AutoNote)
 	it.Payload, it.Result = json.RawMessage(payload), json.RawMessage(result)
 	return it, err
 }
@@ -678,6 +691,13 @@ func (db *DB) ApplyIntakeDecision(ctx context.Context, id string, d domain.Intak
 			if err != nil {
 				return err
 			}
+			if d.Goal != nil && len(d.Work) > 0 {
+				raw, _ := json.Marshal(d.Goal)
+				if _, err := c.Tx.ExecContext(ctx, `UPDATE requests SET goal_plan = ? WHERE id = ?`, string(raw), id); err != nil {
+					return err
+				}
+				r.GoalPlan = d.Goal
+			}
 			pos := 0
 			for _, a := range d.Actions {
 				pos++
@@ -685,18 +705,21 @@ func (db *DB) ApplyIntakeDecision(ctx context.Context, id string, d domain.Intak
 					return err
 				}
 			}
-			for _, w := range d.Work {
+			byIndex := map[int]string{} // registered work by its place in the decision
+			for i, w := range d.Work {
 				pos++
+				w.Index = i + 1
 				if !autoWork {
 					if _, err := insertItem(pos, domain.ItemWork, w, domain.ItemProposed, "", "", ""); err != nil {
 						return err
 					}
 					continue
 				}
-				workID, err := insertRequestWorkTx(ctx, c, r, w, workOrigin{Seq: seq, Automated: true, Request: id})
+				workID, err := insertRequestWorkTx(ctx, c, &r, w, byIndex, workOrigin{Seq: seq, Automated: true, Request: id})
 				if err != nil {
 					return err
 				}
+				byIndex[w.Index] = workID
 				if _, err := insertItem(pos, domain.ItemWork, w, domain.ItemAccepted, workID, "", "auto"); err != nil {
 					return err
 				}
@@ -713,11 +736,26 @@ func (db *DB) ApplyIntakeDecision(ctx context.Context, id string, d domain.Intak
 	})
 }
 
-// insertRequestWorkTx registers proposed work in the request's service.
-func insertRequestWorkTx(ctx context.Context, c *Change, r domain.Request, p domain.WorkProposalPayload, origin workOrigin) (string, error) {
+// insertRequestWorkTx registers proposed work in the request's service:
+// under the request's shared goal (made with its first work) unless the
+// desk named another goal, and after the registered work it waits for
+// (byIndex: work of the decision registered so far, by place).
+func insertRequestWorkTx(ctx context.Context, c *Change, r *domain.Request, p domain.WorkProposalPayload, byIndex map[int]string, origin workOrigin) (string, error) {
 	w := domain.WorkItem{ProjectID: r.ProjectID, Kind: domain.WorkTask, ParentID: p.GoalID, DepartmentID: p.DepartmentID,
 		AssigneeAssignmentID: p.AssigneeAssignmentID, Title: p.Title, Description: p.Description, DoneCriteria: p.DoneCriteria,
 		Categories: p.Categories, Priority: p.Priority, Status: domain.WorkReceived}
+	if w.ParentID == "" && r.GoalPlan != nil {
+		goal, err := ensureRequestGoalTx(ctx, c, r, origin)
+		if err != nil {
+			return "", err
+		}
+		w.ParentID = goal
+	}
+	for _, i := range p.After {
+		if id := byIndex[i]; id != "" {
+			w.AfterIDs = append(w.AfterIDs, id)
+		}
+	}
 	if err := normalizeWork(&w); err != nil {
 		return "", err
 	}
@@ -725,6 +763,40 @@ func insertRequestWorkTx(ctx context.Context, c *Change, r domain.Request, p dom
 		return "", err
 	}
 	return insertWorkTx(ctx, c, w, origin)
+}
+
+// ensureRequestGoalTx makes the request's shared goal the first time work
+// is registered under it, and returns its id.
+func ensureRequestGoalTx(ctx context.Context, c *Change, r *domain.Request, origin workOrigin) (string, error) {
+	if r.GoalID != "" {
+		return r.GoalID, nil
+	}
+	var cur sql.NullString
+	if err := c.Tx.QueryRowContext(ctx, `SELECT goal_id FROM requests WHERE id = ?`, r.ID).Scan(&cur); err != nil {
+		return "", err
+	}
+	if cur.Valid && cur.String != "" {
+		r.GoalID = cur.String
+		return r.GoalID, nil
+	}
+	g := r.GoalPlan
+	goal := domain.WorkItem{ProjectID: r.ProjectID, Kind: domain.WorkGoal, DepartmentID: g.DepartmentID, Title: g.Title, Description: g.Description,
+		DoneCriteria: g.DoneCriteria, Status: domain.WorkReceived}
+	if err := normalizeWork(&goal); err != nil {
+		return "", err
+	}
+	if err := checkWorkLinks(ctx, c.Tx, goal, true); err != nil {
+		return "", err
+	}
+	id, err := insertWorkTx(ctx, c, goal, workOrigin{Seq: origin.Seq, Automated: origin.Automated, Request: r.ID})
+	if err != nil {
+		return "", err
+	}
+	if _, err := c.Tx.ExecContext(ctx, `UPDATE requests SET goal_id = ? WHERE id = ?`, id, r.ID); err != nil {
+		return "", err
+	}
+	r.GoalID = id
+	return id, nil
 }
 
 // refreshRequestTx works out a request's status from its items: proposed
@@ -752,6 +824,7 @@ func refreshRequestTx(ctx context.Context, c *Change, id string) error {
 		if err != nil {
 			return err
 		}
+		workDone := false
 		for _, it := range items {
 			switch it.Status {
 			case domain.ItemProposed, domain.ItemFailed, domain.ItemCheck:
@@ -760,7 +833,19 @@ func refreshRequestTx(ctx context.Context, c *Change, id string) error {
 				if status == domain.ReqDone {
 					status = domain.ReqInProgress
 				}
+			case domain.ItemAccepted:
+				// Registered work is followed until it is closed.
+				if it.WorkStatus == domain.WorkDone {
+					workDone = true
+				} else if !domain.WorkClosed(it.WorkStatus) && status == domain.ReqDone {
+					status = domain.ReqInProgress
+				}
 			}
+		}
+		// Work done: the desk writes a completion report before the
+		// request is over (the intake runner picks it up).
+		if status == domain.ReqDone && workDone && r.Report == "" {
+			status = domain.ReqInProgress
 		}
 	}
 	if status == r.Status {
@@ -962,8 +1047,34 @@ func (db *DB) AcceptRequestWork(ctx context.Context, projectID, itemID string, e
 		if err != nil {
 			return err
 		}
-		if workID, err = insertRequestWorkTx(ctx, c, r, p, workOrigin{Seq: seq, Request: r.ID}); err != nil {
+		items, err := itemsTx(ctx, c.Tx, r.ID)
+		if err != nil {
 			return err
+		}
+		registered := map[int]string{} // the request's registered work by place
+		for _, x := range items {
+			var xp domain.WorkProposalPayload
+			if x.Kind == domain.ItemWork && x.WorkItemID != "" && json.Unmarshal(x.Payload, &xp) == nil && xp.Index > 0 {
+				registered[xp.Index] = x.WorkItemID
+			}
+		}
+		if workID, err = insertRequestWorkTx(ctx, c, &r, p, registered, workOrigin{Seq: seq, Request: r.ID}); err != nil {
+			return err
+		}
+		// Work registered earlier that waits for this one now names it.
+		for _, x := range items {
+			var xp domain.WorkProposalPayload
+			if x.Kind != domain.ItemWork || x.WorkItemID == "" || json.Unmarshal(x.Payload, &xp) != nil || !slices.Contains(xp.After, p.Index) || p.Index == 0 {
+				continue
+			}
+			w, err := workTx(ctx, c.Tx, projectID, x.WorkItemID)
+			if err != nil {
+				return err
+			}
+			if _, err := c.Tx.ExecContext(ctx, `UPDATE work_items SET after_ids = ?, updated_at = ? WHERE id = ? AND project_id = ?`,
+				afterJSON(append(w.AfterIDs, workID)), Now(), w.ID, projectID); err != nil {
+				return err
+			}
 		}
 		raw, _ := json.Marshal(p)
 		res, err := c.Tx.ExecContext(ctx, `UPDATE request_items SET status = 'accepted', work_item_id = ?, payload = ?, decided_by = 'user',
@@ -1091,6 +1202,10 @@ func (db *DB) RecoverRequests(ctx context.Context) error {
 			WHERE status = 'working'`, now); err != nil {
 			return err
 		}
+		if _, err := c.Tx.ExecContext(ctx, `UPDATE request_reports SET status = 'interrupted', error = '앱이 다시 시작되어 중단되었습니다', ended_at = ?
+			WHERE status = 'working'`, now); err != nil {
+			return err
+		}
 		if _, err := c.Tx.ExecContext(ctx, `UPDATE requests SET status = CASE
 				WHEN (SELECT COUNT(*) FROM request_attempts a WHERE a.request_id = requests.id AND a.round = requests.round) >= max_attempts THEN 'failed'
 				ELSE 'received' END,
@@ -1126,11 +1241,20 @@ func (db *DB) RecoverRequests(ctx context.Context) error {
 }
 
 // RequestTodos lists requests that wait on the person: a desk's question,
-// one handed back, proposals and actions to decide, failures, holds and
-// missing desks.
+// one handed back, proposals and actions to decide, failures, holds,
+// missing desks, and completion reports not read yet.
 func (db *DB) RequestTodos(ctx context.Context) ([]domain.Request, error) {
-	return db.Requests(ctx, RequestFilter{All: true, Limit: 100, Statuses: []string{
-		domain.ReqQuestion, domain.ReqManual, domain.ReqProposed, domain.ReqFailed, domain.ReqHeld, domain.ReqWaitingDesk}})
+	list, err := db.queryRequests(ctx, `(r.status IN ('question', 'manual', 'proposed', 'failed', 'held', 'waiting_desk')
+		OR (r.report IS NOT NULL AND r.report_read_at IS NULL)) ORDER BY r.created_at DESC, r.rowid DESC LIMIT 100`)
+	if err != nil {
+		return nil, err
+	}
+	for i := range list {
+		if err := db.fill(ctx, &list[i]); err != nil {
+			return nil, err
+		}
+	}
+	return list, nil
 }
 
 // CompanyIntakeUsage sums the company desk's calls since a time (the

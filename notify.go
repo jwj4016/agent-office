@@ -81,7 +81,7 @@ var inboxKindName = map[string]string{
 
 var requestTodoName = map[string]string{
 	domain.ReqQuestion: "— 접수 담당의 질문", domain.ReqManual: "— 직접 처리 필요", domain.ReqProposed: "— 결정할 제안",
-	domain.ReqFailed: "— 접수 실패", domain.ReqHeld: "— 보류", domain.ReqWaitingDesk: "— 접수 담당 필요",
+	domain.ReqFailed: "— 접수 실패", domain.ReqHeld: "— 보류", domain.ReqWaitingDesk: "— 접수 담당 필요", domain.ReqDone: "— 완료 보고",
 }
 
 // todos lists everything the inbox shows, each with a stable key.

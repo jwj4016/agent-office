@@ -115,3 +115,16 @@
 미검증 항목과 막힌 이유: 실제 빌라노트에 조직 정비를 적용하는 것은 사장님이 미리보기를 보고 할 일로 남김. 예산이 없어 자동 시작은 검토로 넘어감. Windows·Linux(CI 결과 전).
 다음에 할 구체적인 작업: 계획서 ‘다음 단계: 협업 요청의 끝까지 처리’.
 ```
+
+## 2026-10-31 — 5차 개정: 협업 요청의 끝까지 처리
+
+- `progress.md` 맨 위에 붙어 있던 채팅 문장을 지우고 커밋함(사용자 지시).
+- 마이그레이션 `0020_request_followthrough.sql`. 적용 전 백업 `~/Library/Application Support/AgentOffice-backup-20261031-221932-pre0020.db`. 구현 중 개발 앱을 꺼 둠.
+- 코드: 요청의 공동 목표·순서(`ApplyIntakeDecision`, `AcceptRequestWork`, `ensureRequestGoalTx`), 업무 상태가 닫히거나 다시 열릴 때 요청 갱신, 완료 보고 실행기 `internal/work/report.go`와 `repo_reports.go`, 자동 시작의 앞 업무 대기(`WorkWaitingFor`, `NoteAutoStart`), 바인딩 `MarkReportRead`, 화면(요청 카드의 진행·공동 목표·앞 업무·자동 시작 이유·완료 보고, 업무 상세의 앞 업무).
+- 검증: Go 전체, 프론트 36개 파일 180건, 타입 검사, 빌드 통과. 실제 Claude `TestRealFollowThrough`(사본).
+- 실제 AI로 찾아 고친 것: 보고 대기 목록이 요청의 업무 항목을 읽지 않아 보고 지시에 업무가 빠짐(시험에서 발견), AI가 보고 세부 내용을 객체로 보내 파싱이 실패함.
+
+```text
+미검증 항목과 막힌 이유: 실제 업무를 AI로 끝까지 실행해 그 결과로 쓴 보고(사본에서는 완료 표시만 함, 실행 비용). Windows·Linux(CI 결과 전).
+다음에 할 구체적인 작업: 사용자가 실제 빌라노트에 조직 정비를 적용하고 예산을 정한 뒤, 요청 업무가 순서대로 자동 실행되고 보고가 붙는지 확인.
+```

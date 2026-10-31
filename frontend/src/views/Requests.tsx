@@ -17,13 +17,23 @@ import {FolderInput} from './FolderInput';
 
 export const requestStatusLabel: Record<RequestStatus, string> = {
     received: '접수 대기', waiting_desk: '접수 담당 필요', held: '보류', triaging: '접수 담당이 보는 중', question: '질문에 답해 주세요',
-    manual: '직접 처리 필요', proposed: '결정 필요', routed: '서비스로 넘김', in_progress: '조치 실행 중', done: '끝남',
+    manual: '직접 처리 필요', proposed: '결정 필요', routed: '서비스로 넘김', in_progress: '진행 중', done: '끝남',
     declined: '처리 불가', cancelled: '취소됨', failed: '접수 실패',
 };
 
 const requestTone: Record<RequestStatus, Tone> = {
     received: 'info', waiting_desk: 'warn', held: 'warn', triaging: 'info', question: 'warn', manual: 'warn', proposed: 'warn',
     routed: 'info', in_progress: 'info', done: 'ok', declined: '', cancelled: '', failed: 'bad',
+};
+
+const workStatusName: Record<string, string> = {
+    received: '접수', ready: '준비', in_progress: '진행 중', waiting: '대기', blocked: '막힘', done: '완료', cancelled: '취소',
+};
+
+// workAt names the request's work at a place of the desk's decision.
+const workAt = (req: ServiceRequest, index: number) => {
+    const it = req.items.find((i) => i.kind === 'work' && (i.payload as WorkProposalPayload).index === index);
+    return it ? `‘${it.workTitle || (it.payload as WorkProposalPayload).title}’` : `${index}번`;
 };
 
 const closed = (s: RequestStatus) => s === 'done' || s === 'declined' || s === 'cancelled' || s === 'failed';
@@ -130,6 +140,17 @@ export function RequestCard({req, onChanged, onOpenWork, nested}: {
                 </Banner>
             ) : null}
             {req.reason && req.status !== 'declined' ? <p className="small muted pre">접수 담당의 판단: {req.reason}</p> : null}
+            <WorkProgress req={req} onOpenWork={onOpenWork}/>
+            {req.report ? (
+                <div className="card subtle tight stack tight" role="group" aria-label="완료 보고">
+                    <span className="row"><strong>완료 보고</strong>{req.reportReadAt ? <span className="muted small">확인함</span> : null}</span>
+                    <p className="small pre">{req.report}</p>
+                    {!req.reportReadAt ? (
+                        <div className="row"><Button size="sm" icon={Check} busy={action.busy}
+                                                     onClick={() => act(() => api.markReportRead(req.projectId, req.id), '완료 보고를 확인했습니다')}>확인했습니다</Button></div>
+                    ) : null}
+                </div>
+            ) : null}
 
             {req.items.filter((i) => i.kind === 'action').map((i) => <ActionItem key={i.id} req={req} item={i} onChanged={onChanged}/>)}
             {req.items.filter((i) => i.kind === 'work').map((i) => (
@@ -153,6 +174,33 @@ export function RequestCard({req, onChanged, onOpenWork, nested}: {
         </article>
     );
 }
+
+// WorkProgress follows the request's registered work: the shared goal, how
+// much is done, and that the completion report comes when all of it is.
+function WorkProgress({req, onOpenWork}: { req: ServiceRequest; onOpenWork?: (projectId: string, workItemId: string) => void }) {
+    const works = req.items.filter((i) => i.kind === 'work' && i.workItemId);
+    if (!works.length && !req.goalPlan) return null;
+    const done = works.filter((i) => i.workStatus === 'done').length;
+    const closed = works.filter((i) => i.workStatus === 'done' || i.workStatus === 'cancelled').length;
+    return (
+        <div className="stack tight small" role="group" aria-label="업무 진행">
+            {req.goalTitle && req.goalId ? (
+                <span className="row">공동 목표:
+                    {onOpenWork ? <button className="btn ghost small" onClick={() => onOpenWork(req.projectId, req.goalId!)}>{req.goalTitle}</button> : <strong>{req.goalTitle}</strong>}
+                </span>
+            ) : req.goalPlan ? <span>공동 목표(업무를 등록하면 만들어짐): {req.goalPlan.title}</span> : null}
+            {works.length ? (
+                <span className={closed === works.length ? 'muted' : undefined}>
+                    업무 {works.length}건 중 {done}건 완료{closed > done ? ` · ${closed - done}건 취소` : ''}
+                    {req.status === 'in_progress' && closed === works.length && done > 0 && !req.report ? ' · 접수 담당이 완료 보고를 쓰는 중' : ''}
+                    {req.status === 'in_progress' && closed < works.length ? ' · 모두 끝나면 접수 담당이 완료 보고를 씁니다' : ''}
+                </span>
+            ) : null}
+        </div>
+    );
+}
+
+const autoLabel: Record<string, string> = {pending: '자동 시작 대기', planning: '계획 작성 중', approved: '시작 준비', started: '자동 실행 중', finished: '자동 실행 끝', review: '자동 시작 못 함'};
 
 function WorkProposalItem({req, item, look, onChanged, onOpenWork}: {
     req: ServiceRequest; item: RequestItem; look?: Lookups; onChanged: () => void; onOpenWork?: (projectId: string, workItemId: string) => void;
@@ -182,12 +230,21 @@ function WorkProposalItem({req, item, look, onChanged, onOpenWork}: {
                     </div>
                 </>
             ) : item.workItemId ? (
-                <span className="row small">
-                    {onOpenWork ? <button className="btn ghost small" onClick={() => onOpenWork(req.projectId, item.workItemId)}>{item.workTitle || p.title}</button>
-                        : <span>{item.workTitle || p.title}</span>}
-                    <span className="muted">등록됨{item.workStatus ? ` · ${item.workStatus}` : ''}</span>
-                </span>
+                <>
+                    <span className="row small">
+                        {onOpenWork ? <button className="btn ghost small" onClick={() => onOpenWork(req.projectId, item.workItemId)}>{item.workTitle || p.title}</button>
+                            : <span>{item.workTitle || p.title}</span>}
+                        <span className="muted">{workStatusName[item.workStatus] ?? item.workStatus}</span>
+                    </span>
+                    {item.autoStatus && !(item.autoStatus === 'pending' && !item.autoNote) ? (
+                        <span className={`small ${item.autoStatus === 'review' ? 'bad' : 'muted'}`}>
+                            {autoLabel[item.autoStatus] ?? item.autoStatus}{item.autoNote ? `: ${item.autoNote}` : ''}
+                            {item.autoStatus === 'review' ? ' — 내 할 일의 ‘자동 처리’에서 확인하세요' : ''}
+                        </span>
+                    ) : null}
+                </>
             ) : <span className="small muted">{p.title} · 거절함</span>}
+            {p.after?.length ? <span className="small muted">앞 업무: {p.after.map((i) => workAt(req, i)).join(', ')}</span> : null}
             <ErrorBox error={action.error}/>
         </div>
     );

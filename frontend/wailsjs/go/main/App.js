@@ -366,6 +366,10 @@ export function ListWorkflows(arg1) {
   return window['go']['main']['App']['ListWorkflows'](arg1);
 }
 
+export function MarkReportRead(arg1, arg2) {
+  return window['go']['main']['App']['MarkReportRead'](arg1, arg2);
+}
+
 export function OperationsOverview(arg1) {
   return window['go']['main']['App']['OperationsOverview'](arg1);
 }

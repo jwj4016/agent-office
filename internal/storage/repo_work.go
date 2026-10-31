@@ -504,15 +504,19 @@ func (db *DB) SetProjectCategories(ctx context.Context, projectID string, names 
 
 const workCols = `id, project_id, kind, COALESCE(parent_id, ''), COALESCE(department_id, ''), COALESCE(assignee_assignment_id, ''),
 	title, description, done_criteria, priority, status, status_reason, categories, COALESCE(due_at, ''), created_at, updated_at, COALESCE(closed_at, ''),
-	COALESCE(review_before_start, 0), COALESCE(origin_request_id, '')`
+	COALESCE(review_before_start, 0), COALESCE(origin_request_id, ''), COALESCE(after_ids, '')`
 
 func scanWork(s interface{ Scan(...any) error }) (domain.WorkItem, error) {
 	var w domain.WorkItem
-	var cats string
+	var cats, after string
 	var review int
 	err := s.Scan(&w.ID, &w.ProjectID, &w.Kind, &w.ParentID, &w.DepartmentID, &w.AssigneeAssignmentID,
-		&w.Title, &w.Description, &w.DoneCriteria, &w.Priority, &w.Status, &w.StatusReason, &cats, &w.DueAt, &w.CreatedAt, &w.UpdatedAt, &w.ClosedAt, &review, &w.OriginRequestID)
+		&w.Title, &w.Description, &w.DoneCriteria, &w.Priority, &w.Status, &w.StatusReason, &cats, &w.DueAt, &w.CreatedAt, &w.UpdatedAt, &w.ClosedAt, &review,
+		&w.OriginRequestID, &after)
 	w.ReviewBeforeStart = review == 1
+	if after != "" {
+		json.Unmarshal([]byte(after), &w.AfterIDs)
+	}
 	if err == nil {
 		json.Unmarshal([]byte(cats), &w.Categories)
 		if w.Categories == nil {
@@ -761,11 +765,11 @@ func insertWorkTx(ctx context.Context, c *Change, w domain.WorkItem, origin work
 	}
 	if _, err := c.Tx.ExecContext(ctx, `INSERT INTO work_items (id, project_id, kind, parent_id, department_id, assignee_assignment_id,
 		title, description, done_criteria, priority, status, status_reason, categories, due_at, origin_event_sequence, origin_proposal_id,
-		review_before_start, origin_request_id, created_at, updated_at)
-		VALUES (?, ?, ?, NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), ?, ?, ?, ?, ?, ?, ?, NULLIF(?, ''), ?, NULLIF(?, ''), ?, NULLIF(?, ''), ?, ?)`,
+		review_before_start, origin_request_id, after_ids, created_at, updated_at)
+		VALUES (?, ?, ?, NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), ?, ?, ?, ?, ?, ?, ?, NULLIF(?, ''), ?, NULLIF(?, ''), ?, NULLIF(?, ''), ?, ?, ?)`,
 		w.ID, w.ProjectID, w.Kind, w.ParentID, w.DepartmentID, w.AssigneeAssignmentID,
 		w.Title, w.Description, w.DoneCriteria, w.Priority, w.Status, strings.TrimSpace(w.StatusReason), string(cats), w.DueAt, seq, originProposal,
-		boolInt(w.ReviewBeforeStart), origin.Request, now, now); err != nil {
+		boolInt(w.ReviewBeforeStart), origin.Request, afterJSON(w.AfterIDs), now, now); err != nil {
 		return "", err
 	}
 	if err := addNoteTx(ctx, c.Tx, w.ProjectID, w.ID, domain.NoteStatus, strings.TrimSpace(w.StatusReason), "", w.Status, domain.LocalOwner, now); err != nil {
@@ -786,6 +790,15 @@ func insertWorkTx(ctx context.Context, c *Change, w domain.WorkItem, origin work
 		return w.ID, queueAutoStartTx(ctx, c, w, originSeq)
 	}
 	return w.ID, nil
+}
+
+// afterJSON stores the work a work item waits for (NULL when none).
+func afterJSON(ids []string) any {
+	if len(ids) == 0 {
+		return nil
+	}
+	b, _ := json.Marshal(ids)
+	return string(b)
 }
 
 func boolInt(b bool) int {
@@ -929,6 +942,13 @@ func setWorkStatusTx(ctx context.Context, c *Change, cur domain.WorkItem, status
 	}
 	if err := addNoteTx(ctx, c.Tx, cur.ProjectID, cur.ID, domain.NoteStatus, reason, cur.Status, status, author, now); err != nil {
 		return err
+	}
+	// The request the work came from follows it to the end (company
+	// requests, 5th revision).
+	if cur.OriginRequestID != "" && domain.WorkClosed(cur.Status) != domain.WorkClosed(status) {
+		if err := refreshRequestTx(ctx, c, cur.OriginRequestID); err != nil {
+			return err
+		}
 	}
 	// Completing and reopening are events other departments may react
 	// to; other status changes stay in the item's history only.

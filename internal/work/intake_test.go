@@ -134,6 +134,11 @@ func TestServiceDeskDecides(t *testing.T) {
 	ctx := context.Background()
 	f.answer = func(desk, prompt string) (string, error) {
 		switch {
+		case strings.HasSuffix(desk, "보고 AI"):
+			if !strings.Contains(prompt, "역전세 위험 지표 추가") || !strings.Contains(prompt, "완료") {
+				return "", errors.New("the report prompt lacks the work")
+			}
+			return `{"summary":"역전세 지표를 추가했습니다.","details":"- 역전세 위험 지표 추가: 완료"}`, nil
 		case strings.Contains(prompt, "목표가 뭐야"):
 			return `{"outcome":"answer","reason":"서비스 정보","answer":"빌라 물건을 분석합니다"}`, nil
 		case strings.Contains(prompt, "앞서 한 질문과 사람의 답"):
@@ -181,8 +186,31 @@ func TestServiceDeskDecides(t *testing.T) {
 	if _, err := f.db.AcceptRequestWork(ctx, f.villa.ID, r.Items[0].ID, domain.WorkProposalPayload{}); err == nil {
 		t.Fatal("the same proposal was registered twice")
 	}
-	if r := f.get(t, f.villa.ID, asked.ID); r.Status != domain.ReqDone || r.Items[0].WorkTitle != w.Title {
+	// The request follows its work: in progress until the work is done,
+	// then the desk's completion report ends it and waits to be read.
+	if r := f.get(t, f.villa.ID, asked.ID); r.Status != domain.ReqInProgress || r.Items[0].WorkTitle != w.Title {
 		t.Fatalf("after accepting = %+v", r)
+	}
+	if _, err := f.db.SetWorkStatus(ctx, f.villa.ID, w.ID, domain.WorkDone, ""); err != nil {
+		t.Fatal(err)
+	}
+	if r := f.get(t, f.villa.ID, asked.ID); r.Status != domain.ReqInProgress || r.Report != "" {
+		t.Fatalf("before the report = %+v", r)
+	}
+	f.drain(t)
+	r = f.get(t, f.villa.ID, asked.ID)
+	if r.Status != domain.ReqDone || !strings.HasPrefix(r.Report, "## 요약\n역전세 지표를 추가했습니다.") || r.ReportReadAt != "" {
+		t.Fatalf("after the report = %+v", r)
+	}
+	todos, _ := f.db.RequestTodos(ctx)
+	if len(todos) != 1 || todos[0].ID != asked.ID {
+		t.Fatalf("unread report to-dos = %+v", todos)
+	}
+	if err := f.db.MarkReportRead(ctx, f.villa.ID, asked.ID); err != nil {
+		t.Fatal(err)
+	}
+	if todos, _ := f.db.RequestTodos(ctx); len(todos) != 0 {
+		t.Fatalf("read report still a to-do: %+v", todos)
 	}
 	l, err := f.db.WorkLineage(ctx, f.villa.ID, w.ID)
 	if err != nil || len(l.Causes) != 1 || l.Causes[0].Via != "request" || l.Causes[0].RequestBody != "검토에서 나온 기준 고쳐 줘" || l.Causes[0].DecidedBy != "user" {
@@ -190,7 +218,7 @@ func TestServiceDeskDecides(t *testing.T) {
 	}
 	// Every call is paid from the service budget; requests are not work
 	// events, so no department got a delivery.
-	if u, _ := f.eng.ProjectUsage(ctx, f.villa.ID); u.Attempts != 4 || u.InputTokens != 160 {
+	if u, _ := f.eng.ProjectUsage(ctx, f.villa.ID); u.Attempts != 5 || u.InputTokens != 200 {
 		t.Fatalf("usage = %+v", u)
 	}
 	if ds, _ := f.db.Deliveries(ctx, f.villa.ID, storage.DeliveryFilter{}); len(ds) != 0 {
@@ -389,8 +417,15 @@ func TestAutoWorkAndActions(t *testing.T) {
 	if err := f.db.FinishRequestAction(ctx, action.ID, map[string]string{"path": "/tmp/x.zip"}, ""); err != nil {
 		t.Fatal(err)
 	}
-	if got := f.get(t, f.villa.ID, r.ID); got.Status != domain.ReqDone || got.Items[0].Status != domain.ItemDone {
+	if got := f.get(t, f.villa.ID, r.ID); got.Status != domain.ReqInProgress || got.Items[0].Status != domain.ItemDone {
 		t.Fatalf("after the action = %+v", got)
+	}
+	// Its work cancelled, nothing was done: the request ends without a report.
+	if _, err := f.db.SetWorkStatus(ctx, f.villa.ID, workItem.WorkItemID, domain.WorkCancelled, ""); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.get(t, f.villa.ID, r.ID); got.Status != domain.ReqDone || got.Report != "" {
+		t.Fatalf("after cancelling the work = %+v", got)
 	}
 }
 
@@ -679,5 +714,86 @@ func TestOrganizeRefusesUnknownMembers(t *testing.T) {
 	}
 	if p, ok, _ := f.db.LatestOrgProposal(ctx, f.blog.ID); !ok || p.Status != "failed" {
 		t.Fatalf("latest = %+v", p)
+	}
+}
+
+// Work of several departments: the desk's shared goal holds it, the later
+// work waits for the earlier (the auto starter holds it with a note), and
+// when the person registers the work out of order the link still holds.
+func TestGoalAndOrderedWork(t *testing.T) {
+	f := newIntakeFixture(t)
+	f.desks(t)
+	ctx := context.Background()
+	role, _ := f.db.SaveRole(ctx, domain.Role{Name: "검증"})
+	qaAI, _ := f.db.SaveAssignment(ctx, domain.Assignment{ProjectID: f.villa.ID, RoleID: role.ID, ActorKind: domain.ActorAI, DisplayName: "검증 AI", ConnectionID: f.conn.ID, Model: "m"})
+	qa, err := f.db.SaveDepartment(ctx, domain.Department{ProjectID: f.villa.ID, Name: "검증팀", Responsibility: "검증", MemberIDs: []string{qaAI.ID}, LeadAssignmentID: qaAI.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	decision := asJSON(map[string]any{"outcome": "work", "reason": "개발 뒤 검증",
+		"goal": map[string]any{"title": "역전세 지표 출시", "doneCriteria": "검증까지 끝남", "departmentId": f.dev.ID},
+		"work": []map[string]any{
+			{"title": "지표 구현", "departmentId": f.dev.ID},
+			{"title": "지표 검증", "departmentId": qa.ID, "after": []int{1, 2, 7}},
+		}})
+	f.answer = func(string, string) (string, error) { return decision, nil }
+
+	// Review mode, registered out of order: the check first, then the build.
+	r := f.submit(t, f.villa.ID, "역전세 지표 만들고 검증해 줘")
+	f.drain(t)
+	r = f.get(t, f.villa.ID, r.ID)
+	if r.GoalPlan == nil || r.GoalPlan.Title != "역전세 지표 출시" || len(r.Items) != 2 {
+		t.Fatalf("decision = %+v", r)
+	}
+	check, err := f.db.AcceptRequestWork(ctx, f.villa.ID, r.Items[1].ID, domain.WorkProposalPayload{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	build, err := f.db.AcceptRequestWork(ctx, f.villa.ID, r.Items[0].ID, domain.WorkProposalPayload{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	r = f.get(t, f.villa.ID, r.ID)
+	goal, _ := f.db.WorkItem(ctx, f.villa.ID, r.GoalID)
+	check, _ = f.db.WorkItem(ctx, f.villa.ID, check.ID)
+	if goal.Kind != domain.WorkGoal || goal.DepartmentID != f.dev.ID || r.GoalTitle != "역전세 지표 출시" ||
+		check.ParentID != goal.ID || build.ParentID != goal.ID || len(check.AfterIDs) != 1 || check.AfterIDs[0] != build.ID {
+		t.Fatalf("goal = %+v, check = %+v, build = %+v", goal, check, build)
+	}
+
+	// Auto mode: the check waits for the build before it may start.
+	p := f.villa
+	p.Mode = domain.ModeAuto
+	if _, err := f.db.UpdateProject(ctx, p); err != nil {
+		t.Fatal(err)
+	}
+	for _, d := range []string{f.dev.ID, qa.ID} {
+		if _, err := f.db.SetDepartmentAutomation(ctx, f.villa.ID, d, domain.DepartmentAutomation{AutoStart: true}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	r2 := f.submit(t, f.villa.ID, "한 번 더")
+	f.drain(t)
+	r2 = f.get(t, f.villa.ID, r2.ID)
+	if r2.GoalID == "" || r2.GoalID == r.GoalID || len(r2.Items) != 2 || r2.Items[1].WorkItemID == "" {
+		t.Fatalf("auto decision = %+v", r2)
+	}
+	auto := work.NewAutoStarter(work.AutoConfig{DB: f.db,
+		Hold:  func(ctx context.Context, projectID string) (string, error) { return "", nil },
+		Start: func(context.Context, string, string) (string, error) { return "", errors.New("not in this test") }})
+	auto.Drain(ctx)
+	r2 = f.get(t, f.villa.ID, r2.ID)
+	if r2.Items[1].AutoStatus != storage.AutoPending || !strings.Contains(r2.Items[1].AutoNote, "‘지표 구현’") {
+		t.Fatalf("the check did not wait: %+v", r2.Items[1])
+	}
+	if r2.Items[0].AutoStatus == storage.AutoPending && r2.Items[0].AutoNote != "" {
+		t.Fatalf("the build waited: %+v", r2.Items[0])
+	}
+	if _, err := f.db.SetWorkStatus(ctx, f.villa.ID, r2.Items[0].WorkItemID, domain.WorkDone, ""); err != nil {
+		t.Fatal(err)
+	}
+	auto.Drain(ctx)
+	if got := f.get(t, f.villa.ID, r2.ID); got.Items[1].AutoStatus == storage.AutoPending {
+		t.Fatalf("the check still waits after the build: %+v", got.Items[1])
 	}
 }

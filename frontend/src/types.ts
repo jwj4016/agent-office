@@ -282,6 +282,8 @@ export type WorkItem = {
     categories: string[]; dueAt: string; createdAt: string; updatedAt: string; closedAt: string;
     // reviewBeforeStart keeps a person's review before every start, even in auto mode.
     reviewBeforeStart: boolean;
+    // afterIds is the work this waits for: automatic start holds it until they are closed.
+    afterIds?: string[] | null; originRequestId?: string;
 };
 
 export type WorkNote = {
@@ -493,21 +495,24 @@ export type RequestItemStatus = 'proposed' | 'accepted' | 'rejected' | 'running'
 export type RequestAction = 'deliver_code' | 'save_result' | 'export_service' | 'start_workflow';
 export type WorkProposalPayload = {
     title: string; description?: string; doneCriteria?: string; categories?: string[]; priority?: string;
-    departmentId?: string; assigneeAssignmentId?: string; goalId?: string;
+    departmentId?: string; assigneeAssignmentId?: string; goalId?: string; index?: number; after?: number[] | null;
 };
+export type GoalPayload = { title: string; description: string; doneCriteria: string; departmentId: string };
 export type ActionPayload = { action: RequestAction; runId?: string; artifactId?: string; versionId?: string; title?: string; folder?: string; reason: string };
 export type RoutePayload = { projectId: string; body: string; reason?: string };
 export type RequestItem = {
     id: string; requestId: string; projectId: string; round: number; position: number; kind: 'route' | 'work' | 'action';
     payload: WorkProposalPayload | ActionPayload | RoutePayload; status: RequestItemStatus; workItemId: string; workTitle: string;
     workStatus: string; childRequestId: string; result: Record<string, unknown> | null; error: string; decidedBy: '' | 'user' | 'auto';
+    autoStatus?: string; autoNote?: string;
     decisionNote: string; decidedAt: string; createdAt: string;
 };
 export type ServiceRequest = {
     id: string; organizationId: string; projectId: string; projectName: string; parentId: string; previousId: string; body: string;
     status: RequestStatus; outcome: RequestOutcome; round: number; answer: string; question: string; reply: string; reason: string;
     error: string; holdReason: string; maxAttempts: number; attempts: number; createdAt: string; updatedAt: string; closedAt: string;
-    staffedDesk?: string; items: RequestItem[]; children: ServiceRequest[];
+    staffedDesk?: string; goalPlan?: GoalPayload; goalId?: string; goalTitle?: string; report?: string; reportReadAt?: string;
+    items: RequestItem[]; children: ServiceRequest[];
 };
 export type IntakeDesk = {
     id?: string; organizationId?: string; projectId: string; name: string; assignmentId: string; connectionId: string; model: string;

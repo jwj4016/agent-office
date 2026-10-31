@@ -319,6 +319,8 @@ function WorkPanel({ctx, id, onChanged}: { ctx: Context; id: string; onChanged: 
                 {w.kind === 'work' ? <><dt>공동 목표</dt><dd>{w.parentId ? (
                     <button className="btn ghost small" onClick={() => setDetail(<WorkPanel key={w.parentId} ctx={ctx} id={w.parentId} onChanged={onChanged}/>)}>
                         {goalTitle(ctx, w.parentId) || '목표 보기'}</button>) : '—'}</dd></> : null}
+                {w.afterIds?.length ? <><dt>앞 업무</dt><dd><AfterWork projectId={ctx.project.id} ids={w.afterIds}
+                    open={(other) => setDetail(<WorkPanel key={other} ctx={ctx} id={other} onChanged={onChanged}/>)}/></dd></> : null}
                 <dt>기한</dt><dd>{w.dueAt ? <>{w.dueAt}{overdue(w) ? <> <StatusBadge tone="bad">지남</StatusBadge></> : null}</> : '—'}</dd>
                 <dt>분류</dt><dd>{w.categories.join(', ') || '—'}</dd>
                 <dt>완료 조건</dt><dd className="pre">{w.doneCriteria || <span className="muted">적지 않음</span>}</dd>
@@ -537,5 +539,22 @@ function WorkForm({ctx, initial, onSaved}: { ctx: Context; initial: WorkDraft; o
                 <Button onClick={() => setDetail(null)}>{t.common.cancel}</Button>
             </div>
         </form>
+    );
+}
+
+// AfterWork lists the work an item waits for; automatic start holds it
+// until they are all closed.
+function AfterWork({projectId, ids, open}: { projectId: string; ids: string[]; open: (id: string) => void }) {
+    const list = useLoad(() => Promise.all(ids.map((id) => api.workItem(projectId, id).then((d) => d.item))), [projectId, ids.join(',')], projectId);
+    if (!list.data) return <span className="muted small">불러오는 중…</span>;
+    return (
+        <span className="stack tight">
+            {list.data.map((x) => (
+                <span key={x.id} className="row small">
+                    <button className="btn ghost small" onClick={() => open(x.id)}>{x.title}</button><WorkStatusBadge status={x.status}/>
+                </span>
+            ))}
+            <span className="muted xsmall">앞 업무가 모두 끝나야 자동으로 시작합니다.</span>
+        </span>
     );
 }

@@ -139,7 +139,8 @@ func (in *Intake) Drain(ctx context.Context) (int, error) {
 			break
 		}
 		if !took {
-			return n, nil
+			m, err := in.drainReports(ctx)
+			return n + m, err
 		}
 	}
 	return n, ctx.Err()
