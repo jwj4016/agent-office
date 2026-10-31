@@ -34,9 +34,16 @@ type Change struct {
 
 // Emit records an event inside the change's transaction.
 func (c *Change) Emit(projectID, runID, stepAttemptID, kind string, payload any) error {
+	_, err := c.EmitEvent(projectID, runID, stepAttemptID, kind, payload)
+	return err
+}
+
+// EmitEvent is Emit that also returns the stored event with its sequence,
+// for writes that must refer to the event in the same transaction.
+func (c *Change) EmitEvent(projectID, runID, stepAttemptID, kind string, payload any) (EventRecord, error) {
 	raw, err := json.Marshal(payload)
 	if err != nil {
-		return fmt.Errorf("event %s payload: %w", kind, err)
+		return EventRecord{}, fmt.Errorf("event %s payload: %w", kind, err)
 	}
 	ev := EventRecord{
 		ID: NewID("ev"), ProjectID: projectID, RunID: runID, StepAttemptID: stepAttemptID,
@@ -46,11 +53,11 @@ func (c *Change) Emit(projectID, runID, stepAttemptID, kind string, payload any)
 		VALUES (?, ?, NULLIF(?, ''), NULLIF(?, ''), ?, ?, ?)`,
 		ev.ID, ev.ProjectID, ev.RunID, ev.StepAttemptID, ev.Kind, string(ev.Payload), ev.CreatedAt)
 	if err != nil {
-		return fmt.Errorf("event %s: %w", kind, err)
+		return EventRecord{}, fmt.Errorf("event %s: %w", kind, err)
 	}
 	ev.Sequence, _ = res.LastInsertId()
 	c.events = append(c.events, ev)
-	return nil
+	return ev, nil
 }
 
 type subscribers struct {

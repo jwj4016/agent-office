@@ -36,6 +36,7 @@ func main() {
 		},
 		BackgroundColour: &options.RGBA{R: 255, G: 248, B: 236, A: 1},
 		OnStartup:        app.startup,
+		OnDomReady:       app.domReady,
 		OnShutdown:       app.shutdown,
 		// A second launch focuses the running window instead of starting
 		// another engine on the same data (the data dir lock is the

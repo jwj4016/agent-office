@@ -6,6 +6,26 @@ export function AIActivity(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['AIActivity'](arg1, arg2, arg3, arg4);
 }
 
+export function AcceptCollab(arg1, arg2, arg3) {
+  return window['go']['main']['App']['AcceptCollab'](arg1, arg2, arg3);
+}
+
+export function AcceptProposal(arg1, arg2, arg3) {
+  return window['go']['main']['App']['AcceptProposal'](arg1, arg2, arg3);
+}
+
+export function AddWorkNote(arg1, arg2, arg3) {
+  return window['go']['main']['App']['AddWorkNote'](arg1, arg2, arg3);
+}
+
+export function AnswerCollab(arg1, arg2, arg3) {
+  return window['go']['main']['App']['AnswerCollab'](arg1, arg2, arg3);
+}
+
+export function AnswerJudgment(arg1, arg2, arg3) {
+  return window['go']['main']['App']['AnswerJudgment'](arg1, arg2, arg3);
+}
+
 export function AnswerQuestion(arg1, arg2, arg3) {
   return window['go']['main']['App']['AnswerQuestion'](arg1, arg2, arg3);
 }
@@ -14,8 +34,20 @@ export function ApplyDesign(arg1, arg2) {
   return window['go']['main']['App']['ApplyDesign'](arg1, arg2);
 }
 
+export function ApplyPlanJob(arg1, arg2) {
+  return window['go']['main']['App']['ApplyPlanJob'](arg1, arg2);
+}
+
 export function ApplyWorkflowAssist(arg1) {
   return window['go']['main']['App']['ApplyWorkflowAssist'](arg1);
+}
+
+export function AskCollab(arg1, arg2, arg3) {
+  return window['go']['main']['App']['AskCollab'](arg1, arg2, arg3);
+}
+
+export function CancelCollab(arg1, arg2, arg3) {
+  return window['go']['main']['App']['CancelCollab'](arg1, arg2, arg3);
 }
 
 export function CancelRun(arg1, arg2) {
@@ -34,12 +66,28 @@ export function ClearConnectionKey(arg1) {
   return window['go']['main']['App']['ClearConnectionKey'](arg1);
 }
 
+export function CloseImpactCheck(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['CloseImpactCheck'](arg1, arg2, arg3, arg4);
+}
+
+export function CloseJudgmentQuestion(arg1, arg2, arg3) {
+  return window['go']['main']['App']['CloseJudgmentQuestion'](arg1, arg2, arg3);
+}
+
+export function ConfirmDocumentVersion(arg1, arg2, arg3) {
+  return window['go']['main']['App']['ConfirmDocumentVersion'](arg1, arg2, arg3);
+}
+
 export function ConfirmVersion(arg1, arg2, arg3) {
   return window['go']['main']['App']['ConfirmVersion'](arg1, arg2, arg3);
 }
 
 export function CreateProject(arg1) {
   return window['go']['main']['App']['CreateProject'](arg1);
+}
+
+export function CreateWorkItem(arg1) {
+  return window['go']['main']['App']['CreateWorkItem'](arg1);
 }
 
 export function CreateWorkflow(arg1, arg2, arg3) {
@@ -54,8 +102,20 @@ export function DecideApproval(arg1, arg2, arg3, arg4, arg5, arg6) {
   return window['go']['main']['App']['DecideApproval'](arg1, arg2, arg3, arg4, arg5, arg6);
 }
 
+export function DecideProposals(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['DecideProposals'](arg1, arg2, arg3, arg4);
+}
+
 export function DecideToolApproval(arg1, arg2, arg3) {
   return window['go']['main']['App']['DecideToolApproval'](arg1, arg2, arg3);
+}
+
+export function DeclineCollab(arg1, arg2, arg3) {
+  return window['go']['main']['App']['DeclineCollab'](arg1, arg2, arg3);
+}
+
+export function DeleteDepartmentTemplate(arg1) {
+  return window['go']['main']['App']['DeleteDepartmentTemplate'](arg1);
 }
 
 export function DeleteRole(arg1) {
@@ -74,6 +134,10 @@ export function DiscardWorkflowAssist(arg1) {
   return window['go']['main']['App']['DiscardWorkflowAssist'](arg1);
 }
 
+export function DismissAutoStart(arg1, arg2, arg3) {
+  return window['go']['main']['App']['DismissAutoStart'](arg1, arg2, arg3);
+}
+
 export function EnsureTestConnection() {
   return window['go']['main']['App']['EnsureTestConnection']();
 }
@@ -90,6 +154,10 @@ export function GetDesign(arg1) {
   return window['go']['main']['App']['GetDesign'](arg1);
 }
 
+export function GetDocument(arg1, arg2) {
+  return window['go']['main']['App']['GetDocument'](arg1, arg2);
+}
+
 export function GetOrganization() {
   return window['go']['main']['App']['GetOrganization']();
 }
@@ -102,12 +170,32 @@ export function GetSettings() {
   return window['go']['main']['App']['GetSettings']();
 }
 
+export function GetWorkCollab(arg1, arg2) {
+  return window['go']['main']['App']['GetWorkCollab'](arg1, arg2);
+}
+
+export function GetWorkItem(arg1, arg2) {
+  return window['go']['main']['App']['GetWorkItem'](arg1, arg2);
+}
+
+export function GetWorkLineage(arg1, arg2) {
+  return window['go']['main']['App']['GetWorkLineage'](arg1, arg2);
+}
+
+export function GetWorkPlan(arg1, arg2) {
+  return window['go']['main']['App']['GetWorkPlan'](arg1, arg2);
+}
+
 export function GetWorkflow(arg1, arg2) {
   return window['go']['main']['App']['GetWorkflow'](arg1, arg2);
 }
 
 export function GetWorkflowAssist(arg1) {
   return window['go']['main']['App']['GetWorkflowAssist'](arg1);
+}
+
+export function ImportDepartmentTemplate(arg1, arg2) {
+  return window['go']['main']['App']['ImportDepartmentTemplate'](arg1, arg2);
 }
 
 export function Inbox() {
@@ -118,36 +206,120 @@ export function InstructionPreview(arg1, arg2) {
   return window['go']['main']['App']['InstructionPreview'](arg1, arg2);
 }
 
+export function LinkDocument(arg1, arg2, arg3) {
+  return window['go']['main']['App']['LinkDocument'](arg1, arg2, arg3);
+}
+
 export function ListAssignments(arg1) {
   return window['go']['main']['App']['ListAssignments'](arg1);
+}
+
+export function ListAutoStarts(arg1, arg2) {
+  return window['go']['main']['App']['ListAutoStarts'](arg1, arg2);
+}
+
+export function ListCollabRequests(arg1, arg2) {
+  return window['go']['main']['App']['ListCollabRequests'](arg1, arg2);
 }
 
 export function ListConnections() {
   return window['go']['main']['App']['ListConnections']();
 }
 
+export function ListDeliveries(arg1, arg2) {
+  return window['go']['main']['App']['ListDeliveries'](arg1, arg2);
+}
+
+export function ListDepartmentSchedules(arg1) {
+  return window['go']['main']['App']['ListDepartmentSchedules'](arg1);
+}
+
+export function ListDepartmentTemplates() {
+  return window['go']['main']['App']['ListDepartmentTemplates']();
+}
+
+export function ListDepartments(arg1) {
+  return window['go']['main']['App']['ListDepartments'](arg1);
+}
+
 export function ListDesigns() {
   return window['go']['main']['App']['ListDesigns']();
+}
+
+export function ListDocuments(arg1, arg2) {
+  return window['go']['main']['App']['ListDocuments'](arg1, arg2);
+}
+
+export function ListImpactChecks(arg1, arg2, arg3) {
+  return window['go']['main']['App']['ListImpactChecks'](arg1, arg2, arg3);
+}
+
+export function ListJudgments(arg1, arg2) {
+  return window['go']['main']['App']['ListJudgments'](arg1, arg2);
+}
+
+export function ListPlanJobs(arg1, arg2) {
+  return window['go']['main']['App']['ListPlanJobs'](arg1, arg2);
+}
+
+export function ListProposals(arg1, arg2) {
+  return window['go']['main']['App']['ListProposals'](arg1, arg2);
 }
 
 export function ListRoles() {
   return window['go']['main']['App']['ListRoles']();
 }
 
+export function ListRunDocuments(arg1, arg2) {
+  return window['go']['main']['App']['ListRunDocuments'](arg1, arg2);
+}
+
 export function ListRuns(arg1) {
   return window['go']['main']['App']['ListRuns'](arg1);
+}
+
+export function ListSubscriptions(arg1, arg2) {
+  return window['go']['main']['App']['ListSubscriptions'](arg1, arg2);
+}
+
+export function ListWorkDocuments(arg1, arg2) {
+  return window['go']['main']['App']['ListWorkDocuments'](arg1, arg2);
+}
+
+export function ListWorkEvents(arg1, arg2) {
+  return window['go']['main']['App']['ListWorkEvents'](arg1, arg2);
+}
+
+export function ListWorkItems(arg1, arg2) {
+  return window['go']['main']['App']['ListWorkItems'](arg1, arg2);
+}
+
+export function ListWorkRuns(arg1, arg2) {
+  return window['go']['main']['App']['ListWorkRuns'](arg1, arg2);
 }
 
 export function ListWorkflowAssists(arg1, arg2) {
   return window['go']['main']['App']['ListWorkflowAssists'](arg1, arg2);
 }
 
+export function ListWorkflowChoices(arg1) {
+  return window['go']['main']['App']['ListWorkflowChoices'](arg1);
+}
+
 export function ListWorkflows(arg1) {
   return window['go']['main']['App']['ListWorkflows'](arg1);
 }
 
+export function OperationsOverview(arg1) {
+  return window['go']['main']['App']['OperationsOverview'](arg1);
+}
+
 export function PauseRun(arg1, arg2) {
   return window['go']['main']['App']['PauseRun'](arg1, arg2);
+}
+
+export function PendingDecisions() {
+  return window['go']['main']['App']['PendingDecisions']();
 }
 
 export function PerfMark(arg1, arg2) {
@@ -162,6 +334,10 @@ export function PostNote(arg1, arg2, arg3, arg4, arg5) {
   return window['go']['main']['App']['PostNote'](arg1, arg2, arg3, arg4, arg5);
 }
 
+export function ProjectCategories(arg1) {
+  return window['go']['main']['App']['ProjectCategories'](arg1);
+}
+
 export function ProjectUsage(arg1) {
   return window['go']['main']['App']['ProjectUsage'](arg1);
 }
@@ -170,20 +346,76 @@ export function ReadArtifact(arg1, arg2) {
   return window['go']['main']['App']['ReadArtifact'](arg1, arg2);
 }
 
+export function ReadDocumentVersion(arg1, arg2) {
+  return window['go']['main']['App']['ReadDocumentVersion'](arg1, arg2);
+}
+
+export function RejectProposal(arg1, arg2, arg3) {
+  return window['go']['main']['App']['RejectProposal'](arg1, arg2, arg3);
+}
+
 export function ReparseDesign(arg1) {
   return window['go']['main']['App']['ReparseDesign'](arg1);
+}
+
+export function ReplaceCollab(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['ReplaceCollab'](arg1, arg2, arg3, arg4);
+}
+
+export function RequestCollab(arg1, arg2) {
+  return window['go']['main']['App']['RequestCollab'](arg1, arg2);
+}
+
+export function RequestDepartmentCheck(arg1, arg2, arg3) {
+  return window['go']['main']['App']['RequestDepartmentCheck'](arg1, arg2, arg3);
+}
+
+export function RequestDocumentReview(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['RequestDocumentReview'](arg1, arg2, arg3, arg4);
+}
+
+export function RequestWorkPlan(arg1, arg2, arg3) {
+  return window['go']['main']['App']['RequestWorkPlan'](arg1, arg2, arg3);
 }
 
 export function ResumeRun(arg1, arg2) {
   return window['go']['main']['App']['ResumeRun'](arg1, arg2);
 }
 
+export function RetryAIJob(arg1, arg2) {
+  return window['go']['main']['App']['RetryAIJob'](arg1, arg2);
+}
+
+export function RetryAutoStart(arg1, arg2) {
+  return window['go']['main']['App']['RetryAutoStart'](arg1, arg2);
+}
+
+export function RetryDelivery(arg1, arg2) {
+  return window['go']['main']['App']['RetryDelivery'](arg1, arg2);
+}
+
 export function RetryStep(arg1, arg2, arg3) {
   return window['go']['main']['App']['RetryStep'](arg1, arg2, arg3);
 }
 
+export function RevealArtifact(arg1, arg2) {
+  return window['go']['main']['App']['RevealArtifact'](arg1, arg2);
+}
+
+export function RevertCollabDecision(arg1, arg2, arg3) {
+  return window['go']['main']['App']['RevertCollabDecision'](arg1, arg2, arg3);
+}
+
+export function ReviewCollabDecision(arg1, arg2) {
+  return window['go']['main']['App']['ReviewCollabDecision'](arg1, arg2);
+}
+
 export function RunMessages(arg1, arg2) {
   return window['go']['main']['App']['RunMessages'](arg1, arg2);
+}
+
+export function SaveArtifactAs(arg1, arg2) {
+  return window['go']['main']['App']['SaveArtifactAs'](arg1, arg2);
 }
 
 export function SaveAssignment(arg1) {
@@ -194,8 +426,32 @@ export function SaveConnection(arg1) {
   return window['go']['main']['App']['SaveConnection'](arg1);
 }
 
+export function SaveDepartment(arg1) {
+  return window['go']['main']['App']['SaveDepartment'](arg1);
+}
+
+export function SaveDepartmentAsTemplate(arg1, arg2, arg3) {
+  return window['go']['main']['App']['SaveDepartmentAsTemplate'](arg1, arg2, arg3);
+}
+
+export function SaveDepartmentSchedule(arg1) {
+  return window['go']['main']['App']['SaveDepartmentSchedule'](arg1);
+}
+
+export function SaveDepartmentTemplate(arg1) {
+  return window['go']['main']['App']['SaveDepartmentTemplate'](arg1);
+}
+
 export function SaveRole(arg1) {
   return window['go']['main']['App']['SaveRole'](arg1);
+}
+
+export function SaveSubscription(arg1) {
+  return window['go']['main']['App']['SaveSubscription'](arg1);
+}
+
+export function SaveWorkPlan(arg1) {
+  return window['go']['main']['App']['SaveWorkPlan'](arg1);
 }
 
 export function SaveWorkflowDiagram(arg1) {
@@ -210,16 +466,48 @@ export function SetAutoPolicy(arg1, arg2) {
   return window['go']['main']['App']['SetAutoPolicy'](arg1, arg2);
 }
 
+export function SetCollabRequirement(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['SetCollabRequirement'](arg1, arg2, arg3, arg4);
+}
+
 export function SetConnectionKey(arg1, arg2) {
   return window['go']['main']['App']['SetConnectionKey'](arg1, arg2);
+}
+
+export function SetDepartmentAutomation(arg1, arg2, arg3) {
+  return window['go']['main']['App']['SetDepartmentAutomation'](arg1, arg2, arg3);
 }
 
 export function SetProjectArchived(arg1, arg2) {
   return window['go']['main']['App']['SetProjectArchived'](arg1, arg2);
 }
 
+export function SetProjectCategories(arg1, arg2) {
+  return window['go']['main']['App']['SetProjectCategories'](arg1, arg2);
+}
+
 export function SetSetting(arg1, arg2) {
   return window['go']['main']['App']['SetSetting'](arg1, arg2);
+}
+
+export function SetWindowFocused(arg1) {
+  return window['go']['main']['App']['SetWindowFocused'](arg1);
+}
+
+export function SetWorkStatus(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['SetWorkStatus'](arg1, arg2, arg3, arg4);
+}
+
+export function ShareArtifact(arg1, arg2, arg3) {
+  return window['go']['main']['App']['ShareArtifact'](arg1, arg2, arg3);
+}
+
+export function ShareWorkspaceFile(arg1, arg2, arg3) {
+  return window['go']['main']['App']['ShareWorkspaceFile'](arg1, arg2, arg3);
+}
+
+export function SkipDelivery(arg1, arg2, arg3) {
+  return window['go']['main']['App']['SkipDelivery'](arg1, arg2, arg3);
 }
 
 export function StartDesign(arg1) {
@@ -228,6 +516,10 @@ export function StartDesign(arg1) {
 
 export function StartRun(arg1, arg2) {
   return window['go']['main']['App']['StartRun'](arg1, arg2);
+}
+
+export function StartWork(arg1, arg2, arg3) {
+  return window['go']['main']['App']['StartWork'](arg1, arg2, arg3);
 }
 
 export function StartWorkflowAssist(arg1) {
@@ -250,6 +542,10 @@ export function TestConnectionCall(arg1, arg2) {
   return window['go']['main']['App']['TestConnectionCall'](arg1, arg2);
 }
 
+export function UnlinkDocument(arg1, arg2, arg3) {
+  return window['go']['main']['App']['UnlinkDocument'](arg1, arg2, arg3);
+}
+
 export function UpdateOrganization(arg1, arg2) {
   return window['go']['main']['App']['UpdateOrganization'](arg1, arg2);
 }
@@ -258,8 +554,16 @@ export function UpdateProject(arg1) {
   return window['go']['main']['App']['UpdateProject'](arg1);
 }
 
+export function UpdateWorkItem(arg1) {
+  return window['go']['main']['App']['UpdateWorkItem'](arg1);
+}
+
 export function ValidateWorkflow(arg1, arg2) {
   return window['go']['main']['App']['ValidateWorkflow'](arg1, arg2);
+}
+
+export function WithdrawDocument(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['WithdrawDocument'](arg1, arg2, arg3, arg4);
 }
 
 export function WorkflowDiagram(arg1) {

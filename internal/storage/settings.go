@@ -17,7 +17,12 @@ var SettingKeys = map[string]bool{
 	"ui.theme":         true,
 	"ui.tutorialSeen":  true,
 	SettingMaxActive:   true,
+	SettingNotifyTodos: true,
 }
+
+// SettingNotifyTodos is "off" when the person turned off notifications of
+// new to-dos (on by default).
+const SettingNotifyTodos = "ui.notifyTodos"
 
 // SettingMaxActive is how many AI steps may run at once, app-wide and per
 // project (the engine's MaxActive and ProjectMaxActive).

@@ -25,6 +25,9 @@ const (
 	RefMessage     RefKind = "message"
 	RefApproval    RefKind = "approval"
 	RefWorkspace   RefKind = "workspace"
+
+	RefDepartment RefKind = "department"
+	RefWorkItem   RefKind = "work_item"
 )
 
 // scopeTables is the allow-list of tables; kinds never reach SQL as text.
@@ -38,6 +41,9 @@ var scopeTables = map[RefKind]string{
 	RefMessage:     "messages",
 	RefApproval:    "approvals",
 	RefWorkspace:   "workspaces",
+
+	RefDepartment: "departments",
+	RefWorkItem:   "work_items",
 }
 
 // Ref is one id that must belong to the project.

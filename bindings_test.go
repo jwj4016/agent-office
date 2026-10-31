@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -10,6 +11,7 @@ import (
 	"agent-office/internal/domain"
 	"agent-office/internal/engine"
 
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"github.com/zalando/go-keyring"
 )
 
@@ -120,8 +122,38 @@ func TestBindingsTwoServicesEndToEnd(t *testing.T) {
 	if _, err := a.ReadArtifact(estate.ID, art.ID); err == nil {
 		t.Fatal("read another service's artifact")
 	}
-	if c := need(a.ReadArtifact(game.ID, art.ID)); !c.HashOK {
+	c := need(a.ReadArtifact(game.ID, art.ID))
+	if !c.HashOK {
 		t.Fatal("artifact hash mismatch")
+	}
+	// A result can be saved elsewhere for other programs and shown in the
+	// file manager; the app's copy is untouched, other services are refused.
+	dst := filepath.Join(t.TempDir(), "내 결과")
+	var asked runtime.SaveDialogOptions
+	a.saveDialog = func(_ context.Context, o runtime.SaveDialogOptions) (string, error) { asked = o; return dst, nil }
+	saved := need(a.SaveArtifactAs(game.ID, art.ID))
+	if data, err := os.ReadFile(saved); err != nil || string(data) != c.Content || filepath.Ext(saved) != filepath.Ext(c.Path) ||
+		asked.DefaultFilename != c.OutputKey+filepath.Ext(c.Path) {
+		t.Fatalf("saved %q (%v), dialog %+v", saved, err, asked)
+	}
+	if _, err := a.SaveArtifactAs(estate.ID, art.ID); err == nil {
+		t.Fatal("saved another service's artifact")
+	}
+	a.saveDialog = func(context.Context, runtime.SaveDialogOptions) (string, error) { return "", nil }
+	if p, err := a.SaveArtifactAs(game.ID, art.ID); p != "" || err != nil {
+		t.Fatalf("cancelled save = %q %v", p, err)
+	}
+	var shown string
+	a.reveal = func(path string) error { shown = path; return nil }
+	need(0, a.RevealArtifact(game.ID, art.ID))
+	if !strings.HasSuffix(filepath.ToSlash(shown), c.Path) {
+		t.Fatalf("revealed %q, want the artifact %q", shown, c.Path)
+	}
+	if err := a.RevealArtifact(estate.ID, art.ID); err == nil {
+		t.Fatal("revealed another service's artifact")
+	}
+	if c := need(a.ReadArtifact(game.ID, art.ID)); !c.HashOK {
+		t.Fatal("the app's copy changed")
 	}
 	if len(need(a.Inbox())) != 0 {
 		t.Fatal("inbox not empty after both runs finished")

@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"agent-office/internal/providers"
+	"agent-office/internal/storage"
 )
 
 // Budget is a project's spending limit (spec §10.3). Limits are checked
@@ -70,8 +71,22 @@ func projectUsage(ctx context.Context, q querier, projectID string) (Usage, erro
 			u.CostUSD += *p.CostUSD
 		}
 	}
+	if err := rows.Err(); err != nil {
+		return u, err
+	}
+	// AI work outside runs (work plans, department judgments) is paid
+	// from the same budget, failed and retried calls included.
+	ai, err := storage.SumAIAttemptUsage(ctx, q, projectID)
+	if err != nil {
+		return u, err
+	}
+	u.Attempts += ai.Attempts
+	u.InputTokens += ai.InputTokens
+	u.OutputTokens += ai.OutputTokens
+	u.UnknownCostAttempts += ai.UnknownCost
+	u.CostUSD += ai.CostUSD
 	u.HoldReason = budgetHold(u)
-	return u, rows.Err()
+	return u, nil
 }
 
 func budgetHold(u Usage) string {

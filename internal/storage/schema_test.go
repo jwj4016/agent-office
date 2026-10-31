@@ -139,3 +139,150 @@ func TestEventSequenceIsMonotonic(t *testing.T) {
 		prev = s
 	}
 }
+
+// Departments and work items are pinned to their service like every
+// other project-owned row, and the work rules hold in the schema itself.
+func TestWorkSchemaConstraints(t *testing.T) {
+	f := newSchemaFixture(t)
+	now := Now()
+	dept := `INSERT INTO departments (id, project_id, name, lead_assignment_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`
+	f.mustExec(t, dept, "d-game", "game", "개발팀", "a-game", now, now)
+	f.mustExec(t, dept, "d-estate", "estate", "개발팀", nil, now, now) // same name, other service
+	f.mustFail(t, "UNIQUE", dept, "d-dup", "game", "개발팀", nil, now, now)
+	f.mustFail(t, "FOREIGN KEY", dept, "d-x", "estate", "법무팀", "a-game", now, now)
+	member := `INSERT INTO department_members (assignment_id, project_id, department_id, created_at) VALUES (?, ?, ?, ?)`
+	f.mustFail(t, "FOREIGN KEY", member, "a-game", "game", "d-estate", now)
+	f.mustExec(t, member, "a-game", "game", "d-game", now)
+	f.mustFail(t, "UNIQUE", member, "a-game", "game", "d-game", now)
+
+	work := `INSERT INTO work_items (id, project_id, kind, parent_id, department_id, title, status, status_reason, closed_at, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	f.mustExec(t, work, "goal", "game", "goal", nil, "d-game", "목표", "received", "", nil, now, now)
+	// Another service may not use this service's department or goal.
+	f.mustFail(t, "FOREIGN KEY", work, "w-x", "estate", "work", nil, "d-game", "x", "received", "", nil, now, now)
+	f.mustFail(t, "FOREIGN KEY", work, "w-y", "estate", "work", "goal", nil, "x", "received", "", nil, now, now)
+	// A goal needs a department and no parent.
+	f.mustFail(t, "CHECK", work, "g2", "game", "goal", nil, nil, "x", "received", "", nil, now, now)
+	f.mustFail(t, "CHECK", work, "g3", "game", "goal", "goal", "d-game", "x", "received", "", nil, now, now)
+	// Waiting needs a reason; closed and closed_at go together.
+	f.mustFail(t, "CHECK", work, "w1", "game", "work", "goal", nil, "x", "waiting", "", nil, now, now)
+	f.mustFail(t, "CHECK", work, "w2", "game", "work", "goal", nil, "x", "done", "", nil, now, now)
+	f.mustFail(t, "CHECK", work, "w3", "game", "work", "goal", nil, "x", "ready", "", now, now, now)
+	f.mustExec(t, work, "w4", "game", "work", "goal", nil, "x", "done", "", now, now, now)
+	f.mustFail(t, "FOREIGN KEY", `INSERT INTO work_item_notes (id, project_id, work_item_id, kind, body, author, created_at) VALUES ('n1', 'estate', 'w4', 'note', 'x', 'me', ?)`, now)
+	f.mustFail(t, "CHECK", `INSERT INTO work_item_notes (id, project_id, work_item_id, kind, body, author, created_at) VALUES ('n2', 'game', 'w4', 'note', '', 'me', ?)`, now)
+}
+
+// A delivery exists once per event, department and purpose, belongs to
+// the event's service, and a failure or hold always says why.
+func TestDeliverySchemaConstraints(t *testing.T) {
+	f := newSchemaFixture(t)
+	now := Now()
+	f.mustExec(t, `INSERT INTO departments (id, project_id, name, created_at, updated_at) VALUES ('d-game', 'game', '개발팀', ?, ?)`, now, now)
+	f.mustExec(t, `INSERT INTO execution_events (sequence, id, project_id, kind, payload, created_at) VALUES (900, 'ev-w', 'game', 'work.created', '{}', ?)`, now)
+	dlv := `INSERT INTO event_deliveries (id, project_id, event_sequence, department_id, purpose, status, error, hold_reason, created_at, updated_at)
+		VALUES (?, ?, 900, 'd-game', ?, ?, ?, ?, ?, ?)`
+	f.mustExec(t, dlv, "dl1", "game", "judge", "pending", "", "", now, now)
+	f.mustFail(t, "UNIQUE", dlv, "dl2", "game", "judge", "pending", "", "", now, now)
+	f.mustExec(t, dlv, "dl3", "game", "notify", "pending", "", "", now, now)
+	f.mustFail(t, "FOREIGN KEY", dlv, "dl4", "estate", "collab_request", "pending", "", "", now, now)
+	f.mustFail(t, "CHECK", dlv, "dl5", "game", "collab_request", "failed", "", "", now, now)
+	f.mustFail(t, "CHECK", dlv, "dl6", "game", "collab_request", "held", "", "", now, now)
+}
+
+// A judgment belongs to its delivery's service, and a question always
+// has a question status; an accepted proposal names its work.
+func TestJudgmentSchemaConstraints(t *testing.T) {
+	f := newSchemaFixture(t)
+	now := Now()
+	f.mustExec(t, `INSERT INTO departments (id, project_id, name, created_at, updated_at) VALUES ('d-game', 'game', '개발팀', ?, ?)`, now, now)
+	f.mustExec(t, `INSERT INTO execution_events (sequence, id, project_id, kind, payload, created_at) VALUES (900, 'ev-w', 'game', 'work.created', '{}', ?)`, now)
+	f.mustExec(t, `INSERT INTO event_deliveries (id, project_id, event_sequence, department_id, purpose, status, created_at, updated_at)
+		VALUES ('dl1', 'game', 900, 'd-game', 'judge', 'processing', ?, ?)`, now, now)
+	job := `INSERT INTO work_ai_jobs (id, project_id, kind, lane, request_key, delivery_id, round, created_at, updated_at)
+		VALUES (?, 'game', 'judgment', 'background', ?, 'dl1', ?, ?, ?)`
+	f.mustExec(t, job, "j1", "k1", 1, now, now)
+	f.mustExec(t, job, "j2", "k2", 2, now, now)
+	jd := `INSERT INTO judgments (id, project_id, delivery_id, round, ai_job_id, department_id, outcome, question, question_status, created_at, updated_at)
+		VALUES (?, ?, 'dl1', ?, ?, 'd-game', ?, ?, ?, ?, ?)`
+	f.mustFail(t, "FOREIGN KEY", jd, "x1", "estate", 1, "j1", "none", "", "", now, now)
+	f.mustFail(t, "CHECK", jd, "x2", "game", 1, "j1", "question", "", "open", now, now)
+	f.mustFail(t, "CHECK", jd, "x3", "game", 1, "j1", "question", "왜?", "", now, now)
+	f.mustFail(t, "CHECK", jd, "x4", "game", 1, "j1", "none", "", "open", now, now)
+	f.mustExec(t, jd, "jd1", "game", 1, "j1", "propose", "", "", now, now)
+	f.mustFail(t, "UNIQUE", jd, "x5", "game", 1, "j2", "none", "", "", now, now)
+	prop := `INSERT INTO work_proposals (id, project_id, judgment_id, position, department_id, title, status, work_item_id, decided_at, created_at)
+		VALUES (?, 'game', 'jd1', ?, 'd-game', '업무', ?, ?, ?, ?)`
+	f.mustExec(t, prop, "p1", 1, "proposed", nil, nil, now)
+	f.mustFail(t, "UNIQUE", prop, "p2", 1, "proposed", nil, nil, now)
+	f.mustFail(t, "CHECK", prop, "p3", 6, "proposed", nil, nil, now)
+	f.mustFail(t, "CHECK", prop, "p4", 2, "accepted", nil, now, now)
+	f.mustFail(t, "CHECK", prop, "p5", 2, "rejected", nil, nil, now)
+}
+
+// A collaboration request stays inside its service, never asks its own
+// department, and keeps its decision fields consistent with its status.
+func TestCollabSchemaConstraints(t *testing.T) {
+	f := newSchemaFixture(t)
+	now := Now()
+	dept := `INSERT INTO departments (id, project_id, name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`
+	f.mustExec(t, dept, "d-mkt", "game", "마케팅팀", now, now)
+	f.mustExec(t, dept, "d-dev", "game", "개발팀", now, now)
+	f.mustExec(t, dept, "d-other", "estate", "개발팀", now, now)
+	work := `INSERT INTO work_items (id, project_id, kind, department_id, title, created_at, updated_at) VALUES (?, 'game', 'work', 'd-mkt', ?, ?, ?)`
+	f.mustExec(t, work, "w1", "기획", now, now)
+	f.mustExec(t, work, "w2", "구현", now, now)
+	req := `INSERT INTO collab_requests (id, project_id, from_work_item_id, from_department_id, to_department_id, question, requirement, status,
+		follow_up, decided_by, decided_at, result_work_item_id, created_at, updated_at) VALUES (?, 'game', 'w1', 'd-mkt', ?, '검토', ?, ?, ?, ?, ?, ?, ?, ?)`
+	f.mustExec(t, req, "c1", "d-dev", "required", "requested", "", "", nil, nil, now, now)
+	f.mustFail(t, "FOREIGN KEY", req, "c2", "d-other", "reference", "requested", "", "", nil, nil, now, now)
+	f.mustFail(t, "CHECK", req, "c3", "d-mkt", "reference", "requested", "", "", nil, nil, now, now)
+	f.mustFail(t, "CHECK", req, "c4", "d-dev", "reference", "accepted", "", "user", now, nil, now, now)
+	f.mustFail(t, "CHECK", req, "c5", "d-dev", "required", "accepted", "", "ai", now, "w2", now, now)
+	f.mustFail(t, "CHECK", req, "c6", "d-dev", "reference", "question", "", "", nil, nil, now, now)
+	f.mustFail(t, "CHECK", req, "c7", "d-dev", "reference", "declined", "", "user", nil, nil, now, now)
+	f.mustFail(t, "CHECK", req, "c8", "d-dev", "maybe", "requested", "", "", nil, nil, now, now)
+	f.mustExec(t, req, "c9", "d-dev", "reference", "accepted", "", "ai", now, "w2", now, now)
+	f.mustFail(t, "UNIQUE", req, "c10", "d-dev", "reference", "accepted", "", "user", now, "w2", now, now)
+	f.mustFail(t, "FOREIGN KEY", `INSERT INTO collab_request_history (id, project_id, request_id, action, author, created_at) VALUES ('h1', 'estate', 'c1', 'asked', 'me', ?)`, now)
+	f.mustFail(t, "CHECK", `INSERT INTO collab_request_history (id, project_id, request_id, action, author, created_at) VALUES ('h2', 'game', 'c1', 'shrugged', 'me', ?)`, now)
+	f.mustExec(t, `INSERT INTO collab_request_history (id, project_id, request_id, action, author, created_at) VALUES ('h3', 'game', 'c9', 'reverted', 'me', ?)`, now)
+}
+
+// An auto start is one per work item of its service, says why it needs a
+// person, and has a run once started.
+func TestAutoStartSchemaConstraints(t *testing.T) {
+	f := newSchemaFixture(t)
+	now := Now()
+	f.mustExec(t, `INSERT INTO work_items (id, project_id, kind, title, created_at, updated_at) VALUES ('w1', 'game', 'work', '기획', ?, ?)`, now, now)
+	as := `INSERT INTO auto_starts (id, project_id, work_item_id, status, run_id, reason, created_at, updated_at) VALUES (?, ?, 'w1', ?, ?, ?, ?, ?)`
+	f.mustFail(t, "FOREIGN KEY", as, "s0", "estate", "pending", nil, "", now, now)
+	f.mustFail(t, "CHECK", as, "s1", "game", "review", nil, "", now, now)
+	f.mustFail(t, "CHECK", as, "s2", "game", "started", nil, "", now, now)
+	f.mustFail(t, "CHECK", as, "s3", "game", "waiting", nil, "", now, now)
+	f.mustExec(t, as, "s4", "game", "started", "run-game", "", now, now)
+	f.mustFail(t, "UNIQUE", as, "s5", "game", "pending", nil, "", now, now)
+	f.mustFail(t, "FOREIGN KEY", `UPDATE auto_starts SET run_id = 'run-estate' WHERE id = 's4'`)
+}
+
+// A department has one schedule in its own service; a weekly schedule
+// names its day and a daily one does not; a slot runs once.
+func TestScheduleSchemaConstraints(t *testing.T) {
+	f := newSchemaFixture(t)
+	now := Now()
+	f.mustExec(t, `INSERT INTO departments (id, project_id, name, created_at, updated_at) VALUES ('d-game', 'game', '개발팀', ?, ?)`, now, now)
+	sch := `INSERT INTO department_schedules (id, project_id, department_id, frequency, time_of_day, weekday, timezone, active_from, created_at, updated_at)
+		VALUES (?, ?, 'd-game', ?, ?, ?, 'Asia/Seoul', ?, ?, ?)`
+	f.mustFail(t, "FOREIGN KEY", sch, "s0", "estate", "daily", "09:00", nil, now, now, now)
+	f.mustFail(t, "CHECK", sch, "s1", "game", "weekly", "09:00", nil, now, now, now)
+	f.mustFail(t, "CHECK", sch, "s2", "game", "daily", "09:00", 1, now, now, now)
+	f.mustFail(t, "CHECK", sch, "s3", "game", "daily", "24:00", nil, now, now, now)
+	f.mustFail(t, "CHECK", sch, "s4", "game", "daily", "9:00", nil, now, now, now)
+	f.mustExec(t, sch, "s5", "game", "weekly", "09:00", 1, now, now, now)
+	f.mustFail(t, "UNIQUE", sch, "s6", "game", "daily", "10:00", nil, now, now, now)
+	f.mustExec(t, `INSERT INTO execution_events (sequence, id, project_id, kind, payload, created_at) VALUES (900, 'ev-c', 'game', 'department.check_requested', '{}', ?)`, now)
+	slot := `INSERT INTO schedule_slots (schedule_id, project_id, slot_key, due_at, event_sequence, created_at) VALUES ('s5', ?, ?, ?, 900, ?)`
+	f.mustExec(t, slot, "game", "weekly:2026-W44", now, now)
+	f.mustFail(t, "UNIQUE", slot, "game", "weekly:2026-W44", now, now)
+	f.mustFail(t, "FOREIGN KEY", slot, "estate", "weekly:2026-W45", now, now)
+}

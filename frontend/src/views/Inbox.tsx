@@ -1,4 +1,4 @@
-import {Check, CheckCircle2, ExternalLink, FileText, FolderGit2, MessagesSquare, PauseCircle, Send, ShieldCheck, ShieldX, Undo2} from 'lucide-react';
+import {Check, CheckCircle2, ExternalLink, FileText, FolderGit2, MessagesSquare, PauseCircle, Send, Undo2} from 'lucide-react';
 import {useState} from 'react';
 import {api} from '../api';
 import {t} from '../i18n';
@@ -9,32 +9,66 @@ import {
     useDetail, useToast,
 } from '../ui';
 import {ArtifactViewer} from './ArtifactViewer';
+import {decisionKindCounts, decisionKindLabel, decisionKinds, type DecisionKind, InboxGroups} from './InboxGroups';
+import {pendingCount} from './Judgments';
+import {groupToolApprovals, ToolApprovalCard} from './ToolApprovals';
 
 const itemKey = (it: InboxItem) => `${it.kind}:${it.runId}:${it.attemptId}:${it.approvalId ?? ''}:${it.messageId ?? ''}`;
 
-export function Inbox({onOpenRun}: { onOpenRun: (projectId: string, runId: string) => void }) {
+export function Inbox({onOpenRun, onOpenWork}: {
+    onOpenRun: (projectId: string, runId: string) => void; onOpenWork?: (projectId: string, workItemId: string) => void;
+}) {
     const {data, error, reload} = useLoad(() => api.inbox(), [], '*');
+    const decisions = useLoad(() => api.pendingDecisions(), [], '*');
+    const decisionCount = pendingCount(decisions.data);
     // Oldest first: what has waited longest is handled first.
     const items = [...(data ?? [])].sort((a, b) => a.since.localeCompare(b.since));
     const groups = new Map<string, InboxItem[]>();
     for (const it of items) groups.set(it.projectName, [...(groups.get(it.projectName) ?? []), it]);
-    const card = (it: InboxItem) => <InboxCard key={itemKey(it)} item={it} onDone={reload} onOpenRun={() => onOpenRun(it.projectId, it.runId)}/>;
+    // An AI step's tool requests share one card.
+    const cards = (list: InboxItem[]) => groupToolApprovals(list).map((g) => Array.isArray(g)
+        ? <ToolApprovalCard key={`tools:${g[0].attemptId}`} items={g} onDone={reload} onOpenRun={() => onOpenRun(g[0].projectId, g[0].runId)}/>
+        : <InboxCard key={itemKey(g)} item={g} onDone={reload} onOpenRun={() => onOpenRun(g.projectId, g.runId)}/>);
+    // One kind at a time, or everything ('all'); 'run' is what runs wait for.
+    const [show, setShow] = useState<'all' | 'run' | DecisionKind>('all');
+    const counts = decisions.data ? decisionKindCounts(decisions.data) : undefined;
+    const kinds = decisionKinds.filter((k) => counts && counts[k] > 0);
+    const total = items.length + decisionCount;
     return (
         <div className="page narrow" style={{maxWidth: 880}}>
-            <PageHeader title={t.nav.inbox} badges={items.length ? <span className="badge warn count">{items.length}</span> : null}
-                        desc="내가 맡은 작업·리뷰·승인과 AI의 질문입니다. 처리하지 않으면 자동으로 승인되지 않습니다."/>
-            <ErrorBox error={error}/>
+            <PageHeader title={t.nav.inbox} badges={items.length + decisionCount ? <span className="badge warn count">{items.length + decisionCount}</span> : null}
+                        desc="부서의 결과 검토·협업·제안·질문과 실행이 기다리는 승인·리뷰입니다. 공동 목표별로 묶어 보여 주고, 처리하지 않으면 자동으로 승인되지 않습니다."/>
+            <ErrorBox error={error || decisions.error}/>
+            {kinds.length + (items.length ? 1 : 0) > 1 ? (
+                <div className="segmented wrap" role="group" aria-label="할 일 종류">
+                    <button type="button" className="btn small" aria-pressed={show === 'all'} onClick={() => setShow('all')}>전체 {total}</button>
+                    {kinds.map((k) => (
+                        <button key={k} type="button" className="btn small" aria-pressed={show === k} onClick={() => setShow(k)}>
+                            {decisionKindLabel[k]} {counts![k]}</button>
+                    ))}
+                    {items.length ? <button type="button" className="btn small" aria-pressed={show === 'run'} onClick={() => setShow('run')}>
+                        실행 확인 {items.length}</button> : null}
+                </div>
+            ) : null}
+            {decisions.data && show !== 'run' ? (
+                <InboxGroups data={decisions.data} kind={show === 'all' ? undefined : show} onDone={decisions.reload} onOpenWork={onOpenWork} onOpenRun={onOpenRun}/>
+            ) : null}
             {!data && !error ? <Loading/> : null}
-            {data && items.length === 0 ? (
+            {data && items.length === 0 && decisionCount === 0 ? (
                 <EmptyState icon={CheckCircle2} title="지금 처리할 일이 없습니다.">
                     AI가 승인·리뷰·답변을 기다리면 여기에 나타나고, 사이드바에 개수가 표시됩니다.
                 </EmptyState>
             ) : null}
-            {groups.size > 1
-                ? [...groups].map(([name, list]) => (
-                    <Section key={name} title={name} count={list.length}><div className="stack">{list.map(card)}</div></Section>
-                ))
-                : <div className="stack">{items.map(card)}</div>}
+            {items.length && (show === 'all' || show === 'run') ? (
+                <Section title="실행 확인" count={items.length}>
+                    {groups.size > 1
+                        ? [...groups].map(([name, list]) => (
+                            <div key={name} className="stack" role="group" aria-label={name}>
+                                <span className="kind-head">{name} <span className="muted">{list.length}</span></span>{cards(list)}</div>
+                        ))
+                        : <div className="stack">{cards(items)}</div>}
+                </Section>
+            ) : null}
         </div>
     );
 }
@@ -124,14 +158,6 @@ function InboxCard({item, onDone, onOpenRun}: { item: InboxItem; onDone: () => v
                     {item.kind === 'approval' ? <ApprovalForm item={item} busy={action.busy} onSubmit={submit}/> : null}
                     {item.kind === 'review' ? <ReviewForm item={item} busy={action.busy} onSubmit={submit}/> : null}
                     {item.kind === 'task' ? <TaskForm item={item} busy={action.busy} onSubmit={submit}/> : null}
-                    {item.kind === 'tool_approval' ? (
-                        <div className="form-actions">
-                            <Button variant="primary" icon={ShieldCheck} busy={action.busy}
-                                    onClick={() => submit(() => api.decideTool(item.projectId, item.approvalId!, true))}>허용</Button>
-                            <Button variant="danger" icon={ShieldX} disabled={action.busy}
-                                    onClick={() => submit(() => api.decideTool(item.projectId, item.approvalId!, false))}>거절</Button>
-                        </div>
-                    ) : null}
                     {item.kind === 'question' ? <AnswerForm item={item} busy={action.busy} onSubmit={submit}/> : null}
                     {item.kind === 'budget' ? (
                         <p className="muted small">‘{item.stepTitle}’ 등 새 AI 업무가 시작되지 않고 있습니다. 해당 서비스의 ‘설정’ 탭에서 예산을 올리면 이어서 진행합니다.</p>

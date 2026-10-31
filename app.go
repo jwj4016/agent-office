@@ -22,6 +22,7 @@ import (
 	"agent-office/internal/secrets"
 	"agent-office/internal/storage"
 	"agent-office/internal/templates"
+	"agent-office/internal/work"
 	"agent-office/internal/workspace"
 
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -62,19 +63,41 @@ type App struct {
 	testProvider *providers.TestProvider
 	stopEngine   context.CancelFunc
 	engineDone   chan struct{}
+	// work handles department deliveries (service operations).
+	work     *work.Processor
+	workDone chan struct{}
+	// ai runs AI work outside runs (work plans) in two lanes.
+	ai     *work.AI
+	aiDone chan struct{}
+	// auto starts work made from events in auto-mode services.
+	auto     *work.AutoStarter
+	autoDone chan struct{}
+	// sched runs departments' regular checks.
+	sched     *work.Scheduler
+	schedDone chan struct{}
 
 	deltaMu sync.Mutex
 	deltas  map[string]*Delta
 
 	// saveDialog asks where to save a file; tests replace it.
 	saveDialog func(ctx context.Context, o runtime.SaveDialogOptions) (string, error)
+	// reveal shows a file in the system's file manager; tests replace it.
+	reveal func(path string) error
 	// folderDialog asks for a folder (tests replace it).
 	folderDialog func(ctx context.Context, o runtime.OpenDialogOptions) (string, error)
+
+	// watcher notices new to-dos; notify shows an OS notification. notify
+	// is set once the window exists (domReady); tests set their own.
+	watcher    *todoWatcher
+	notify     func(title, body string) error
+	notifyOnce sync.Once
+	// ectx lives as long as the engine and the background loops.
+	ectx context.Context
 }
 
 func NewApp() *App {
-	return &App{emit: runtime.EventsEmit, deltas: map[string]*Delta{}, saveDialog: runtime.SaveFileDialog, folderDialog: runtime.OpenDirectoryDialog,
-		started: make(chan struct{})}
+	return &App{emit: runtime.EventsEmit, deltas: map[string]*Delta{}, saveDialog: runtime.SaveFileDialog, reveal: revealInFolder, folderDialog: runtime.OpenDirectoryDialog,
+		started: make(chan struct{}), watcher: newTodoWatcher()}
 }
 
 // waitStarted blocks until startup has finished (Apps built without
@@ -123,9 +146,47 @@ func (a *App) startup(ctx context.Context) {
 		Diagram:   diagram,
 		Ephemeral: a.addDelta,
 	})
-	a.db.Subscribe(func(evs []storage.EventRecord) { a.emit(a.ctx, EventStored, evs) })
+	a.ai = work.NewAI(work.AIConfig{
+		DB: a.db, Providers: a.providerFor,
+		Hold: func(ctx context.Context, projectID string) (string, error) {
+			u, err := a.eng.ProjectUsage(ctx, projectID)
+			return u.HoldReason, err
+		},
+		Kinds: map[string]work.Kind{
+			storage.JobPlan: work.PlanKind{DB: a.db},
+			storage.JobJudgment:       work.JudgeKind{DB: a.db, ReadDocument: a.readDocumentText},
+			storage.JobCollabDecision: work.CollabKind{DB: a.db, ReadDocument: a.readDocumentText},
+		},
+	})
+	a.auto = work.NewAutoStarter(work.AutoConfig{
+		DB: a.db,
+		Hold: func(ctx context.Context, projectID string) (string, error) {
+			u, err := a.eng.ProjectUsage(ctx, projectID)
+			return u.HoldReason, err
+		},
+		Start: func(ctx context.Context, projectID, workItemID string) (string, error) {
+			return a.eng.StartWork(ctx, projectID, workItemID, "")
+		},
+		Share:  a.eng.ShareRunResults,
+		WakeAI: a.ai.Wake,
+	})
+	a.work = work.New(a.db, work.Judge(a.db, a.ai.Wake))
+	a.sched = work.NewScheduler(a.db, nil)
+	a.db.Subscribe(func(evs []storage.EventRecord) {
+		a.watcher.Wake() // a new to-do may be among them
+		a.emit(a.ctx, EventStored, evs)
+		a.auto.Wake() // runs, plans and new work move auto starts on
+		for _, ev := range evs {
+			if domain.IsWorkEvent(ev.Kind) {
+				a.work.Wake() // only a signal: the callback must not write
+				break
+			}
+		}
+	})
 	ectx, cancel := context.WithCancel(context.Background())
-	a.stopEngine, a.engineDone = cancel, make(chan struct{})
+	a.ectx = ectx
+	a.stopEngine, a.engineDone, a.workDone, a.aiDone, a.autoDone = cancel, make(chan struct{}), make(chan struct{}), make(chan struct{}), make(chan struct{})
+	a.schedDone = make(chan struct{})
 	a.design = &design.Service{DB: a.db, Engine: a.eng, Providers: a.providerFor, Connections: a.designConnections, Ctx: ectx,
 		DataDir: dir, Diagram: diagram}
 	if err := a.design.Recover(ctx); err != nil {
@@ -136,6 +197,30 @@ func (a *App) startup(ctx context.Context) {
 			log.Printf("engine stopped: %v", err)
 		}
 		close(a.engineDone)
+	}()
+	go func() {
+		if err := a.work.Run(ectx); err != nil {
+			log.Printf("work processor stopped: %v", err)
+		}
+		close(a.workDone)
+	}()
+	go func() {
+		if err := a.ai.Run(ectx); err != nil {
+			log.Printf("work ai stopped: %v", err)
+		}
+		close(a.aiDone)
+	}()
+	go func() {
+		if err := a.auto.Run(ectx); err != nil {
+			log.Printf("work auto stopped: %v", err)
+		}
+		close(a.autoDone)
+	}()
+	go func() {
+		if err := a.sched.Run(ectx); err != nil {
+			log.Printf("work schedule stopped: %v", err)
+		}
+		close(a.schedDone)
 	}()
 	go a.flushDeltas(ectx)
 	if perfEnabled() {
@@ -157,6 +242,10 @@ func (a *App) shutdown(ctx context.Context) {
 	if a.stopEngine != nil {
 		a.stopEngine()
 		<-a.engineDone
+		<-a.workDone
+		<-a.aiDone
+		<-a.autoDone
+		<-a.schedDone
 		a.design.Wait()
 	}
 	if a.db != nil {
@@ -274,6 +363,10 @@ func uiErr(err error) error {
 		return errors.New("상위 역할을 이렇게 지정하면 순환이 생깁니다")
 	case errors.Is(err, storage.ErrRoleInUse):
 		return errors.New("담당자가 있는 역할은 삭제할 수 없습니다")
+	case errors.Is(err, storage.ErrInvalid):
+		return errors.New(strings.TrimPrefix(err.Error(), storage.ErrInvalid.Error()+": "))
+	case errors.Is(err, storage.ErrNotFound):
+		return errors.New("찾을 수 없는 항목입니다. 화면을 새로 고치세요")
 	case errors.Is(err, design.ErrNotReady):
 		return errors.New("이미 적용했거나 아직 준비되지 않은 설계안입니다")
 	case errors.Is(err, design.ErrInvalid):
@@ -1342,6 +1435,53 @@ func (a *App) SaveWorkflowDiagram(id string) (string, error) {
 		path += ".html"
 	}
 	return path, os.WriteFile(path, []byte(html), 0o644)
+}
+
+// SaveArtifactAs copies an AI result file where the person chooses, so
+// other programs can open it. The app's own copy stays as it is. It
+// returns "" when the dialog is cancelled.
+func (a *App) SaveArtifactAs(projectID, artifactID string) (string, error) {
+	if err := a.ready(); err != nil {
+		return "", err
+	}
+	c, full, err := a.eng.ArtifactFile(a.ctx, projectID, artifactID)
+	if err != nil {
+		return "", uiErr(err)
+	}
+	ext := filepath.Ext(full)
+	opts := runtime.SaveDialogOptions{Title: "결과 파일 저장", DefaultFilename: c.OutputKey + ext}
+	if ext != "" {
+		opts.Filters = []runtime.FileFilter{{DisplayName: strings.TrimPrefix(ext, ".") + " 파일 (*" + ext + ")", Pattern: "*" + ext}}
+	}
+	path, err := a.saveDialog(a.ctx, opts)
+	if err != nil || path == "" {
+		return "", err
+	}
+	if ext != "" && !strings.EqualFold(filepath.Ext(path), ext) {
+		path += ext
+	}
+	data, err := os.ReadFile(full)
+	if err != nil {
+		return "", uiErr(err)
+	}
+	return path, os.WriteFile(path, data, 0o644)
+}
+
+// RevealArtifact shows an AI result file in the system's file manager
+// (Finder, Explorer). Opening it there must not change it: the app checks
+// the file against its recorded hash.
+func (a *App) RevealArtifact(projectID, artifactID string) error {
+	if err := a.ready(); err != nil {
+		return err
+	}
+	_, full, err := a.eng.ArtifactFile(a.ctx, projectID, artifactID)
+	if err != nil {
+		return uiErr(err)
+	}
+	if _, err := os.Stat(full); err != nil {
+		return errors.New("결과 파일이 데이터 폴더에 없습니다")
+	}
+	return a.reveal(full)
 }
 
 // SetAutoPolicy sets which connections auto mode may use in a project.

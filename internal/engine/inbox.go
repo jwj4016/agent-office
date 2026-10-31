@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"unicode/utf8"
 
 	"agent-office/internal/domain"
@@ -48,6 +49,7 @@ type InboxItem struct {
 	ApprovalID    string          `json:"approvalId,omitempty"`
 	MessageID     string          `json:"messageId,omitempty"`
 	Detail        string          `json:"detail,omitempty"`
+	Tool          *ToolRequest    `json:"tool,omitempty"` // what a tool approval asks, read out of Detail
 	Inputs        json.RawMessage `json:"inputs"`
 	Outputs       []domain.Output `json:"outputs"`
 	ReworkTargets []StepRef       `json:"reworkTargets"`
@@ -60,6 +62,61 @@ type InboxItem struct {
 	// Workspace is where a person's task or review works (Git runs).
 	Workspace *WorkspaceInfo `json:"workspace,omitempty"`
 	Since     string         `json:"since"`
+}
+
+// ToolRequest is what a tool approval asks, for the person: the tool as
+// the provider names it, and the file or command it is about. Input names
+// the step's input result when the file is one.
+type ToolRequest struct {
+	Name    string `json:"name"`
+	Path    string `json:"path,omitempty"`
+	Command string `json:"command,omitempty"`
+	Input   string `json:"input,omitempty"`
+}
+
+// parseToolRequest reads a provider's approval request. Claude sends the
+// tool and its input as "Read {...json...}"; Codex sends a command, or the
+// reason of a file change.
+func parseToolRequest(action, detail string) ToolRequest {
+	t := ToolRequest{Name: action}
+	if action == "command" {
+		t.Command = detail
+		return t
+	}
+	rest, ok := strings.CutPrefix(detail, action+" ")
+	if !ok {
+		return t
+	}
+	var in map[string]any
+	if json.Unmarshal([]byte(rest), &in) != nil {
+		return t
+	}
+	str := func(keys ...string) string {
+		for _, k := range keys {
+			if v, ok := in[k].(string); ok && v != "" {
+				return v
+			}
+		}
+		return ""
+	}
+	t.Path = str("file_path", "notebook_path", "path")
+	t.Command = str("command", "url", "pattern", "query")
+	return t
+}
+
+// inputNamed is the name of the input result stored at path, or "".
+func inputNamed(dataDir string, inputs json.RawMessage, path string) string {
+	if path == "" {
+		return ""
+	}
+	var manifest []ManifestEntry
+	json.Unmarshal(inputs, &manifest)
+	for _, m := range manifest {
+		if m.Path != "" && filepath.Clean(filepath.Join(dataDir, filepath.FromSlash(m.Path))) == filepath.Clean(path) {
+			return m.Name
+		}
+	}
+	return ""
 }
 
 // Inbox lists every open human item across active projects.
@@ -148,6 +205,9 @@ func (e *Engine) Inbox(ctx context.Context) ([]InboxItem, error) {
 					var t struct{ Action, Detail string }
 					json.Unmarshal([]byte(target), &t)
 					it.Detail = t.Action + ": " + t.Detail
+					tool := parseToolRequest(t.Action, t.Detail)
+					tool.Input = inputNamed(e.cfg.DataDir, base.Inputs, tool.Path)
+					it.Tool = &tool
 					items = append(items, it)
 				}
 				rows.Close()
@@ -258,22 +318,32 @@ type ArtifactContent struct {
 
 const maxArtifactRead = 1 << 20
 
-// ReadArtifact returns an artifact's content after checking it belongs
-// to the project and its file still matches the recorded hash.
-func (e *Engine) ReadArtifact(ctx context.Context, projectID, artifactID string) (ArtifactContent, error) {
+// ArtifactFile returns an artifact of the project and the full path of
+// its file, which stays inside the data folder.
+func (e *Engine) ArtifactFile(ctx context.Context, projectID, artifactID string) (ArtifactContent, string, error) {
 	if err := e.db.CheckScope(ctx, projectID, storage.Ref{Kind: storage.RefArtifact, ID: artifactID}); err != nil {
-		return ArtifactContent{}, err
+		return ArtifactContent{}, "", err
 	}
 	var c ArtifactContent
 	err := e.db.Read().QueryRowContext(ctx, `SELECT a.id, a.output_key, a.version, a.type, a.path, a.hash, a.validity, s.step_id
 		FROM artifacts a JOIN step_attempts s ON s.id = a.step_attempt_id WHERE a.id = ?`, artifactID).
 		Scan(&c.ID, &c.OutputKey, &c.Version, &c.Type, &c.Path, &c.Hash, &c.Validity, &c.StepID)
 	if err != nil {
-		return c, err
+		return c, "", err
 	}
 	full, err := e.resolveInside(filepath.Join(e.cfg.DataDir, filepath.FromSlash(c.Path)))
 	if err != nil {
-		return c, fmt.Errorf("결과 파일을 열 수 없습니다: %w", err)
+		return c, "", fmt.Errorf("결과 파일을 열 수 없습니다: %w", err)
+	}
+	return c, full, nil
+}
+
+// ReadArtifact returns an artifact's content after checking it belongs
+// to the project and its file still matches the recorded hash.
+func (e *Engine) ReadArtifact(ctx context.Context, projectID, artifactID string) (ArtifactContent, error) {
+	c, full, err := e.ArtifactFile(ctx, projectID, artifactID)
+	if err != nil {
+		return c, err
 	}
 	data, err := os.ReadFile(full)
 	if err != nil {

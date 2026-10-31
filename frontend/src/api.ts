@@ -7,6 +7,12 @@ import type {
     DesignView, ApplyResult, DetectedPaths, ExportResult, Usage, InboxItem, InstructionPreview, MessageView,
     Organization, Project, ProjectSummary, Role, RunDetail, StartResult, StoredEvent, SystemStatus, Template,
     Validation, Workflow, WorkflowSpec, AssistKind, AssistRecord,
+    Department, DepartmentTemplate, WorkDetail, WorkFilter, WorkItem, WorkNote, WorkStatus,
+    Delivery, DeliveryFilter, DepartmentSchedule, ScheduleView, Subscription, WorkEventView, WorkPlan, WorkPlanView, AIJob, PlanJobView,
+    DocumentContent, DocumentFilter, DocumentVersion, ImpactCheck, LinkedDocument, NewDocumentVersion, SharedDocument,
+    Decisions, Judgment, Operations, Proposal, ProposalBatch, ProposalEdit, WorkLineage,
+    CollabAcceptance, CollabRequest, CollabRequirement, NewCollabRequest, WorkCollab,
+    AutoStart, DepartmentAutomation, WorkflowChoice,
 } from './types';
 
 // The generated d.ts types differ from the real JSON for raw fields, so
@@ -36,6 +42,97 @@ export const api = {
     roles: () => call<Role[]>(Go.ListRoles()),
     saveRole: (r: Partial<Role>) => call<Role>(Go.SaveRole(r as never)),
     deleteRole: (id: string) => call<void>(Go.DeleteRole(id)),
+
+    departmentTemplates: () => call<DepartmentTemplate[]>(Go.ListDepartmentTemplates()),
+    saveDepartmentTemplate: (d: Partial<DepartmentTemplate>) => call<DepartmentTemplate>(Go.SaveDepartmentTemplate(d as never)),
+    deleteDepartmentTemplate: (id: string) => call<void>(Go.DeleteDepartmentTemplate(id)),
+    departments: (projectId: string) => call<Department[]>(Go.ListDepartments(projectId)),
+    saveDepartment: (d: Partial<Department>) => call<Department>(Go.SaveDepartment(d as never)),
+    importDepartmentTemplate: (projectId: string, templateId: string) => call<Department>(Go.ImportDepartmentTemplate(projectId, templateId)),
+    saveDepartmentAsTemplate: (projectId: string, departmentId: string, name: string) =>
+        call<DepartmentTemplate>(Go.SaveDepartmentAsTemplate(projectId, departmentId, name)),
+    categories: (projectId: string) => call<string[]>(Go.ProjectCategories(projectId)),
+    setCategories: (projectId: string, names: string[]) => call<string[]>(Go.SetProjectCategories(projectId, names)),
+
+    workItems: (projectId: string, filter: WorkFilter = {}) => call<WorkItem[]>(Go.ListWorkItems(projectId, filter as never)),
+    workItem: (projectId: string, id: string) => call<WorkDetail>(Go.GetWorkItem(projectId, id)),
+    createWorkItem: (w: Partial<WorkItem>) => call<WorkItem>(Go.CreateWorkItem(w as never)),
+    updateWorkItem: (w: Partial<WorkItem>) => call<WorkItem>(Go.UpdateWorkItem(w as never)),
+    setWorkStatus: (projectId: string, id: string, status: WorkStatus, reason: string) =>
+        call<WorkItem>(Go.SetWorkStatus(projectId, id, status, reason)),
+    addWorkNote: (projectId: string, id: string, body: string) => call<WorkNote>(Go.AddWorkNote(projectId, id, body)),
+    workEvents: (projectId: string, workItemId: string) => call<WorkEventView[]>(Go.ListWorkEvents(projectId, workItemId)),
+    subscriptions: (projectId: string, departmentId = '') => call<Subscription[]>(Go.ListSubscriptions(projectId, departmentId)),
+    saveSubscription: (s: Partial<Subscription>) => call<Subscription>(Go.SaveSubscription(s as never)),
+    schedules: (projectId: string) => call<ScheduleView[]>(Go.ListDepartmentSchedules(projectId)),
+    saveSchedule: (s: Partial<DepartmentSchedule>) => call<DepartmentSchedule>(Go.SaveDepartmentSchedule(s as never)),
+    deliveries: (projectId: string, filter: DeliveryFilter = {}) => call<Delivery[]>(Go.ListDeliveries(projectId, filter as never)),
+    requestDepartmentCheck: (projectId: string, departmentId: string, note: string) =>
+        call<void>(Go.RequestDepartmentCheck(projectId, departmentId, note)),
+    retryDelivery: (projectId: string, id: string) => call<void>(Go.RetryDelivery(projectId, id)),
+    skipDelivery: (projectId: string, id: string, reason: string) => call<void>(Go.SkipDelivery(projectId, id, reason)),
+    judgments: (projectId: string, questionStatus = '') => call<Judgment[]>(Go.ListJudgments(projectId, questionStatus)),
+    answerJudgment: (projectId: string, id: string, answer: string) => call<void>(Go.AnswerJudgment(projectId, id, answer)),
+    closeJudgmentQuestion: (projectId: string, id: string, note: string) => call<void>(Go.CloseJudgmentQuestion(projectId, id, note)),
+    proposals: (projectId: string, status = 'proposed') => call<Proposal[]>(Go.ListProposals(projectId, status)),
+    acceptProposal: (projectId: string, id: string, edit: ProposalEdit = {}) => call<WorkItem>(Go.AcceptProposal(projectId, id, edit as never)),
+    rejectProposal: (projectId: string, id: string, note: string) => call<void>(Go.RejectProposal(projectId, id, note)),
+    decideProposals: (projectId: string, ids: string[], accept: boolean, note = '') =>
+        call<ProposalBatch>(Go.DecideProposals(projectId, ids, accept, note)),
+    pendingDecisions: () => call<Decisions>(Go.PendingDecisions()),
+    workLineage: (projectId: string, workItemId: string) => call<WorkLineage>(Go.GetWorkLineage(projectId, workItemId)),
+    operations: (projectId: string) => call<Operations>(Go.OperationsOverview(projectId)),
+    requestDocumentReview: (projectId: string, departmentId: string, versionIds: string[], note: string) =>
+        call<number>(Go.RequestDocumentReview(projectId, departmentId, versionIds, note)),
+    workCollab: (projectId: string, workItemId: string) => call<WorkCollab>(Go.GetWorkCollab(projectId, workItemId)),
+    collabRequests: (projectId: string, filter: { workItemId?: string; resultWorkItemId?: string; departmentId?: string; open?: boolean } = {}) =>
+        call<CollabRequest[]>(Go.ListCollabRequests(projectId, filter as never)),
+    requestCollab: (projectId: string, n: NewCollabRequest) => call<CollabRequest>(Go.RequestCollab(projectId, n as never)),
+    acceptCollab: (projectId: string, id: string, a: CollabAcceptance = {}) => call<CollabRequest>(Go.AcceptCollab(projectId, id, a as never)),
+    askCollab: (projectId: string, id: string, question: string) => call<CollabRequest>(Go.AskCollab(projectId, id, question)),
+    answerCollab: (projectId: string, id: string, answer: string) => call<CollabRequest>(Go.AnswerCollab(projectId, id, answer)),
+    declineCollab: (projectId: string, id: string, reason: string) => call<CollabRequest>(Go.DeclineCollab(projectId, id, reason)),
+    cancelCollab: (projectId: string, id: string, reason: string) => call<CollabRequest>(Go.CancelCollab(projectId, id, reason)),
+    setCollabRequirement: (projectId: string, id: string, requirement: CollabRequirement, reason: string) =>
+        call<CollabRequest>(Go.SetCollabRequirement(projectId, id, requirement, reason)),
+    replaceCollab: (projectId: string, id: string, n: NewCollabRequest, reason: string) =>
+        call<CollabRequest>(Go.ReplaceCollab(projectId, id, n as never, reason)),
+    reviewCollabDecision: (projectId: string, id: string) => call<CollabRequest>(Go.ReviewCollabDecision(projectId, id)),
+    revertCollabDecision: (projectId: string, id: string, reason: string) => call<CollabRequest>(Go.RevertCollabDecision(projectId, id, reason)),
+    workflowChoices: (projectId: string) => call<WorkflowChoice[]>(Go.ListWorkflowChoices(projectId)),
+    setDepartmentAutomation: (projectId: string, departmentId: string, rules: DepartmentAutomation) =>
+        call<Department>(Go.SetDepartmentAutomation(projectId, departmentId, rules as never)),
+    autoStarts: (projectId: string, filter: { workItemId?: string; status?: string } = {}) => call<AutoStart[]>(Go.ListAutoStarts(projectId, filter as never)),
+    retryAutoStart: (projectId: string, id: string) => call<void>(Go.RetryAutoStart(projectId, id)),
+    dismissAutoStart: (projectId: string, id: string, note: string) => call<void>(Go.DismissAutoStart(projectId, id, note)),
+    workPlan: (projectId: string, workItemId: string) => call<WorkPlanView>(Go.GetWorkPlan(projectId, workItemId)),
+    saveWorkPlan: (p: Partial<WorkPlan>) => call<WorkPlan>(Go.SaveWorkPlan(p as never)),
+    startWork: (projectId: string, workItemId: string, feedback: string) => call<StartResult>(Go.StartWork(projectId, workItemId, feedback)),
+    workRuns: (projectId: string, workItemId: string) => call<RunDetail[]>(Go.ListWorkRuns(projectId, workItemId)),
+    requestWorkPlan: (projectId: string, workItemId: string, requestId: string) =>
+        call<AIJob>(Go.RequestWorkPlan(projectId, workItemId, requestId)),
+    planJobs: (projectId: string, workItemId: string) => call<PlanJobView[]>(Go.ListPlanJobs(projectId, workItemId)),
+    applyPlanJob: (projectId: string, jobId: string) => call<WorkPlan>(Go.ApplyPlanJob(projectId, jobId)),
+    retryAIJob: (projectId: string, jobId: string) => call<void>(Go.RetryAIJob(projectId, jobId)),
+
+    documents: (projectId: string, filter: DocumentFilter = {}) => call<SharedDocument[]>(Go.ListDocuments(projectId, filter as never)),
+    document: (projectId: string, id: string) => call<SharedDocument>(Go.GetDocument(projectId, id)),
+    readDocumentVersion: (projectId: string, versionId: string) => call<DocumentContent>(Go.ReadDocumentVersion(projectId, versionId)),
+    shareArtifact: (projectId: string, artifactId: string, doc: NewDocumentVersion) =>
+        call<DocumentVersion>(Go.ShareArtifact(projectId, artifactId, doc as never)),
+    shareWorkspaceFile: (projectId: string, relPath: string, doc: NewDocumentVersion) =>
+        call<DocumentVersion>(Go.ShareWorkspaceFile(projectId, relPath, doc as never)),
+    confirmDocumentVersion: (projectId: string, versionId: string, note: string) =>
+        call<DocumentVersion>(Go.ConfirmDocumentVersion(projectId, versionId, note)),
+    withdrawDocument: (projectId: string, documentId: string, versionId: string, reason: string) =>
+        call<void>(Go.WithdrawDocument(projectId, documentId, versionId, reason)),
+    linkDocument: (projectId: string, workItemId: string, versionId: string) => call<void>(Go.LinkDocument(projectId, workItemId, versionId)),
+    unlinkDocument: (projectId: string, workItemId: string, versionId: string) => call<void>(Go.UnlinkDocument(projectId, workItemId, versionId)),
+    workDocuments: (projectId: string, workItemId: string) => call<LinkedDocument[]>(Go.ListWorkDocuments(projectId, workItemId)),
+    runDocuments: (projectId: string, runId: string) => call<DocumentVersion[]>(Go.ListRunDocuments(projectId, runId)),
+    impactChecks: (projectId: string, workItemId = '', status = '') => call<ImpactCheck[]>(Go.ListImpactChecks(projectId, workItemId, status)),
+    closeImpactCheck: (projectId: string, id: string, status: 'resolved' | 'dismissed', note: string) =>
+        call<void>(Go.CloseImpactCheck(projectId, id, status, note)),
 
     assignments: (projectId: string) => call<Assignment[]>(Go.ListAssignments(projectId)),
     saveAssignment: (a: Partial<Assignment>) => call<Assignment>(Go.SaveAssignment(a as never)),
@@ -70,6 +167,9 @@ export const api = {
     cancelRun: (projectId: string, runId: string) => call<void>(Go.CancelRun(projectId, runId)),
     retryStep: (projectId: string, runId: string, stepId: string) => call<void>(Go.RetryStep(projectId, runId, stepId)),
     readArtifact: (projectId: string, artifactId: string) => call<ArtifactContent>(Go.ReadArtifact(projectId, artifactId)),
+    // saveArtifactAs returns '' when the person cancelled the save dialog.
+    saveArtifactAs: (projectId: string, artifactId: string) => call<string>(Go.SaveArtifactAs(projectId, artifactId)),
+    revealArtifact: (projectId: string, artifactId: string) => call<void>(Go.RevealArtifact(projectId, artifactId)),
     runMessages: (projectId: string, runId: string) => call<MessageView[]>(Go.RunMessages(projectId, runId)),
     postNote: (projectId: string, runId: string, stepId: string, kind: 'proposal' | 'decision', body: string) =>
         call<string>(Go.PostNote(projectId, runId, stepId, kind, body)),
@@ -112,6 +212,9 @@ export const api = {
     eventsAfter: (projectId: string, after: number) => call<StoredEvent[]>(Go.EventsAfter(projectId, after)),
 
     onEvents: (cb: (evs: StoredEvent[]) => void) => EventsOn('events', cb),
+    // onOpenInbox: a to-do notification was clicked (Go: EventOpenInbox).
+    onOpenInbox: (cb: () => void) => EventsOn('app.openInbox', cb),
+    setWindowFocused: (focused: boolean) => call<void>(Go.SetWindowFocused(focused)),
     onDeltas: (cb: (ds: Delta[]) => void) => EventsOn('deltas', cb),
 };
 

@@ -2,6 +2,7 @@ package engine_test
 
 import (
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -55,8 +56,14 @@ func TestDiagramStepGetsSkillAndPassesSelfCheck(t *testing.T) {
 	h.waitRun(p.ID, runID, engine.RunSucceeded)
 
 	arch := h.started("arch")[0]
-	if len(arch.Plugins) != 1 || arch.Plugins[0] != d.Plugin || len(arch.ReadableDirs) != 1 || arch.ReadableDirs[0] != d.Plugin {
+	if len(arch.Plugins) != 1 || arch.Plugins[0] != d.Plugin || !slices.Contains(arch.ReadableDirs, d.Plugin) {
 		t.Fatalf("diagram step plugins=%v readable=%v", arch.Plugins, arch.ReadableDirs)
+	}
+	// Its inputs (the plan's result) are readable without asking too.
+	for _, in := range arch.InputManifest {
+		if !slices.Contains(arch.ReadableDirs, filepath.Dir(in.Path)) {
+			t.Fatalf("input %s not readable: %v", in.Path, arch.ReadableDirs)
+		}
 	}
 	for _, want := range []string{filepath.Join(d.SkillDir(), "SKILL.md"), "self_check.py", "다이어그램 작성 규칙", "사람에게 묻지 마세요", "self_check.py만 쓰세요"} {
 		if !strings.Contains(arch.Prompt, want) {

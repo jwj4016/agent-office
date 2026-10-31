@@ -40,7 +40,7 @@ const text = (t: string) =>
 const result = (r: string) =>
     ({
         type: 'result', subtype: 'success', is_error: false, result: r,
-        usage: {input_tokens: 11, output_tokens: 7}, total_cost_usd: 0.0012,
+        usage: {input_tokens: 11, cache_creation_input_tokens: 300, cache_read_input_tokens: 2000, output_tokens: 7}, total_cost_usd: 0.0012,
     }) as unknown as SDKMessage;
 
 test('success maps to normalized events and passes isolation options', async () => {
@@ -56,6 +56,8 @@ test('success maps to normalized events and passes isolation options', async () 
     assert.deepEqual(h.events.map((e) => e.kind), ['started', 'message', 'usage', 'completed']);
     assert.deepEqual(h.events.at(-1)!.payload, {status: 'succeeded', text: 'pong'});
     assert.equal(h.events[2].payload.costUsd, 0.0012);
+    assert.equal(h.events[2].payload.inputTokens, 2311); // cached input counts
+    assert.equal(h.events[2].payload.outputTokens, 7);
     assert.deepEqual(seen!.settingSources, []);
     assert.deepEqual(seen!.systemPrompt, {type: 'preset', preset: 'claude_code', append: '짧게 답한다'});
 });
@@ -280,19 +282,19 @@ test('only the granted self-check on work or output files runs without asking', 
     const check = ['/opt/py/python3', script];
     const ok = (command: string, granted: string[] | undefined = check) => checkCommandAllowed(work, [out], granted, 'Bash', {command});
     assert.equal(ok(`/opt/py/python3 '${script}' '${join(out, 'arch.html')}'`), true);
-    assert.equal(ok(`python3 -I ${script} --offline '${join(out, 'arch.html')}'`), true);
-    assert.equal(ok(`python ${script} diagrams/arch.html`), true);                         // relative, inside work
-    assert.equal(ok(`python3 ${script} '${join(other, 'x.html')}'`), false);              // file outside
-    assert.equal(ok(`python3 ${script} ../other/x.html`), false);                          // relative escape
-    assert.equal(ok(`python3 ${script}`), false);                                          // no file
-    assert.equal(ok(`python3 ${join(other, 'self_check.py')} '${join(out, 'a.html')}'`), false); // another script
-    assert.equal(ok(`'${join(out, 'w', 'python3')}' ${script} '${join(out, 'a.html')}'`), false); // planted interpreter
-    assert.equal(ok(`cd ${skill}; python3 ${script} '${join(out, 'a.html')}'`), false);    // chained
-    assert.equal(ok(`PATH=${out} python3 ${script} '${join(out, 'a.html')}'`), false);     // env prefix
-    assert.equal(ok(`python3 -c 'import os' ${script} '${join(out, 'a.html')}'`), false);  // extra code
-    assert.equal(ok(`python3 ${script} '${join(out, 'a.html')}'`, []), false);             // nothing granted
-    assert.equal(checkCommandAllowed(work, [out], undefined, 'Bash', {command: `python3 ${script} '${join(out, 'a.html')}'`}), false);
-    assert.equal(checkCommandAllowed(work, [out], check, 'Write', {command: `python3 ${script} x`}), false);
+    assert.equal(ok(`python3 -I '${script}' --offline '${join(out, 'arch.html')}'`), true);
+    assert.equal(ok(`python '${script}' diagrams/arch.html`), true);                         // relative, inside work
+    assert.equal(ok(`python3 '${script}' '${join(other, 'x.html')}'`), false);              // file outside
+    assert.equal(ok(`python3 '${script}' ../other/x.html`), false);                          // relative escape
+    assert.equal(ok(`python3 '${script}'`), false);                                          // no file
+    assert.equal(ok(`python3 '${join(other, 'self_check.py')}' '${join(out, 'a.html')}'`), false); // another script
+    assert.equal(ok(`'${join(out, 'w', 'python3')}' '${script}' '${join(out, 'a.html')}'`), false); // planted interpreter
+    assert.equal(ok(`cd '${skill}'; python3 '${script}' '${join(out, 'a.html')}'`), false);    // chained
+    assert.equal(ok(`PATH='${out}' python3 '${script}' '${join(out, 'a.html')}'`), false);     // env prefix
+    assert.equal(ok(`python3 -c 'import os' '${script}' '${join(out, 'a.html')}'`), false);  // extra code
+    assert.equal(ok(`python3 '${script}' '${join(out, 'a.html')}'`, []), false);             // nothing granted
+    assert.equal(checkCommandAllowed(work, [out], undefined, 'Bash', {command: `python3 '${script}' '${join(out, 'a.html')}'`}), false);
+    assert.equal(checkCommandAllowed(work, [out], check, 'Write', {command: `python3 '${script}' x`}), false);
 });
 
 test('the granted self-check is allowed through canUseTool without an approval request', async () => {
@@ -302,7 +304,7 @@ test('the granted self-check is allowed through canUseTool without an approval r
     const script = join(skill, 'self_check.py');
     let decision: string | undefined;
     const h = harness(async function* ({options}) {
-        const r = await options.canUseTool!('Bash', {command: `python3 ${script} ${join(out, 'arch.html')}`}, {signal: new AbortController().signal} as any);
+        const r = await options.canUseTool!('Bash', {command: `python3 '${script}' '${join(out, 'arch.html')}'`}, {signal: new AbortController().signal} as any);
         decision = r?.behavior;
         yield result('ok');
     });

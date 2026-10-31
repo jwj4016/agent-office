@@ -101,3 +101,20 @@ describe('AI activity', () => {
         expect(screen.getByText('review')).toBeInTheDocument();
     });
 });
+
+describe('service operations events', () => {
+    it('leaves work, document and department events out of the run activity', async () => {
+        const work = (n: number, kind: string): StoredEvent => ({...ev(n, `업무 사건 ${n}`), runId: '', stepAttemptId: '', stepId: '', kind});
+        fakeApi.aiActivity.mockResolvedValue({
+            events: [ev(1, '기획 완료'), work(2, 'work.created'), work(3, 'department.check_requested'), work(4, 'document.shared')],
+            hasMore: false,
+        });
+        render(<LiveProvider><ActivityFeed projectId="p" runId="r"/></LiveProvider>);
+        expect(await screen.findByText('기획 완료')).toBeInTheDocument();
+        expect(screen.queryByText(/업무 사건/)).not.toBeInTheDocument();
+        // A work event arriving live does not add a record to the feed.
+        const receive = (fakeApi.onEvents.mock.calls as unknown as Array<[(events: StoredEvent[]) => void]>)[0][0];
+        await act(async () => { receive([work(5, 'work.completed')]); });
+        expect(screen.queryByRole('button', {name: /새 기록/})).not.toBeInTheDocument();
+    });
+});

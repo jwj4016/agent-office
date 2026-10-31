@@ -106,10 +106,11 @@ type Workflow struct {
 }
 
 // InstructionLayer is one level of the merged instructions, in display
-// order: company → parent roles → role → project → assignment → task →
-// rework feedback (spec §2.3).
+// order: company → parent roles → role → project → department →
+// assignment → task → rework feedback (spec §2.3; department layer from
+// the service operations plan §4.1).
 type InstructionLayer struct {
-	Source string `json:"source"` // organization | role | project | assignment | task | feedback
+	Source string `json:"source"` // organization | role | project | department | assignment | task | feedback
 	Name   string `json:"name"`
 	Text   string `json:"text"`
 }

@@ -1,4 +1,4 @@
-import {fireEvent, render, screen, waitFor, within} from '@testing-library/react';
+import {act, fireEvent, render, screen, waitFor, within} from '@testing-library/react';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 import {fakeApi, inboxItem, state} from './test/fakeApi';
 
@@ -93,6 +93,34 @@ describe('App shell', () => {
         state.inbox = [inboxItem(), inboxItem({projectId: 'prj-2', projectName: '부동산', attemptId: 'att-2', approvalId: 'apr-2'})];
         render(<App/>);
         expect(await screen.findByLabelText('2건')).toBeInTheDocument();
+    });
+});
+
+describe('To-do notifications', () => {
+    it('reports whether the window is looked at and opens the inbox from a notification', async () => {
+        let open: () => void = () => {};
+        fakeApi.onOpenInbox.mockImplementation(((cb: () => void) => { open = cb; return () => {}; }) as never);
+        render(<App/>);
+        await waitFor(() => expect(fakeApi.setWindowFocused).toHaveBeenCalled());
+        fireEvent.blur(window);
+        await waitFor(() => expect(fakeApi.setWindowFocused).toHaveBeenLastCalledWith(false));
+        await act(async () => { open(); });
+        expect(await screen.findByRole('heading', {name: /내 할 일/})).toBeInTheDocument();
+    });
+});
+
+describe('Department decisions as to-dos', () => {
+    it('counts waiting collaboration on the home screen, the sidebar and the service', async () => {
+        state.summaries = [{project: {id: 'prj-1', organizationId: 'org-default', name: '게임', goal: '', instructions: '', workspacePath: '',
+            budget: {}, mode: 'auto', status: 'active', createdAt: '', updatedAt: ''}, activeRuns: 0, waitingRuns: 0, failedRuns: 0,
+            pausedRuns: 0, inbox: 0, lastRun: null}];
+        fakeApi.pendingDecisions.mockResolvedValue({questions: [], proposals: [], collabs: [{projectId: 'prj-1'}], notices: [], aiDecisions: [],
+            autoReviews: [{projectId: 'prj-1'}], results: [], goals: {}});
+        render(<App/>);
+        expect(await screen.findByText('부서 간 협업과 결정 2건')).toBeInTheDocument();
+        expect(screen.getByText('확인이 필요한 일이 2건 있습니다.')).toBeInTheDocument();
+        expect(screen.getByLabelText('2건')).toBeInTheDocument(); // sidebar inbox badge
+        expect(screen.getByText('대기 2')).toBeInTheDocument(); // the service's state
     });
 });
 

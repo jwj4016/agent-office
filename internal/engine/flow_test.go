@@ -2,6 +2,8 @@ package engine_test
 
 import (
 	"encoding/json"
+	"path/filepath"
+	"slices"
 	"testing"
 
 	"agent-office/internal/engine"
@@ -28,6 +30,20 @@ func TestServiceDevFlowEndToEnd(t *testing.T) {
 		t.Fatalf("approval not pinned to plan output: %s", d.Inputs)
 	}
 	h.approve(p.ID, runID, "approve")
+	// A step reads the results it is given without asking for each file.
+	h.waitStep(p.ID, runID, "design", engine.StSucceeded)
+	design := h.started("design")[0]
+	if len(design.InputManifest) == 0 {
+		t.Fatal("design was given no inputs")
+	}
+	for _, in := range design.InputManifest {
+		if !slices.Contains(design.ReadableDirs, filepath.Dir(in.Path)) {
+			t.Fatalf("input %s not readable without asking: %v", in.Path, design.ReadableDirs)
+		}
+	}
+	if plan := h.started("plan")[0]; len(plan.ReadableDirs) != 0 {
+		t.Fatalf("a step without inputs got readable folders: %v", plan.ReadableDirs)
+	}
 
 	h.review(p.ID, runID, "review", engine.ReviewPass, "코드 확인 완료")
 	run := h.waitRun(p.ID, runID, engine.RunSucceeded)

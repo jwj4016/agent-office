@@ -302,8 +302,12 @@ export function runBridge({input, output, query, log = () => {}}: BridgeIO): Pro
                         }
                         break;
                     case 'result': {
+                        // Input read from or written to the prompt cache is
+                        // input too: without it a token budget sees a small
+                        // part of what the call processed.
                         write('usage', {
-                            inputTokens: msg.usage.input_tokens,
+                            inputTokens: msg.usage.input_tokens + (msg.usage.cache_creation_input_tokens ?? 0)
+                                + (msg.usage.cache_read_input_tokens ?? 0),
                             outputTokens: msg.usage.output_tokens,
                             costUsd: msg.total_cost_usd,
                         });

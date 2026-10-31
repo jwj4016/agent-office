@@ -106,3 +106,52 @@ describe('Inbox code task', () => {
         await waitFor(() => expect(fakeApi.submitHuman).toHaveBeenCalledWith('prj-1', 'att-1', 1, {}));
     });
 });
+
+describe('Inbox by kind and goal', () => {
+    it('groups a result to check with its goal and filters by kind', async () => {
+        state.inbox = [inboxItem()];
+        const openWork = vi.fn();
+        fakeApi.pendingDecisions.mockResolvedValue({questions: [], proposals: [], collabs: [], notices: [], aiDecisions: [], autoReviews: [],
+            results: [{workItemId: 'w2', projectId: 'prj-1', projectName: '게임', title: '랜딩 검토', departmentName: '개발팀', goalId: 'g1', runId: 'run-9',
+                finishedAt: '2026-10-26T00:00:00Z'}],
+            goals: {w2: {id: 'g1', title: '신규 고객 캠페인'}}});
+        render(<LiveProvider><Inbox onOpenRun={() => {}} onOpenWork={openWork}/></LiveProvider>);
+        const group = await screen.findByRole('region', {name: '공동 목표 신규 고객 캠페인'});
+        expect(within(group).getByRole('group', {name: '결과 검토'})).toBeInTheDocument();
+        fireEvent.click(within(group).getByRole('button', {name: '업무 열기'}));
+        expect(openWork).toHaveBeenCalledWith('prj-1', 'w2');
+        // Only what runs wait for.
+        fireEvent.click(screen.getByRole('button', {name: '실행 확인 1'}));
+        expect(screen.queryByRole('region', {name: '공동 목표 신규 고객 캠페인'})).not.toBeInTheDocument();
+        expect(screen.getByRole('article', {name: '게임 기획 승인'})).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', {name: '결과 검토 1'}));
+        expect(screen.getByRole('region', {name: '공동 목표 신규 고객 캠페인'})).toBeInTheDocument();
+        expect(screen.queryByRole('article', {name: '게임 기획 승인'})).not.toBeInTheDocument();
+    });
+});
+
+describe('tool approvals', () => {
+    it('shows an AI step’s requests in one card, in words, and allows them all', async () => {
+        const read = (id: string, input: string, file: string) => inboxItem({kind: 'tool_approval', approvalId: id, attemptId: 'att-7', stepTitle: '법적 리스크 정리',
+            instructions: '출처 목록과 PRD를 기준으로 정리한다', detail: `Read: Read {"file_path":"/data/${file}"}`,
+            tool: {name: 'Read', path: `/data/${file}`, input}});
+        state.inbox = [read('apr-1', 'PRD', 'prd_doc-x.md'), read('apr-2', '데이터 출처 목록', 'source_catalog-y.json'),
+            inboxItem({kind: 'tool_approval', approvalId: 'apr-3', attemptId: 'att-7', stepTitle: '법적 리스크 정리', detail: 'Bash: Bash {"command":"ls"}',
+                tool: {name: 'Bash', command: 'ls'}})];
+        renderInbox();
+        const cards = await screen.findAllByRole('article');
+        expect(cards).toHaveLength(1);
+        const card = cards[0];
+        expect(within(card).getByText('도구 사용 승인 3건')).toBeInTheDocument();
+        expect(within(card).getByRole('listitem', {name: '파일 읽기 PRD (prd_doc-x.md)'})).toBeInTheDocument();
+        expect(within(card).getByRole('listitem', {name: '명령 실행 ls'})).toBeInTheDocument();
+        // The instructions are there but folded.
+        expect(within(card).getByText('업무 지침 보기').closest('details')).not.toHaveAttribute('open');
+        fireEvent.click(within(card).getByRole('button', {name: '명령 실행 ls 거절'}));
+        await waitFor(() => expect(fakeApi.decideTool).toHaveBeenCalledWith('prj-1', 'apr-3', false));
+        fireEvent.click(await within(card).findByRole('button', {name: '모두 허용 (2)'}));
+        await waitFor(() => expect(fakeApi.decideTool).toHaveBeenCalledTimes(3));
+        expect(fakeApi.decideTool).toHaveBeenCalledWith('prj-1', 'apr-1', true);
+        expect(fakeApi.decideTool).toHaveBeenCalledWith('prj-1', 'apr-2', true);
+    });
+});

@@ -1,6 +1,6 @@
 // A controllable stand-in for ../api used by component tests.
 import {vi} from 'vitest';
-import type {ActionResult, InboxItem, ProjectSummary} from '../types';
+import type {ActionResult, InboxItem, ProjectSummary, WorkPlanView} from '../types';
 
 export const state = {
     summaries: [] as ProjectSummary[],
@@ -48,7 +48,46 @@ export const fakeApi = {
     testConnectionCall: ok({steps: [{id: 'call', label: '실제 호출', status: 'ok', detail: 'pong'}], ready: true}), templates: ok([]), workflows: ok([]), runs: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []),
     run: vi.fn(), runMessages: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []), postNote: ok('msg-new'),
     pauseRun: ok(undefined), resumeRun: ok(undefined), cancelRun: ok(undefined), retryStep: ok(undefined), readArtifact: vi.fn(),
-    onEvents: vi.fn(() => () => {}),
+    departmentTemplates: vi.fn(async (): Promise<unknown[]> => []), saveDepartmentTemplate: vi.fn(), deleteDepartmentTemplate: ok(undefined),
+    departments: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []), saveDepartment: vi.fn(),
+    importDepartmentTemplate: vi.fn(), saveDepartmentAsTemplate: vi.fn(),
+    categories: vi.fn(async (..._args: unknown[]): Promise<string[]> => []), setCategories: vi.fn(async (_p: string, names: string[]) => names),
+    workItems: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []), workItem: vi.fn(), createWorkItem: vi.fn(), updateWorkItem: vi.fn(),
+    setWorkStatus: vi.fn(), addWorkNote: vi.fn(),
+    workEvents: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []), subscriptions: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []),
+    saveSubscription: vi.fn(), saveArtifactAs: vi.fn(), revealArtifact: vi.fn(), schedules: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []), saveSchedule: vi.fn(), deliveries: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []),
+    requestDepartmentCheck: ok(undefined), retryDelivery: ok(undefined), skipDelivery: ok(undefined),
+    judgments: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []), answerJudgment: ok(undefined), closeJudgmentQuestion: ok(undefined),
+    proposals: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []), acceptProposal: vi.fn(), rejectProposal: ok(undefined),
+    decideProposals: vi.fn(async (..._args: unknown[]) => ({done: 0, errors: [] as string[]})),
+    pendingDecisions: vi.fn(async (): Promise<{questions: unknown[]; proposals: unknown[]; collabs: unknown[]; notices: unknown[];
+        aiDecisions: unknown[]; autoReviews: unknown[]; results: unknown[]; goals: Record<string, unknown>}> =>
+        ({questions: [], proposals: [], collabs: [], notices: [], aiDecisions: [], autoReviews: [], results: [], goals: {}})),
+    workLineage: vi.fn(async (..._args: unknown[]): Promise<unknown> => ({causes: [], next: []})),
+    operations: vi.fn(async (..._args: unknown[]): Promise<unknown> => ({departments: [], troubles: [], troubleCount: 0,
+        usage: {inputTokens: 0, outputTokens: 0, costUsd: 0, unknownCostAttempts: 0, attempts: 0, budget: {}}})),
+    reviewCollabDecision: vi.fn(), revertCollabDecision: vi.fn(), workflowChoices: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []),
+    setDepartmentAutomation: vi.fn(), autoStarts: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []),
+    retryAutoStart: ok(undefined), dismissAutoStart: ok(undefined),
+    workCollab: vi.fn(async (..._args: unknown[]): Promise<{requests: unknown[]; incoming: unknown[]; blockers: unknown[]; checks: unknown[]}> =>
+        ({requests: [], incoming: [], blockers: [], checks: []})),
+    collabRequests: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []),
+    requestCollab: vi.fn(), acceptCollab: vi.fn(), askCollab: vi.fn(), answerCollab: vi.fn(), declineCollab: vi.fn(), cancelCollab: vi.fn(),
+    setCollabRequirement: vi.fn(), replaceCollab: vi.fn(),
+    requestDocumentReview: vi.fn(async (..._args: unknown[]) => 0),
+    workPlan: vi.fn(async (..._args: unknown[]): Promise<WorkPlanView> => ({
+        plan: {workItemId: '', projectId: '', assignmentId: '', instructions: '', materials: '', outputs: [{key: 'result', type: 'markdown'}],
+            workflowVersionId: '', updatedAt: ''},
+        saved: false, preview: '', problem: '', approval: {by: '', at: '', valid: false},
+    })),
+    saveWorkPlan: vi.fn(), startWork: vi.fn(),
+    documents: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []), document: vi.fn(), readDocumentVersion: vi.fn(),
+    shareArtifact: vi.fn(), shareWorkspaceFile: vi.fn(), confirmDocumentVersion: vi.fn(), withdrawDocument: ok(undefined),
+    linkDocument: ok(undefined), unlinkDocument: ok(undefined), workDocuments: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []),
+    runDocuments: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []),
+    impactChecks: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []), closeImpactCheck: ok(undefined),
+    requestWorkPlan: vi.fn(), planJobs: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []), applyPlanJob: vi.fn(), retryAIJob: ok(undefined), workRuns: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []),
+    onEvents: vi.fn(() => () => {}), onOpenInbox: vi.fn(() => () => {}), setWindowFocused: vi.fn(async () => undefined),
     onDeltas: vi.fn(() => () => {}),
 };
 

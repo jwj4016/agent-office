@@ -155,6 +155,9 @@ func (db *DB) DeleteRole(ctx context.Context, id string) error {
 		if _, err := tx.ExecContext(ctx, `UPDATE roles SET parent_role_id = NULLIF(?, '') WHERE parent_role_id = ?`, r.ParentRoleID, id); err != nil {
 			return err
 		}
+		if _, err := tx.ExecContext(ctx, `DELETE FROM department_template_roles WHERE role_id = ?`, id); err != nil {
+			return err
+		}
 		_, err = tx.ExecContext(ctx, `DELETE FROM roles WHERE id = ?`, id)
 		return err
 	})

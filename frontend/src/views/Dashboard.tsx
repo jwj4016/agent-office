@@ -1,4 +1,4 @@
-import {AlertTriangle, Archive, ArrowRight, CircleDot, FolderPlus, Hand, Inbox as InboxIcon, Layers, PauseCircle, Plus, Sparkles} from 'lucide-react';
+import {AlertTriangle, Archive, ArrowRight, CircleDot, FolderPlus, Hand, Handshake, Inbox as InboxIcon, Layers, PauseCircle, Plus, Sparkles} from 'lucide-react';
 import {useState} from 'react';
 import type {Route} from '../App';
 import {serviceState} from '../App';
@@ -12,8 +12,10 @@ import {
 
 // Dashboard is the home screen: what needs a person first, then every
 // service with its state.
-export function Dashboard({summaries, inbox, loaded, onRoute, onCreated}: {
-    summaries: ProjectSummary[]; inbox: InboxItem[]; loaded: boolean; onRoute: (r: Route) => void; onCreated: () => void;
+// decisions: department questions, proposals, collaboration and
+// automatic-start reviews waiting for the person.
+export function Dashboard({summaries, inbox, decisions, loaded, onRoute, onCreated}: {
+    summaries: ProjectSummary[]; inbox: InboxItem[]; decisions: number; loaded: boolean; onRoute: (r: Route) => void; onCreated: () => void;
 }) {
     const [creating, setCreating] = useState(false);
     const [showArchived, setShowArchived] = useState(false);
@@ -62,7 +64,8 @@ export function Dashboard({summaries, inbox, loaded, onRoute, onCreated}: {
 
     const lastRunRoute = (s: ProjectSummary): Route =>
         s.lastRun ? {view: 'project', projectId: s.project.id, tab: 'runs', runId: s.lastRun.id} : {view: 'project', projectId: s.project.id, tab: 'runs'};
-    const attention = blocked.length + paused.length + inbox.length;
+    const todo = inbox.length + decisions;
+    const attention = blocked.length + paused.length + todo;
 
     return (
         <div className="page">
@@ -72,9 +75,9 @@ export function Dashboard({summaries, inbox, loaded, onRoute, onCreated}: {
             {newForm}
 
             <div className="stats">
-                <button className={`stat ${inbox.length ? 'warn' : ''}`} onClick={() => onRoute({view: 'inbox'})}>
+                <button className={`stat ${todo ? 'warn' : ''}`} onClick={() => onRoute({view: 'inbox'})}>
                     <span className="stat-label"><Icon icon={InboxIcon}/>내 할 일</span>
-                    <span className="stat-value">{inbox.length}</span>
+                    <span className="stat-value">{todo}</span>
                 </button>
                 <div className={`stat ${blockedCount ? 'bad' : ''}`}>
                     <span className="stat-label"><Icon icon={AlertTriangle}/>막힌 실행</span>
@@ -113,6 +116,16 @@ export function Dashboard({summaries, inbox, loaded, onRoute, onCreated}: {
                                 <Button size="sm" onClick={() => onRoute({view: 'inbox'})}>처리하기</Button>
                             </li>
                         ))}
+                        {decisions ? (
+                            <li className="attention-item">
+                                <span className="icon-wrap warn"><Icon icon={Handshake} size={18}/></span>
+                                <div className="body">
+                                    <span className="title">부서 간 협업과 결정 {decisions}건</span>
+                                    <span className="meta">협업 요청·부서 제안과 질문·자동 처리 검토</span>
+                                </div>
+                                <Button size="sm" onClick={() => onRoute({view: 'inbox'})}>처리하기</Button>
+                            </li>
+                        ) : null}
                         {inbox.length > 5 ? (
                             <li className="attention-item">
                                 <span className="icon-wrap"><Icon icon={Hand} size={18}/></span>

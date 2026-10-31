@@ -513,12 +513,8 @@ func checkDiagramSkill(ctx context.Context) (string, string) {
 		return CheckWarn, d.Plugin + " (Python 3.8 이상이 없어 다이어그램 자동 검사는 건너뜁니다)"
 	}
 	sample := filepath.Join(d.SkillDir(), "assets", "example-architecture.html")
-	ctx, cancel := context.WithTimeout(ctx, time.Minute)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, d.Python, "-I", filepath.Join(d.SkillDir(), "scripts", "self_check.py"), sample)
-	osproc.Hide(cmd)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return CheckFailed, fmt.Sprintf("self_check.py 실행 실패 (%s): %v %s", d.Python, err, strings.TrimSpace(string(out)))
+	if err := d.Check(ctx, sample); err != nil {
+		return CheckFailed, fmt.Sprintf("%v (%s)", err, d.Python)
 	}
 	return CheckOK, fmt.Sprintf("%s, 검사: %s", d.Plugin, d.Python)
 }

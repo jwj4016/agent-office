@@ -311,3 +311,22 @@ func AutoCheck(r Result, policy AutoPolicy, hasBudget bool) []domain.Issue {
 	}
 	return out
 }
+
+// JSONCall is one structured AI call made outside a workflow run, such as
+// a department's work plan (service operations plan §4.6).
+type JSONCall struct {
+	What, Instructions, Prompt, Model string
+	Schema                            json.RawMessage
+	Timeout                           time.Duration
+	// Answer is given to any question the agent asks.
+	Answer string
+	// OnEvent sees every provider event (usage reports included).
+	OnEvent func(providers.Event) error
+}
+
+// RunJSONCall makes the call and returns the JSON object it produced.
+func RunJSONCall(ctx context.Context, prov providers.Provider, c JSONCall) ([]byte, error) {
+	return runJSON(ctx, prov, agentJob{OnEvent: c.OnEvent, What: c.What, Instructions: c.Instructions, Prompt: c.Prompt, Model: c.Model,
+		Key: "result", Type: "json", File: "result.json", Schema: c.Schema, Timeout: c.Timeout, Answer: c.Answer},
+		"필요한 정보는 모두 위에 있으므로 다른 파일을 읽거나 명령을 실행하지 않는다. ", "결과")
+}

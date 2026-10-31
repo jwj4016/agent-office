@@ -4,13 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"path/filepath"
 	"testing"
 
 	"agent-office/internal/domain"
 )
 
 func TestAssistLifecycle(t *testing.T) {
-	db := openTemp(t, "")
+	db := openTemp(t, filepath.Join(t.TempDir(), "assist.db"))
 	defer db.Close()
 	ctx := context.Background()
 	p, err := db.CreateProject(ctx, domain.Project{Name: "서비스"})

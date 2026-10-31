@@ -133,10 +133,14 @@ export type InboxItem = {
     kind: InboxKind; projectId: string; projectName: string; runId: string; runTitle: string;
     versionNumber: number; stepId: string; stepTitle: string; instructions: string; attemptId: string;
     generation: number; attempt: number; round: number; approvalId?: string; messageId?: string;
-    detail?: string; inputs: ManifestEntry[] | null; outputs: WorkflowOutput[];
+    detail?: string; tool?: ToolRequest; inputs: ManifestEntry[] | null; outputs: WorkflowOutput[];
     reworkTargets: { id: string; title: string }[]; since: string;
     context?: ContextNote[] | null; escalation?: string; workspace?: WorkspaceInfo;
 };
+
+// ToolRequest is what a tool approval asks: the tool as the provider names
+// it, the file or command, and the input result the file is.
+export type ToolRequest = { name: string; path?: string; command?: string; input?: string };
 
 export type ContextNote = { label: string; ref: string; text: string };
 
@@ -217,3 +221,261 @@ export type EditResult = {
     changes: { added: string[]; removed: string[]; changed: string[] };
 };
 export type DiagramResult = { path: string; checked: boolean };
+
+// ---- departments and work (service operations) ----
+
+export type ActiveStatus = 'active' | 'inactive';
+
+// A company-wide starting point; copying it into a service makes an
+// independent department.
+export type DepartmentTemplate = {
+    id: string; organizationId: string; name: string; responsibility: string; roleIds: string[]; updatedAt: string;
+};
+
+// A department inside one service. Members are the service's assignments.
+export type Department = {
+    id: string; projectId: string; name: string; responsibility: string; leadAssignmentId: string; memberIds: string[];
+    templateId: string; automation: unknown; limits: unknown; status: ActiveStatus; createdAt: string; updatedAt: string;
+};
+
+export type WorkKind = 'goal' | 'work';
+export type WorkPriority = 'urgent' | 'high' | 'normal' | 'low';
+export type WorkStatus = 'received' | 'ready' | 'in_progress' | 'waiting' | 'blocked' | 'done' | 'cancelled';
+
+export type WorkItem = {
+    id: string; projectId: string; kind: WorkKind; parentId: string; departmentId: string; assigneeAssignmentId: string;
+    title: string; description: string; doneCriteria: string; priority: WorkPriority; status: WorkStatus; statusReason: string;
+    categories: string[]; dueAt: string; createdAt: string; updatedAt: string; closedAt: string;
+    // reviewBeforeStart keeps a person's review before every start, even in auto mode.
+    reviewBeforeStart: boolean;
+};
+
+export type WorkNote = {
+    id: string; workItemId: string; kind: 'note' | 'status'; body: string; fromStatus?: string; toStatus?: string; author: string; createdAt: string;
+};
+
+export type WorkDetail = { item: WorkItem; notes: WorkNote[]; children: WorkItem[] };
+
+export type WorkFilter = {
+    kind?: string; status?: string; priority?: string; category?: string; departmentId?: string; parentId?: string; dueBefore?: string;
+};
+
+export type DeliveryStatus = 'pending' | 'processing' | 'waiting_answer' | 'done' | 'skipped' | 'held' | 'failed';
+export type DeliveryPurpose = 'judge' | 'notify' | 'collab_request';
+
+// The payload of work, document and department events.
+export type WorkEventPayload = {
+    departmentId: string; targetDepartmentId?: string; workItemId?: string; goalId?: string; title?: string; note?: string;
+    categories: string[]; causeSequence: number | null; chainRootSequence: number | null; chainDepth: number; automated: boolean;
+    documentId?: string; documentVersionId?: string;
+};
+
+export type Delivery = {
+    id: string; projectId: string; eventSequence: number; eventKind: string; event: WorkEventPayload; eventAt: string;
+    departmentId: string; subscriptionId: string; purpose: DeliveryPurpose; status: DeliveryStatus; note: string; error: string;
+    holdReason: string; createdAt: string; updatedAt: string;
+};
+
+export type WorkEventView = { sequence: number; kind: string; event: WorkEventPayload; createdAt: string; deliveries: Delivery[] };
+
+export type Subscription = {
+    id: string; projectId: string; departmentId: string; eventKinds: string[]; categories: string[]; guidance: string; enabled: boolean;
+    updatedAt: string;
+};
+
+// A department's regular check: every day or week at a time, in the time
+// zone of the PC it was saved on. weekday 0 is Sunday (weekly only).
+export type DepartmentSchedule = {
+    id: string; projectId: string; departmentId: string; frequency: 'daily' | 'weekly'; timeOfDay: string; weekday: number | null;
+    timezone: string; note: string; enabled: boolean; activeFrom: string; createdAt: string; updatedAt: string;
+};
+
+// lastSlotAt / nextDueAt are empty when it never ran / cannot run now.
+export type ScheduleView = DepartmentSchedule & { departmentName: string; lastSlotAt: string; lastSequence: number; nextDueAt: string };
+
+export type DeliveryFilter = { departmentId?: string; status?: string; limit?: number };
+
+// How one work item is done: who, extra instructions, materials, outputs.
+// With workflowVersionId the work runs that confirmed workflow version as it is.
+export type WorkPlan = {
+    workItemId: string; projectId: string; assignmentId: string; instructions: string; materials: string;
+    outputs: WorkflowOutput[]; workflowVersionId: string; updatedAt: string;
+};
+
+// The approval the last start was made under; valid while nothing changed since.
+export type StartApproval = { by: '' | 'user' | 'auto'; at: string; valid: boolean };
+
+export type AutoStartStatus = 'pending' | 'planning' | 'approved' | 'started' | 'finished' | 'review' | 'cancelled';
+
+// The auto starter's record of one work item made from an event in an auto-mode service.
+export type AutoStart = {
+    id: string; projectId: string; projectName: string; workItemId: string; workTitle: string; departmentId: string; causeSequence: number;
+    status: AutoStartStatus; planJobId: string; runId: string; reason: string; note: string; createdAt: string; updatedAt: string;
+};
+
+export type WorkflowChoice = { versionId: string; workflowId: string; title: string; number: number; createdAt: string };
+
+// What a department lets happen without a person. Empty categories allow every
+// category, empty connectionIds add no limit, empty outputTypes mean documents only.
+export type DepartmentAutomation = {
+    autoStart: boolean; categories: string[]; connectionIds: string[]; outputTypes: OutputType[]; workflowVersionIds: string[];
+    autoShare: boolean; autoCollab: boolean;
+};
+
+// saved is false when no plan is stored (plan is then a starting point);
+// preview is what a run would be told; problem says why it cannot run.
+export type WorkPlanView = { plan: WorkPlan; saved: boolean; preview: string; problem: string; approval: StartApproval; autoStart?: AutoStart };
+
+export type AIJobStatus = 'pending' | 'working' | 'waiting_answer' | 'ready' | 'held' | 'failed';
+
+// One AI request made outside a run (a work plan proposal for now).
+export type AIJob = {
+    id: string; projectId: string; kind: string; lane: 'interactive' | 'background'; requestKey: string; workItemId: string;
+    assignmentId: string; status: AIJobStatus; error: string; holdReason: string; maxAttempts: number; attempts: number;
+    appliedAt: string; createdAt: string; updatedAt: string;
+};
+
+export type ProposedPlan = { assignmentId: string; instructions: string; materials: string; outputs: WorkflowOutput[]; notes: string };
+
+// stale: the work changed after the proposal was made, so it cannot apply.
+export type PlanJobView = { job: AIJob; proposal?: ProposedPlan; stale: boolean };
+
+// ---- shared documents ----
+
+export type DocumentVersion = {
+    id: string; documentId: string; projectId: string; number: number; stage: 'draft' | 'final'; confirmedBy: string; confirmedAt: string;
+    confirmationNote: string; sourceKind: 'artifact' | 'workspace'; sourceArtifactId: string; sourcePath: string; fileName: string; path: string;
+    hash: string; size: number; withdrawnAt: string; createdAt: string;
+};
+
+export type SharedDocument = {
+    id: string; projectId: string; title: string; categories: string[]; ownerDepartmentId: string; workItemId: string;
+    scope: 'service' | 'departments'; scopeDepartments: string[]; status: 'active' | 'withdrawn'; createdAt: string; updatedAt: string;
+    versions: DocumentVersion[];
+};
+
+// With documentId it is a new version of that document; otherwise a new
+// document is made from the other fields.
+export type NewDocumentVersion = {
+    documentId?: string; title?: string; categories?: string[]; ownerDepartmentId?: string; workItemId?: string;
+    scope?: 'service' | 'departments'; scopeDepartments?: string[];
+};
+
+export type DocumentFilter = {
+    query?: string; category?: string; ownerDepartmentId?: string; visibleTo?: string; stage?: string; includeWithdrawn?: boolean;
+};
+
+export type LinkedDocument = { version: DocumentVersion; document: SharedDocument; newer: number; linkedAt: string };
+
+export type ImpactCheck = {
+    id: string; projectId: string; workItemId: string; cause: 'revised' | 'withdrawn' | 'required_reopened'; refId: string; documentId: string;
+    summary: string; status: 'open' | 'resolved' | 'dismissed'; note: string; createdAt: string;
+};
+
+export type DocumentContent = DocumentVersion & { title: string; content: string; binary: boolean; truncated: boolean; hashOk: boolean };
+
+// ---- department judgments ----
+
+export type JudgmentOutcome = 'none' | 'propose' | 'question';
+
+// questionStatus: '' without a question; open until answered; answered once
+// the department judges again; manual when it asked again and a person
+// decides; closed when the person closed it.
+export type Judgment = {
+    id: string; projectId: string; projectName: string; deliveryId: string; round: number; aiJobId: string; departmentId: string;
+    departmentName: string; outcome: JudgmentOutcome; reason: string; evidence: string[]; question: string; answer: string;
+    questionStatus: '' | 'open' | 'answered' | 'manual' | 'closed'; eventSequence: number; eventKind: string; event: WorkEventPayload;
+    createdAt: string;
+};
+
+// duplicateOf names an open work item or proposal with the same title.
+export type Proposal = {
+    id: string; projectId: string; projectName: string; judgmentId: string; position: number; departmentId: string; departmentName: string;
+    title: string; description: string; doneCriteria: string; categories: string[]; priority: WorkPriority;
+    status: 'proposed' | 'accepted' | 'rejected'; workItemId: string; duplicateOf: string; decisionNote: string; reason: string;
+    eventSequence: number; eventKind: string; eventTitle: string; eventWorkItemId: string; eventDocumentId: string; createdAt: string;
+};
+
+export type ProposalEdit = { title?: string; description?: string; doneCriteria?: string; categories?: string[]; priority?: WorkPriority };
+
+export type ProposalBatch = { done: number; errors: string[] };
+
+// ---- collaboration requests ----
+
+export type CollabStatus = 'requested' | 'question' | 'accepted' | 'declined' | 'cancelled';
+export type CollabRequirement = 'reference' | 'required';
+export type CollabAction = 'requested' | 'asked' | 'answered' | 'accepted' | 'declined' | 'cancelled' | 'required' | 'reference' | 'replaced' | 'reverted';
+
+// asDepartmentId is the department the person acted for ('' for the person
+// in charge of the asking work).
+export type CollabHistory = { action: CollabAction; body: string; asDepartmentId: string; author: string; createdAt: string };
+
+// One department asking another for help on a work item. satisfied: accepted
+// and its work done; a required request that is not satisfied blocks
+// completing the asking work and its goal.
+export type CollabRequest = {
+    id: string; projectId: string; projectName: string; fromWorkItemId: string; fromWorkTitle: string; fromWorkStatus: WorkStatus; goalId: string;
+    fromDepartmentId: string; fromDepartmentName: string; toDepartmentId: string; toDepartmentName: string; question: string;
+    inputVersionIds: string[]; requirement: CollabRequirement; requirementReason: string; status: CollabStatus; followUp: string;
+    decidedBy: '' | 'user' | 'ai'; decisionJobId: string; decisionReason: string; decidedAt: string; reviewedAt: string; revertedAt: string;
+    revertReason: string; aiStatus: '' | 'failed' | 'held'; aiProblem: string; resultWorkItemId: string; resultWorkTitle: string;
+    resultWorkStatus: WorkStatus | ''; replacesId: string; replacedById: string; dueAt: string; eventSequence: number;
+    satisfied: boolean; overdue: boolean; history: CollabHistory[]; createdAt: string; updatedAt: string;
+};
+
+export type NewCollabRequest = {
+    fromWorkItemId?: string; toDepartmentId: string; question: string; inputVersionIds?: string[]; requirement?: CollabRequirement;
+    requirementReason?: string; dueAt?: string;
+};
+
+export type CollabAcceptance = {
+    existingWorkItemId?: string; title?: string; description?: string; doneCriteria?: string; priority?: WorkPriority; note?: string;
+};
+
+// A work item's collaboration: what it (or, for a goal, its work) asked,
+// the request it is the work of, what keeps it from completing, and checks
+// about required work that changed.
+export type WorkCollab = { requests: CollabRequest[]; incoming: CollabRequest[]; blockers: CollabRequest[]; checks: ImpactCheck[] };
+
+export type RequiredNotice = ImpactCheck & { projectName: string; workTitle: string; workKind: WorkKind };
+
+// aiDecisions: collaboration the lead AIs decided that the person has not looked at;
+// autoReviews: automatic starts that need the person.
+// results: work whose run finished, waiting for the person to check it;
+// goals: the work each item is about → its shared goal.
+export type Decisions = {
+    questions: Judgment[]; proposals: Proposal[]; collabs: CollabRequest[]; notices: RequiredNotice[]; aiDecisions: CollabRequest[];
+    autoReviews: AutoStart[]; results: ResultReview[]; goals: Record<string, GoalRef>;
+};
+
+export type GoalRef = { id: string; title: string };
+
+export type ResultReview = {
+    workItemId: string; projectId: string; projectName: string; title: string; departmentName: string; goalId: string; runId: string;
+    finishedAt: string;
+};
+
+// Why a work item started: a department's proposal from an event, or a
+// collaboration request it took on.
+export type WorkCause = {
+    via: 'proposal' | 'collab'; proposalId?: string; collabRequestId?: string; eventSequence: number; eventKind: string; eventTitle: string;
+    eventNote: string; scheduleSlot?: string; fromWorkItemId?: string; fromWorkTitle?: string; fromDepartmentName?: string;
+    documentId?: string; documentTitle?: string; departmentName: string; reason: string; decidedBy: '' | 'user' | 'ai';
+};
+
+export type LinkedWork = { id: string; title: string; status: WorkStatus; departmentName: string; via: 'proposal' | 'collab' };
+
+export type WorkLineage = { causes: WorkCause[]; next: LinkedWork[] };
+
+export type WorkRef = { id: string; title: string; status: WorkStatus; reason: string };
+
+// departmentId '' holds work no department has.
+export type DepartmentLoad = {
+    departmentId: string; name: string; status: ActiveStatus; open: number; waiting: number; blocked: number; resultsToCheck: number;
+    proposals: number; questions: number; collabIncoming: number; autoReviews: number; failedDeliveries: number; heldDeliveries: number;
+    attention: WorkRef[];
+};
+
+export type DeliveryTrouble = { id: string; departmentName: string; status: 'failed' | 'held'; reason: string; eventTitle: string; updatedAt: string };
+
+export type Operations = { departments: DepartmentLoad[]; troubles: DeliveryTrouble[]; troubleCount: number; usage: Usage };

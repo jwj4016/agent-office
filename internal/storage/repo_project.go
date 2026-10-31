@@ -80,6 +80,9 @@ func (db *DB) CreateProject(ctx context.Context, p domain.Project) (domain.Proje
 			p.ID, domain.DefaultOrganizationID, p.Name, p.Goal, p.Instructions, p.WorkspacePath, rawOr(p.Budget, "{}"), p.Mode, now, now); err != nil {
 			return err
 		}
+		if err := seedCategoriesTx(ctx, c.Tx, p.ID); err != nil {
+			return err
+		}
 		return c.Emit(p.ID, "", "", "project.created", map[string]string{"name": p.Name})
 	})
 	if err != nil {
@@ -225,7 +228,9 @@ func (db *DB) SaveAssignment(ctx context.Context, a domain.Assignment) (domain.A
 }
 
 // InstructionLayers returns the merged instruction preview for an
-// assignment: company → parent roles → role → project → assignment.
+// assignment: company → parent roles → role → project → department →
+// assignment. The department layer is there only when the role belongs
+// to a department assigned to this service.
 func (db *DB) InstructionLayers(ctx context.Context, projectID, assignmentID string) ([]domain.InstructionLayer, error) {
 	if err := db.CheckScope(ctx, projectID, Ref{RefAssignment, assignmentID}); err != nil {
 		return nil, err
@@ -256,6 +261,13 @@ func instructionLayers(ctx context.Context, q queryer, a domain.Assignment) ([]d
 		layers = append(layers, domain.InstructionLayer{Source: "role", Name: "역할: " + r.Name, Text: text})
 	}
 	layers = append(layers, domain.InstructionLayer{Source: "project", Name: "서비스: " + projName, Text: projText})
+	dept, ok, err := departmentLayerTx(ctx, q, a)
+	if err != nil {
+		return nil, err
+	}
+	if ok {
+		layers = append(layers, dept)
+	}
 	if a.Overrides.Instructions != "" {
 		layers = append(layers, domain.InstructionLayer{Source: "assignment", Name: "담당자: " + a.DisplayName, Text: a.Overrides.Instructions})
 	}
