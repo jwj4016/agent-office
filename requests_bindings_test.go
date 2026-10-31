@@ -29,7 +29,12 @@ func TestBindingsRequestActions(t *testing.T) {
 		t.Fatal("an empty request was taken")
 	}
 	ctx := context.Background()
-	a.intake.Drain(ctx)
+	// The app's own intake runner tries (and fails) to staff a desk with
+	// the test provider; wait until the request settles.
+	waitUntil(t, "request waits for a desk", func() bool {
+		got := need(a.GetRequest(villa.ID, r.ID))
+		return got.Status == domain.ReqWaitingDesk && strings.HasPrefix(got.HoldReason, "AI가 접수 담당을 배치하지 못했습니다")
+	})
 	d := need(a.PendingDecisions())
 	if len(d.Requests) != 1 || d.Requests[0].Status != domain.ReqWaitingDesk {
 		t.Fatalf("to-dos = %+v", d.Requests)
