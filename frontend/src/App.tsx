@@ -1,4 +1,4 @@
-import {Building2, CircleHelp, Home, Inbox as InboxIcon, Network, Plus, Settings as SettingsIcon} from 'lucide-react';
+import {Building2, CircleHelp, Home, Inbox as InboxIcon, MessageSquarePlus, Network, Plus, Settings as SettingsIcon} from 'lucide-react';
 import {type ReactNode, useEffect, useRef, useState} from 'react';
 import {api} from './api';
 import {t} from './i18n';
@@ -12,12 +12,14 @@ import {Inbox} from './views/Inbox';
 import {pendingCount} from './views/Judgments';
 import {Organization} from './views/Organization';
 import {ProjectView, type ProjectTab} from './views/ProjectView';
+import {CompanyRequests} from './views/Requests';
 import {Settings} from './views/Settings';
 import {Tutorial, TUTORIAL_SEEN} from './views/Tutorial';
 
 export type Route =
     | { view: 'dashboard' }
     | { view: 'inbox' }
+    | { view: 'requests' }
     | { view: 'design' }
     | { view: 'org' }
     | { view: 'settings' }
@@ -177,6 +179,10 @@ function Workspace({perf}: { perf: boolean | undefined }) {
             main = <Inbox onOpenRun={(projectId, runId) => go({view: 'project', projectId, tab: 'runs', runId})}
                           onOpenWork={(projectId, workItemId) => go({view: 'project', projectId, tab: 'work', workItemId})}/>;
             break;
+        case 'requests':
+            main = <CompanyRequests services={(dash.data ?? []).map((s) => s.project)} onOrg={() => go({view: 'org'})}
+                                    onOpenWork={(projectId, workItemId) => go({view: 'project', projectId, tab: 'work', workItemId})}/>;
+            break;
         case 'design':
             main = <Design onOpenWorkflow={(projectId, workflowId) => go({view: 'project', projectId, tab: 'workflows', workflowId})}
                            onOpenRun={(projectId, runId) => go({view: 'project', projectId, tab: 'runs', runId})}/>;
@@ -206,6 +212,7 @@ function Workspace({perf}: { perf: boolean | undefined }) {
                         <Icon icon={Plus}/><span className="label">{t.nav.design}</span>
                     </button>
                     {navButton(t.nav.dashboard, Home, {view: 'dashboard'}, route.view === 'dashboard')}
+                    {navButton(t.nav.requests, MessageSquarePlus, {view: 'requests'}, route.view === 'requests')}
                     {navButton(t.nav.inbox, InboxIcon, {view: 'inbox'}, route.view === 'inbox',
                         inboxCount > 0 ? <span className="badge warn count" aria-label={`${inboxCount}건`}>{inboxCount}</span> : null)}
                     <div className="nav-section">{t.nav.services}</div>

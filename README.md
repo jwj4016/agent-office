@@ -2,7 +2,7 @@
 
 AI 에이전트와 사람이 회사처럼 역할을 나누고, 사용자가 만든 업무 프로세스에 따라 협업하는 데스크톱 앱입니다. Windows, macOS, Linux를 대상으로 **Go + Wails**로 만듭니다.
 
-M6(출시 검증)까지 마쳤고, 그 위에 서비스 운영(사건과 자료로 협업하는 작은 회사) 기능을 더했습니다. 진행 상태는 [진행 상황](docs/progress.md)과 [서비스 운영 진행 기록](docs/plan/service-operations/progress.md)에, 시험 증거는 [인수 테스트 증거](docs/acceptance.md)에 있습니다.
+M6(출시 검증)까지 마쳤고, 그 위에 서비스 운영(사건과 자료로 협업하는 작은 회사)과 회사 요청(말로 맡기면 접수 담당이 처리) 기능을 더했습니다. 진행 상태는 [진행 상황](docs/progress.md)과 [서비스 운영 진행 기록](docs/plan/service-operations/progress.md)에, 시험 증거는 [인수 테스트 증거](docs/acceptance.md)에 있습니다.
 
 ## 설치와 개발
 
@@ -10,6 +10,7 @@ M6(출시 검증)까지 마쳤고, 그 위에 서비스 운영(사건과 자료�
 | --- | --- |
 | [설치·실행 안내](docs/install.ko.md) | 지원 OS, 설치, 데이터 위치, 진단(`--self-check`), 알려진 제한 |
 | [서비스 운영 사용 안내](docs/service-operations.ko.md) | 부서·업무·공동 목표, 사건과 판단, 협업 요청, 공유 자료, 자동 모드, 정기 점검, 한도와 알려진 제한 |
+| [회사 요청 사용 안내](docs/company-requests.ko.md) | 회사·서비스 접수 담당, 요청과 처리 결과, 회사 조치 승인, 코드 결과 전달, 비용과 알려진 제한 |
 | [개발 환경](docs/environment.md) | 도구 버전, 빌드·테스트·패키지 만들기, 실제 공급자 시험 방법 |
 | [기술 결정 기록](docs/decisions.md) | 명세 기본값과 다르게 정한 내용과 이유 |
 

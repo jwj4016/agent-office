@@ -457,6 +457,42 @@ export type RequiredNotice = ImpactCheck & { projectName: string; workTitle: str
 export type Decisions = {
     questions: Judgment[]; proposals: Proposal[]; collabs: CollabRequest[]; notices: RequiredNotice[]; aiDecisions: CollabRequest[];
     autoReviews: AutoStart[]; results: ResultReview[]; goals: Record<string, GoalRef>;
+    // Requests to the company or a service that wait on the person.
+    requests?: ServiceRequest[];
+};
+
+// Company requests (company-requests plan): the person asks the company
+// or a service; its intake desk decides what to do.
+export type RequestStatus = 'received' | 'waiting_desk' | 'held' | 'triaging' | 'question' | 'manual' | 'proposed' | 'routed'
+    | 'in_progress' | 'done' | 'declined' | 'cancelled' | 'failed';
+export type RequestOutcome = '' | 'answer' | 'route' | 'work' | 'action' | 'question' | 'decline';
+export type RequestItemStatus = 'proposed' | 'accepted' | 'rejected' | 'running' | 'done' | 'failed' | 'check';
+export type RequestAction = 'deliver_code' | 'save_result' | 'export_service' | 'start_workflow';
+export type WorkProposalPayload = {
+    title: string; description?: string; doneCriteria?: string; categories?: string[]; priority?: string;
+    departmentId?: string; assigneeAssignmentId?: string; goalId?: string;
+};
+export type ActionPayload = { action: RequestAction; runId?: string; artifactId?: string; versionId?: string; title?: string; reason: string };
+export type RoutePayload = { projectId: string; body: string; reason?: string };
+export type RequestItem = {
+    id: string; requestId: string; projectId: string; round: number; position: number; kind: 'route' | 'work' | 'action';
+    payload: WorkProposalPayload | ActionPayload | RoutePayload; status: RequestItemStatus; workItemId: string; workTitle: string;
+    workStatus: string; childRequestId: string; result: Record<string, unknown> | null; error: string; decidedBy: '' | 'user' | 'auto';
+    decisionNote: string; decidedAt: string; createdAt: string;
+};
+export type ServiceRequest = {
+    id: string; organizationId: string; projectId: string; projectName: string; parentId: string; previousId: string; body: string;
+    status: RequestStatus; outcome: RequestOutcome; round: number; answer: string; question: string; reply: string; reason: string;
+    error: string; holdReason: string; maxAttempts: number; attempts: number; createdAt: string; updatedAt: string; closedAt: string;
+    items: RequestItem[]; children: ServiceRequest[];
+};
+export type IntakeDesk = {
+    id?: string; organizationId?: string; projectId: string; name: string; assignmentId: string; connectionId: string; model: string;
+    instructions: string; budget: { monthlyCostUsd?: number }; enabled: boolean;
+};
+export type DeskView = {
+    desk: IntakeDesk; exists: boolean;
+    monthUsage?: { Attempts: number; UnknownCost: number; InputTokens: number; OutputTokens: number; CostUSD: number };
 };
 
 export type GoalRef = { id: string; title: string };
@@ -469,7 +505,7 @@ export type ResultReview = {
 // Why a work item started: a department's proposal from an event, or a
 // collaboration request it took on.
 export type WorkCause = {
-    via: 'proposal' | 'collab'; proposalId?: string; collabRequestId?: string; eventSequence: number; eventKind: string; eventTitle: string;
+    via: 'proposal' | 'collab' | 'request'; requestId?: string; requestBody?: string; proposalId?: string; collabRequestId?: string; eventSequence: number; eventKind: string; eventTitle: string;
     eventNote: string; scheduleSlot?: string; fromWorkItemId?: string; fromWorkTitle?: string; fromDepartmentName?: string;
     documentId?: string; documentTitle?: string; departmentName: string; reason: string; decidedBy: '' | 'user' | 'ai';
 };

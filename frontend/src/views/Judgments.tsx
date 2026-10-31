@@ -265,6 +265,9 @@ export function DepartmentDecisions({project}: { project: Project }) {
 // or (no projectId) in all of them.
 export function pendingCount(d: Decisions | undefined, projectId?: string): number {
     if (!d) return 0;
-    const lists: { projectId: string }[][] = [d.questions, d.proposals, d.collabs, d.notices, d.aiDecisions, d.autoReviews, d.results];
+    const lists: { projectId: string }[][] = [d.questions, d.proposals, d.collabs, d.notices, d.aiDecisions, d.autoReviews, d.results,
+        (d.requests ?? []).filter((r) => r.projectId)];
+    // Company requests count only toward the whole inbox.
+    if (!projectId) lists.push((d.requests ?? []).filter((r) => !r.projectId));
     return lists.reduce((n, list) => n + list.filter((x) => !projectId || x.projectId === projectId).length, 0);
 }

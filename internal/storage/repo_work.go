@@ -504,14 +504,14 @@ func (db *DB) SetProjectCategories(ctx context.Context, projectID string, names 
 
 const workCols = `id, project_id, kind, COALESCE(parent_id, ''), COALESCE(department_id, ''), COALESCE(assignee_assignment_id, ''),
 	title, description, done_criteria, priority, status, status_reason, categories, COALESCE(due_at, ''), created_at, updated_at, COALESCE(closed_at, ''),
-	COALESCE(review_before_start, 0)`
+	COALESCE(review_before_start, 0), COALESCE(origin_request_id, '')`
 
 func scanWork(s interface{ Scan(...any) error }) (domain.WorkItem, error) {
 	var w domain.WorkItem
 	var cats string
 	var review int
 	err := s.Scan(&w.ID, &w.ProjectID, &w.Kind, &w.ParentID, &w.DepartmentID, &w.AssigneeAssignmentID,
-		&w.Title, &w.Description, &w.DoneCriteria, &w.Priority, &w.Status, &w.StatusReason, &cats, &w.DueAt, &w.CreatedAt, &w.UpdatedAt, &w.ClosedAt, &review)
+		&w.Title, &w.Description, &w.DoneCriteria, &w.Priority, &w.Status, &w.StatusReason, &cats, &w.DueAt, &w.CreatedAt, &w.UpdatedAt, &w.ClosedAt, &review, &w.OriginRequestID)
 	w.ReviewBeforeStart = review == 1
 	if err == nil {
 		json.Unmarshal([]byte(cats), &w.Categories)
@@ -739,6 +739,8 @@ type workOrigin struct {
 	Seq       int64
 	Proposal  string
 	Automated bool
+	// Request is the company request the work was registered from.
+	Request string
 }
 
 // insertWorkTx stores a checked new work item with its first history
@@ -759,11 +761,11 @@ func insertWorkTx(ctx context.Context, c *Change, w domain.WorkItem, origin work
 	}
 	if _, err := c.Tx.ExecContext(ctx, `INSERT INTO work_items (id, project_id, kind, parent_id, department_id, assignee_assignment_id,
 		title, description, done_criteria, priority, status, status_reason, categories, due_at, origin_event_sequence, origin_proposal_id,
-		review_before_start, created_at, updated_at)
-		VALUES (?, ?, ?, NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), ?, ?, ?, ?, ?, ?, ?, NULLIF(?, ''), ?, NULLIF(?, ''), ?, ?, ?)`,
+		review_before_start, origin_request_id, created_at, updated_at)
+		VALUES (?, ?, ?, NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), ?, ?, ?, ?, ?, ?, ?, NULLIF(?, ''), ?, NULLIF(?, ''), ?, NULLIF(?, ''), ?, ?)`,
 		w.ID, w.ProjectID, w.Kind, w.ParentID, w.DepartmentID, w.AssigneeAssignmentID,
 		w.Title, w.Description, w.DoneCriteria, w.Priority, w.Status, strings.TrimSpace(w.StatusReason), string(cats), w.DueAt, seq, originProposal,
-		boolInt(w.ReviewBeforeStart), now, now); err != nil {
+		boolInt(w.ReviewBeforeStart), origin.Request, now, now); err != nil {
 		return "", err
 	}
 	if err := addNoteTx(ctx, c.Tx, w.ProjectID, w.ID, domain.NoteStatus, strings.TrimSpace(w.StatusReason), "", w.Status, domain.LocalOwner, now); err != nil {

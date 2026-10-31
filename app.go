@@ -75,6 +75,9 @@ type App struct {
 	// sched runs departments' regular checks.
 	sched     *work.Scheduler
 	schedDone chan struct{}
+	// intake decides the requests made to the company and its services.
+	intake     *work.Intake
+	intakeDone chan struct{}
 
 	deltaMu sync.Mutex
 	deltas  map[string]*Delta
@@ -153,7 +156,7 @@ func (a *App) startup(ctx context.Context) {
 			return u.HoldReason, err
 		},
 		Kinds: map[string]work.Kind{
-			storage.JobPlan: work.PlanKind{DB: a.db},
+			storage.JobPlan:           work.PlanKind{DB: a.db},
 			storage.JobJudgment:       work.JudgeKind{DB: a.db, ReadDocument: a.readDocumentText},
 			storage.JobCollabDecision: work.CollabKind{DB: a.db, ReadDocument: a.readDocumentText},
 		},
@@ -172,6 +175,17 @@ func (a *App) startup(ctx context.Context) {
 	})
 	a.work = work.New(a.db, work.Judge(a.db, a.ai.Wake))
 	a.sched = work.NewScheduler(a.db, nil)
+	a.intake = work.NewIntake(work.IntakeConfig{
+		DB: a.db, Engine: a.eng, Providers: a.providerFor,
+		Hold: func(ctx context.Context, projectID string) (string, error) {
+			u, err := a.eng.ProjectUsage(ctx, projectID)
+			return u.HoldReason, err
+		},
+	})
+	a.db.SetRequestHook(func() {
+		a.watcher.Wake()
+		a.emit(a.ctx, EventRequestsChanged)
+	})
 	a.db.Subscribe(func(evs []storage.EventRecord) {
 		a.watcher.Wake() // a new to-do may be among them
 		a.emit(a.ctx, EventStored, evs)
@@ -186,7 +200,7 @@ func (a *App) startup(ctx context.Context) {
 	ectx, cancel := context.WithCancel(context.Background())
 	a.ectx = ectx
 	a.stopEngine, a.engineDone, a.workDone, a.aiDone, a.autoDone = cancel, make(chan struct{}), make(chan struct{}), make(chan struct{}), make(chan struct{})
-	a.schedDone = make(chan struct{})
+	a.schedDone, a.intakeDone = make(chan struct{}), make(chan struct{})
 	a.design = &design.Service{DB: a.db, Engine: a.eng, Providers: a.providerFor, Connections: a.designConnections, Ctx: ectx,
 		DataDir: dir, Diagram: diagram}
 	if err := a.design.Recover(ctx); err != nil {
@@ -222,6 +236,12 @@ func (a *App) startup(ctx context.Context) {
 		}
 		close(a.schedDone)
 	}()
+	go func() {
+		if err := a.intake.Run(ectx); err != nil {
+			log.Printf("intake stopped: %v", err)
+		}
+		close(a.intakeDone)
+	}()
 	go a.flushDeltas(ectx)
 	if perfEnabled() {
 		perfLog("startup", map[string]any{"version": appVersion})
@@ -246,6 +266,7 @@ func (a *App) shutdown(ctx context.Context) {
 		<-a.aiDone
 		<-a.autoDone
 		<-a.schedDone
+		<-a.intakeDone
 		a.design.Wait()
 	}
 	if a.db != nil {
@@ -1444,6 +1465,15 @@ func (a *App) SaveArtifactAs(projectID, artifactID string) (string, error) {
 	if err := a.ready(); err != nil {
 		return "", err
 	}
+	path, err := a.artifactDialog(projectID, artifactID)
+	if err != nil || path == "" {
+		return "", err
+	}
+	return path, a.writeArtifactTo(projectID, artifactID, path)
+}
+
+// artifactDialog asks where to save a result file; "" when cancelled.
+func (a *App) artifactDialog(projectID, artifactID string) (string, error) {
 	c, full, err := a.eng.ArtifactFile(a.ctx, projectID, artifactID)
 	if err != nil {
 		return "", uiErr(err)
@@ -1460,11 +1490,20 @@ func (a *App) SaveArtifactAs(projectID, artifactID string) (string, error) {
 	if ext != "" && !strings.EqualFold(filepath.Ext(path), ext) {
 		path += ext
 	}
+	return path, nil
+}
+
+// writeArtifactTo copies a result file to path.
+func (a *App) writeArtifactTo(projectID, artifactID, path string) error {
+	_, full, err := a.eng.ArtifactFile(a.ctx, projectID, artifactID)
+	if err != nil {
+		return uiErr(err)
+	}
 	data, err := os.ReadFile(full)
 	if err != nil {
-		return "", uiErr(err)
+		return uiErr(err)
 	}
-	return path, os.WriteFile(path, data, 0o644)
+	return os.WriteFile(path, data, 0o644)
 }
 
 // RevealArtifact shows an AI result file in the system's file manager
@@ -1526,9 +1565,18 @@ type ExportResult struct {
 // ExportProject asks where to save and writes the service's archive
 // without keys or login data (T20).
 func (a *App) ExportProject(projectID string) (ExportResult, error) {
+	path, err := a.exportDialog(projectID)
+	if err != nil || path == "" {
+		return ExportResult{}, err
+	}
+	return a.exportTo(projectID, path)
+}
+
+// exportDialog asks where to save a service's archive; "" when cancelled.
+func (a *App) exportDialog(projectID string) (string, error) {
 	var name string
 	if err := a.db.Read().QueryRowContext(a.ctx, `SELECT name FROM projects WHERE id = ?`, projectID).Scan(&name); err != nil {
-		return ExportResult{}, errors.New("서비스를 찾을 수 없습니다")
+		return "", errors.New("서비스를 찾을 수 없습니다")
 	}
 	path, err := a.saveDialog(a.ctx, runtime.SaveDialogOptions{
 		Title:           "서비스 내보내기 (키 제외)",
@@ -1536,11 +1584,16 @@ func (a *App) ExportProject(projectID string) (ExportResult, error) {
 		Filters:         []runtime.FileFilter{{DisplayName: "ZIP 압축 파일 (*.zip)", Pattern: "*.zip"}},
 	})
 	if err != nil || path == "" {
-		return ExportResult{}, err
+		return "", err
 	}
 	if !strings.EqualFold(filepath.Ext(path), ".zip") {
 		path += ".zip"
 	}
+	return path, nil
+}
+
+// exportTo writes a service's archive to path.
+func (a *App) exportTo(projectID, path string) (ExportResult, error) {
 	// Write next to the target first so a failure never leaves half a file.
 	tmp, err := os.CreateTemp(filepath.Dir(path), ".agent-office-export-*")
 	if err != nil {

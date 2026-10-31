@@ -306,3 +306,44 @@ func TestUpgradeToSchedulesKeepsDepartments(t *testing.T) {
 		t.Fatalf("schedule after upgrade: %v", err)
 	}
 }
+
+// Company requests add their tables and the work item's request to a
+// stage 9 database; existing work keeps its fields and foreign keys.
+func TestUpgradeToRequestsKeepsWork(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "v16.db")
+	raw, err := sql.Open("sqlite", "file:"+path+"?_pragma=foreign_keys(1)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ms, _ := loadMigrations()
+	exec := func(q string, args ...any) {
+		t.Helper()
+		if _, err := raw.Exec(q, args...); err != nil {
+			t.Fatalf("%s: %v", q, err)
+		}
+	}
+	exec(`CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at TEXT NOT NULL)`)
+	for _, m := range ms {
+		if m.version > 16 {
+			break
+		}
+		exec(m.sql)
+		exec(`INSERT INTO schema_migrations VALUES (?, ?, ?)`, m.version, m.name, Now())
+	}
+	now := Now()
+	exec(`INSERT INTO projects (id, organization_id, name, created_at, updated_at) VALUES ('prj-1', 'org-default', '서비스', ?, ?)`, now, now)
+	exec(`INSERT INTO work_items (id, project_id, kind, title, created_at, updated_at) VALUES ('w-1', 'prj-1', 'work', '기존 업무', ?, ?)`, now, now)
+	raw.Close()
+
+	db := openTemp(t, path)
+	defer db.Close()
+	ctx := context.Background()
+	w, err := db.WorkItem(ctx, "prj-1", "w-1")
+	if err != nil || w.Title != "기존 업무" || w.OriginRequestID != "" {
+		t.Fatalf("work after upgrade: %+v %v", w, err)
+	}
+	if rows, _ := db.Read().Query(`PRAGMA foreign_key_check`); rows.Next() {
+		rows.Close()
+		t.Fatal("foreign key violations after upgrade")
+	}
+}

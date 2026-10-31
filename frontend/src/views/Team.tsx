@@ -4,6 +4,7 @@ import {api} from '../api';
 import {t} from '../i18n';
 import {useLoad} from '../live';
 import type {ActiveStatus, ActorKind, Assignment, Department, DepartmentTemplate, Project, Role} from '../types';
+import {ServiceDeskSettings} from './IntakeDesk';
 import {AutomationPanel, rulesOf} from './Automation';
 import {SubscriptionPanel} from './Judgments';
 import {scheduleLabel} from './Schedule';
@@ -57,6 +58,7 @@ export function Team({project}: { project: Project }) {
     return (
         <div className="stack loose">
             <ServiceDepartments project={project} assignments={list.data} roles={roles.data ?? []} onChanged={list.reload}/>
+            <ServiceDeskSettings project={project}/>
             <Section title={<><Icon icon={Users} size={18}/>담당자</>} label="담당자" count={list.data.length}>
             <div className="row between">
                 <p className="muted">회사 역할을 이 서비스에서 누가 맡을지 정합니다. 배정만으로 AI가 실행되지는 않습니다.</p>

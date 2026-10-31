@@ -72,7 +72,7 @@ export function CodeHandover({project, run}: { project: Project; run: RunDetail 
                         </Field>
                         <label className="check block">
                             <input type="checkbox" checked={useAsWorkspace} onChange={(e) => setUseAsWorkspace(e.target.checked)}/>
-                            이 폴더를 서비스 작업 폴더로 쓰기<span className="muted xsmall"> · 다음 실행부터 이 폴더의 저장소에서 작업합니다</span>
+                            이 폴더를 서비스 작업 폴더로 쓰기<span className="muted xsmall"> · 새로 확정하는 업무 흐름 버전과 새 업무부터 이 폴더에서 작업합니다. 이미 확정한 버전은 그대로 앱 저장소에서 작업하고, 그 기준 코드도 이 결과로 갱신됩니다</span>
                         </label>
                         <div className="row">
                             <Button variant="primary" icon={FolderOutput} disabled={!folder} busy={action.busy} onClick={() => deliver('folder')}>폴더로 꺼내기</Button>

@@ -9,6 +9,7 @@ import (
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
+	"agent-office/internal/domain"
 	"agent-office/internal/engine"
 	"agent-office/internal/storage"
 )
@@ -78,6 +79,11 @@ var inboxKindName = map[string]string{
 	engine.InboxQuestion: "AI의 질문", engine.InboxBudget: "예산 확인",
 }
 
+var requestTodoName = map[string]string{
+	domain.ReqQuestion: "— 접수 담당의 질문", domain.ReqManual: "— 직접 처리 필요", domain.ReqProposed: "— 결정할 제안",
+	domain.ReqFailed: "— 접수 실패", domain.ReqHeld: "— 보류", domain.ReqWaitingDesk: "— 접수 담당 필요",
+}
+
 // todos lists everything the inbox shows, each with a stable key.
 func (a *App) todos(ctx context.Context) ([]todo, error) {
 	items, err := a.eng.Inbox(ctx)
@@ -113,6 +119,13 @@ func (a *App) todos(ctx context.Context) ([]todo, error) {
 	}
 	for _, p := range d.Proposals {
 		out = append(out, todo{"proposal:" + p.ID, fmt.Sprintf("%s 업무 제안 ‘%s’", p.DepartmentName, p.Title)})
+	}
+	for _, r := range d.Requests {
+		where := "회사"
+		if r.ProjectName != "" {
+			where = r.ProjectName
+		}
+		out = append(out, todo{"request:" + r.ID + ":" + r.Status + ":" + fmt.Sprint(r.Round), fmt.Sprintf("%s 요청 %s", where, requestTodoName[r.Status])})
 	}
 	return out, nil
 }

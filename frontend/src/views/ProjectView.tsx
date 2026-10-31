@@ -1,6 +1,6 @@
 import {
     Activity, Archive, ArchiveRestore, ArrowRight, ClipboardList, FileText, GitBranch, Inbox as InboxIcon, LayoutDashboard, ListChecks,
-    FolderOpen, PauseCircle, Settings2, Tags, Users, Workflow,
+    FolderOpen, MessageSquarePlus, PauseCircle, Settings2, Tags, Users, Workflow,
 } from 'lucide-react';
 import {useEffect, useRef, useState} from 'react';
 import type {Route} from '../App';
@@ -23,15 +23,17 @@ import {Team} from './Team';
 import {Documents} from './Documents';
 import {Operations} from './Operations';
 import {pendingCount} from './Judgments';
+import {ServiceRequests} from './Requests';
 import {Work} from './Work';
 import {Workflows} from './Workflows';
 
-export type ProjectTab = 'status' | 'work' | 'docs' | 'office' | 'runs' | 'workflows' | 'team' | 'settings';
+export type ProjectTab = 'status' | 'requests' | 'work' | 'docs' | 'office' | 'runs' | 'workflows' | 'team' | 'settings';
 
 type ProjectRoute = Extract<Route, { view: 'project' }>;
 
 const tabs: TabItem<ProjectTab>[] = [
     {id: 'status', label: t.project.tabs.status, icon: LayoutDashboard},
+    {id: 'requests', label: t.project.tabs.requests, icon: MessageSquarePlus},
     {id: 'work', label: t.project.tabs.work, icon: ClipboardList},
     {id: 'docs', label: t.project.tabs.docs, icon: FolderOpen},
     {id: 'office', label: t.project.tabs.office, icon: Users},
@@ -78,6 +80,8 @@ export function ProjectView({route, onRoute, onChanged}: {
             <Tabs label="서비스 메뉴" items={tabs} value={route.tab} onChange={go}/>
             <div role="tabpanel" ref={panel} tabIndex={-1} aria-label={tabs.find((x) => x.id === route.tab)?.label} className="stack loose">
                 {route.tab === 'status' ? <Status project={p} onRoute={onRoute}/> : null}
+                {route.tab === 'requests' ? <ServiceRequests project={p} onTeam={() => go('team')}
+                                                              onOpenWork={(projectId, workItemId) => onRoute({view: 'project', projectId, tab: 'work', workItemId})}/> : null}
                 {route.tab === 'work' ? <Work project={p} workItemId={route.workItemId} onTeam={() => go('team')}
                                               onOpenRun={(runId) => onRoute({view: 'project', projectId: p.id, tab: 'runs', runId})}/> : null}
                 {route.tab === 'docs' ? <Documents project={p}/> : null}

@@ -14,6 +14,10 @@ export function AcceptProposal(arg1, arg2, arg3) {
   return window['go']['main']['App']['AcceptProposal'](arg1, arg2, arg3);
 }
 
+export function AcceptRequestWork(arg1, arg2, arg3) {
+  return window['go']['main']['App']['AcceptRequestWork'](arg1, arg2, arg3);
+}
+
 export function AddWorkNote(arg1, arg2, arg3) {
   return window['go']['main']['App']['AddWorkNote'](arg1, arg2, arg3);
 }
@@ -28,6 +32,10 @@ export function AnswerJudgment(arg1, arg2, arg3) {
 
 export function AnswerQuestion(arg1, arg2, arg3) {
   return window['go']['main']['App']['AnswerQuestion'](arg1, arg2, arg3);
+}
+
+export function AnswerRequest(arg1, arg2, arg3) {
+  return window['go']['main']['App']['AnswerRequest'](arg1, arg2, arg3);
 }
 
 export function ApplyDesign(arg1, arg2) {
@@ -48,6 +56,10 @@ export function AskCollab(arg1, arg2, arg3) {
 
 export function CancelCollab(arg1, arg2, arg3) {
   return window['go']['main']['App']['CancelCollab'](arg1, arg2, arg3);
+}
+
+export function CancelRequest(arg1, arg2) {
+  return window['go']['main']['App']['CancelRequest'](arg1, arg2);
 }
 
 export function CancelRun(arg1, arg2) {
@@ -74,8 +86,16 @@ export function CloseJudgmentQuestion(arg1, arg2, arg3) {
   return window['go']['main']['App']['CloseJudgmentQuestion'](arg1, arg2, arg3);
 }
 
+export function CloseRequest(arg1, arg2, arg3) {
+  return window['go']['main']['App']['CloseRequest'](arg1, arg2, arg3);
+}
+
 export function ConfirmDocumentVersion(arg1, arg2, arg3) {
   return window['go']['main']['App']['ConfirmDocumentVersion'](arg1, arg2, arg3);
+}
+
+export function ConfirmRequestAction(arg1, arg2, arg3) {
+  return window['go']['main']['App']['ConfirmRequestAction'](arg1, arg2, arg3);
 }
 
 export function ConfirmVersion(arg1, arg2, arg3) {
@@ -166,8 +186,16 @@ export function GetDocument(arg1, arg2) {
   return window['go']['main']['App']['GetDocument'](arg1, arg2);
 }
 
+export function GetIntakeDesk(arg1) {
+  return window['go']['main']['App']['GetIntakeDesk'](arg1);
+}
+
 export function GetOrganization() {
   return window['go']['main']['App']['GetOrganization']();
+}
+
+export function GetRequest(arg1, arg2) {
+  return window['go']['main']['App']['GetRequest'](arg1, arg2);
 }
 
 export function GetRun(arg1, arg2) {
@@ -274,6 +302,10 @@ export function ListProposals(arg1, arg2) {
   return window['go']['main']['App']['ListProposals'](arg1, arg2);
 }
 
+export function ListRequests(arg1) {
+  return window['go']['main']['App']['ListRequests'](arg1);
+}
+
 export function ListRoles() {
   return window['go']['main']['App']['ListRoles']();
 }
@@ -362,6 +394,14 @@ export function RejectProposal(arg1, arg2, arg3) {
   return window['go']['main']['App']['RejectProposal'](arg1, arg2, arg3);
 }
 
+export function RejectRequestItem(arg1, arg2, arg3) {
+  return window['go']['main']['App']['RejectRequestItem'](arg1, arg2, arg3);
+}
+
+export function RemoveIntakeDesk(arg1) {
+  return window['go']['main']['App']['RemoveIntakeDesk'](arg1);
+}
+
 export function ReparseDesign(arg1) {
   return window['go']['main']['App']['ReparseDesign'](arg1);
 }
@@ -402,6 +442,10 @@ export function RetryDelivery(arg1, arg2) {
   return window['go']['main']['App']['RetryDelivery'](arg1, arg2);
 }
 
+export function RetryRequest(arg1, arg2) {
+  return window['go']['main']['App']['RetryRequest'](arg1, arg2);
+}
+
 export function RetryStep(arg1, arg2, arg3) {
   return window['go']['main']['App']['RetryStep'](arg1, arg2, arg3);
 }
@@ -420,6 +464,10 @@ export function ReviewCollabDecision(arg1, arg2) {
 
 export function RunMessages(arg1, arg2) {
   return window['go']['main']['App']['RunMessages'](arg1, arg2);
+}
+
+export function RunRequestAction(arg1) {
+  return window['go']['main']['App']['RunRequestAction'](arg1);
 }
 
 export function SaveArtifactAs(arg1, arg2) {
@@ -448,6 +496,10 @@ export function SaveDepartmentSchedule(arg1) {
 
 export function SaveDepartmentTemplate(arg1) {
   return window['go']['main']['App']['SaveDepartmentTemplate'](arg1);
+}
+
+export function SaveIntakeDesk(arg1) {
+  return window['go']['main']['App']['SaveIntakeDesk'](arg1);
 }
 
 export function SaveRole(arg1) {
@@ -536,6 +588,10 @@ export function StartWorkflowAssist(arg1) {
 
 export function SubmitHumanResult(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['SubmitHumanResult'](arg1, arg2, arg3, arg4);
+}
+
+export function SubmitRequest(arg1, arg2, arg3) {
+  return window['go']['main']['App']['SubmitRequest'](arg1, arg2, arg3);
 }
 
 export function SubmitReview(arg1, arg2, arg3, arg4, arg5, arg6, arg7) {

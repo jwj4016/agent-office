@@ -14,6 +14,8 @@ export function AcceptCollab(arg1:string,arg2:string,arg3:storage.CollabAcceptan
 
 export function AcceptProposal(arg1:string,arg2:string,arg3:storage.ProposalEdit):Promise<domain.WorkItem>;
 
+export function AcceptRequestWork(arg1:string,arg2:string,arg3:domain.WorkProposalPayload):Promise<domain.WorkItem>;
+
 export function AddWorkNote(arg1:string,arg2:string,arg3:string):Promise<domain.WorkNote>;
 
 export function AnswerCollab(arg1:string,arg2:string,arg3:string):Promise<storage.CollabRequest>;
@@ -21,6 +23,8 @@ export function AnswerCollab(arg1:string,arg2:string,arg3:string):Promise<storag
 export function AnswerJudgment(arg1:string,arg2:string,arg3:string):Promise<void>;
 
 export function AnswerQuestion(arg1:string,arg2:string,arg3:string):Promise<main.ActionResult>;
+
+export function AnswerRequest(arg1:string,arg2:string,arg3:string):Promise<void>;
 
 export function ApplyDesign(arg1:string,arg2:boolean):Promise<design.ApplyResult>;
 
@@ -31,6 +35,8 @@ export function ApplyWorkflowAssist(arg1:string):Promise<domain.Workflow>;
 export function AskCollab(arg1:string,arg2:string,arg3:string):Promise<storage.CollabRequest>;
 
 export function CancelCollab(arg1:string,arg2:string,arg3:string):Promise<storage.CollabRequest>;
+
+export function CancelRequest(arg1:string,arg2:string):Promise<void>;
 
 export function CancelRun(arg1:string,arg2:string):Promise<void>;
 
@@ -44,7 +50,11 @@ export function CloseImpactCheck(arg1:string,arg2:string,arg3:string,arg4:string
 
 export function CloseJudgmentQuestion(arg1:string,arg2:string,arg3:string):Promise<void>;
 
+export function CloseRequest(arg1:string,arg2:string,arg3:string):Promise<void>;
+
 export function ConfirmDocumentVersion(arg1:string,arg2:string,arg3:string):Promise<storage.DocumentVersion>;
+
+export function ConfirmRequestAction(arg1:string,arg2:string,arg3:string):Promise<void>;
 
 export function ConfirmVersion(arg1:string,arg2:string,arg3:number):Promise<main.ConfirmResult>;
 
@@ -90,7 +100,11 @@ export function GetDesign(arg1:string):Promise<main.DesignView>;
 
 export function GetDocument(arg1:string,arg2:string):Promise<storage.SharedDocument>;
 
+export function GetIntakeDesk(arg1:string):Promise<main.DeskView>;
+
 export function GetOrganization():Promise<domain.Organization>;
+
+export function GetRequest(arg1:string,arg2:string):Promise<domain.Request>;
 
 export function GetRun(arg1:string,arg2:string):Promise<engine.RunDetail>;
 
@@ -144,6 +158,8 @@ export function ListPlanJobs(arg1:string,arg2:string):Promise<Array<main.PlanJob
 
 export function ListProposals(arg1:string,arg2:string):Promise<Array<storage.Proposal>>;
 
+export function ListRequests(arg1:storage.RequestFilter):Promise<Array<domain.Request>>;
+
 export function ListRoles():Promise<Array<domain.Role>>;
 
 export function ListRunDocuments(arg1:string,arg2:string):Promise<Array<storage.DocumentVersion>>;
@@ -188,6 +204,10 @@ export function ReadDocumentVersion(arg1:string,arg2:string):Promise<engine.Docu
 
 export function RejectProposal(arg1:string,arg2:string,arg3:string):Promise<void>;
 
+export function RejectRequestItem(arg1:string,arg2:string,arg3:string):Promise<void>;
+
+export function RemoveIntakeDesk(arg1:string):Promise<void>;
+
 export function ReparseDesign(arg1:string):Promise<main.DesignView>;
 
 export function ReplaceCollab(arg1:string,arg2:string,arg3:storage.NewCollabRequest,arg4:string):Promise<storage.CollabRequest>;
@@ -208,6 +228,8 @@ export function RetryAutoStart(arg1:string,arg2:string):Promise<void>;
 
 export function RetryDelivery(arg1:string,arg2:string):Promise<void>;
 
+export function RetryRequest(arg1:string,arg2:string):Promise<void>;
+
 export function RetryStep(arg1:string,arg2:string,arg3:string):Promise<void>;
 
 export function RevealArtifact(arg1:string,arg2:string):Promise<void>;
@@ -217,6 +239,8 @@ export function RevertCollabDecision(arg1:string,arg2:string,arg3:string):Promis
 export function ReviewCollabDecision(arg1:string,arg2:string):Promise<storage.CollabRequest>;
 
 export function RunMessages(arg1:string,arg2:string):Promise<Array<engine.MessageView>>;
+
+export function RunRequestAction(arg1:main.ActionInput):Promise<main.ActionOutcome>;
 
 export function SaveArtifactAs(arg1:string,arg2:string):Promise<string>;
 
@@ -231,6 +255,8 @@ export function SaveDepartmentAsTemplate(arg1:string,arg2:string,arg3:string):Pr
 export function SaveDepartmentSchedule(arg1:domain.DepartmentSchedule):Promise<domain.DepartmentSchedule>;
 
 export function SaveDepartmentTemplate(arg1:domain.DepartmentTemplate):Promise<domain.DepartmentTemplate>;
+
+export function SaveIntakeDesk(arg1:domain.IntakeDesk):Promise<domain.IntakeDesk>;
 
 export function SaveRole(arg1:domain.Role):Promise<domain.Role>;
 
@@ -275,6 +301,8 @@ export function StartWork(arg1:string,arg2:string,arg3:string):Promise<main.Star
 export function StartWorkflowAssist(arg1:design.AssistInput):Promise<storage.AssistRecord>;
 
 export function SubmitHumanResult(arg1:string,arg2:string,arg3:number,arg4:Record<string, string>):Promise<main.ActionResult>;
+
+export function SubmitRequest(arg1:string,arg2:string,arg3:string):Promise<domain.Request>;
 
 export function SubmitReview(arg1:string,arg2:string,arg3:number,arg4:string,arg5:string,arg6:Array<string>,arg7:Record<string, string>):Promise<main.ActionResult>;
 

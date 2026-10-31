@@ -11,6 +11,7 @@ import {
 import {ArtifactViewer} from './ArtifactViewer';
 import {decisionKindCounts, decisionKindLabel, decisionKinds, type DecisionKind, InboxGroups} from './InboxGroups';
 import {pendingCount} from './Judgments';
+import {RequestTodos} from './Requests';
 import {groupToolApprovals, ToolApprovalCard} from './ToolApprovals';
 
 const itemKey = (it: InboxItem) => `${it.kind}:${it.runId}:${it.attemptId}:${it.approvalId ?? ''}:${it.messageId ?? ''}`;
@@ -49,6 +50,9 @@ export function Inbox({onOpenRun, onOpenWork}: {
                     {items.length ? <button type="button" className="btn small" aria-pressed={show === 'run'} onClick={() => setShow('run')}>
                         실행 확인 {items.length}</button> : null}
                 </div>
+            ) : null}
+            {decisions.data && show === 'all' ? (
+                <RequestTodos requests={decisions.data.requests ?? []} onChanged={decisions.reload} onOpenWork={onOpenWork}/>
             ) : null}
             {decisions.data && show !== 'run' ? (
                 <InboxGroups data={decisions.data} kind={show === 'all' ? undefined : show} onDone={decisions.reload} onOpenWork={onOpenWork} onOpenRun={onOpenRun}/>

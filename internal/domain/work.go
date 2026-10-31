@@ -93,8 +93,10 @@ type WorkItem struct {
 	// when the service and department would start it on their own.
 	ReviewBeforeStart bool   `json:"reviewBeforeStart"`
 	CreatedAt         string `json:"createdAt"`
-	UpdatedAt            string   `json:"updatedAt"`
-	ClosedAt             string   `json:"closedAt"`
+	UpdatedAt         string `json:"updatedAt"`
+	ClosedAt          string `json:"closedAt"`
+	// OriginRequestID is the request the work was registered from.
+	OriginRequestID string `json:"originRequestId,omitempty"`
 }
 
 // Work note kinds: a person's memo, or a status change kept as history.

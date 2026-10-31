@@ -5,11 +5,11 @@ import type {AutoStartStatus, CollabAction, CollabRequirement, CollabStatus, Del
 export const ko = {
     app: {name: 'Agent Office'},
     nav: {
-        dashboard: '홈', inbox: '내 할 일', design: '새 목표', organization: '회사 조직', settings: '설정',
+        dashboard: '홈', requests: '회사에 요청', inbox: '내 할 일', design: '새 목표', organization: '회사 조직', settings: '설정',
         services: '서비스', newService: '새 서비스', archived: '보관된 서비스 보기',
     },
     project: {
-        tabs: {status: '현황', work: '업무', docs: '자료', office: '사무실', runs: '실행', workflows: '업무 흐름', team: '부서·담당자', settings: '설정'},
+        tabs: {status: '현황', requests: '요청', work: '업무', docs: '자료', office: '사무실', runs: '실행', workflows: '업무 흐름', team: '부서·담당자', settings: '설정'},
         name: '서비스 이름', goal: '목표', instructions: '서비스 지침', mode: '실행 모드',
         modeReview: '검토 후 실행', modeAuto: '자동 구성·실행',
         create: '서비스 만들기', save: '저장', archive: '보관', restore: '보관 해제',

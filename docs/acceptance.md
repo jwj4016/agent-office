@@ -13,6 +13,7 @@
 | 2026-10-08 | M4 게이트 흐름 | Windows 11, 실제 Claude(Agent SDK, claude.ai 로그인)·Codex(codex-cli 0.161.0), `TestRealM4Gate` | 분기 skipped→합류, 회의, 병렬 worktree→통합 실제 빌드·테스트, 리뷰 수정 1회차, QA·전달까지 완료(1476s). 도구 허가 14건 사람 처리 |
 | 2026-10-03 | Claude Agent SDK bridge | SDK 0.3.288, Node 26.10.0, `TestClaudeReal` | 성공: started→message→usage($0.0485)→completed(succeeded), 5.4s. 취소 미시험 |
 | 2026-10-26 | 서비스 운영 대표 시나리오 | 실제 Claude(이 PC 로그인, sonnet), macOS arm64, `TestRealServiceOperations` | 성공(2분 28초, AI 시도 11회, 보고 비용 $0.66). 아래 ‘서비스 운영’ 표의 실제 AI 결과 참고. 이 시험에서 Claude 사용량의 입력 토큰에 캐시 토큰이 빠지는 결함을 찾아 고침 |
+| 2026-10-31 | 회사 요청 대표 시나리오 | 실제 Claude(이 PC 로그인, sonnet), macOS arm64, 실제 데이터 사본(저장소 경로를 사본으로 바꿈), `TestRealVillaNoteRequests` | 성공(55초, 접수 호출 4회, 보고 비용 $0.38, 알 수 없는 비용 0회). 아래 ‘회사 요청’ 표 참고 |
 
 상태: ⬜ 미착수 · 🟡 구현(자동 테스트만) · ✅ 검증 완료 · ⚠️ 미검증(환경 없음)
 
@@ -131,3 +132,32 @@ CI 수치는 run 38581308212에서 나왔다. CI는 가상 머신이고, 첫 실
 | 운영 현황 | 부서별 진행·결과 확인·제안 수가 위 결과와 일치, 전달 실패·보류 없음 |
 
 판단 품질 메모: 이번 한 번의 실행에서 제안·불필요 판단은 모두 자료 내용과 맞았고 이유가 구체적이었다. 표본이 한 번뿐이어서 품질을 일반화하지 않는다.
+
+## 회사 요청(접수 담당) 인수 증거
+
+[회사 요청 계획서](plan/company-requests/plan.md) 7장 최종 인수 체크리스트의 증거다. 자동 시험은 정해 둔 응답을 쓰는 시험용 공급자로 돌렸다(🟡). 실제 AI 확인은 실제 데이터의 사본으로 했고, 사장님의 실제 데이터(요청·접수 담당·작업 폴더·앱 저장소)는 바뀌지 않았음을 확인했다. 실제 앱 화면 확인은 하지 못했다: 확인하려던 때 켜져 있던 `wails dev`가 재빌드 뒤 앱을 다시 띄우지 않았다. 화면은 jsdom 구성요소 시험으로만 확인했다. Windows·Linux는 CI 결과 전이다.
+
+| 항목 | 상태 | 증거 |
+|---|---|---|
+| 회사 요청이 알맞은 서비스로만 넘어감 | 🟡 | `TestCompanyDeskRoutesToServices`(두 서비스, 중복 넘김 제거), `TestArchivedServicesAreNotRoutedTo`. 실제 AI: “빌라노트 코드 내 폴더로 보내 줘”가 빌라노트 하나로 넘어감 |
+| 서비스를 고르면 회사 접수 AI를 부르지 않음 | 🟡 | `TestCompanyDeskRoutesToServices`(호출 기록), 화면 `Requests.test.tsx` |
+| 답변·업무·조치·되묻기·처리 불가 구분 | 🟡 | `TestServiceDeskDecides`, `TestAutoWorkAndActions`. 실제 AI: 조치(deliver_code), 업무 5건, QA 요약 답변 |
+| 되묻기는 2회차까지, 이후 사람이 처리 | 🟡 | `TestServiceDeskDecides`(답 → 2회차), 저장소의 2회차 질문은 `manual`(`ApplyIntakeDecision`), 화면의 ‘직접 처리하고 닫기’ |
+| 검토 모드는 사람이 등록, 자동 모드는 바로 등록 | 🟡 | `TestServiceDeskDecides`, `TestAutoWorkAndActions`(‘자동 등록’, 원인 요청 기록) |
+| 조치는 사람 승인 뒤 한 번만 실행 | 🟡 | `TestAutoWorkAndActions`, `TestBindingsRequestActions`(저장 창을 닫으면 실행 안 함, 두 번째 실행 거부, 다른 서비스 거부) |
+| 코드 전달이 사용자 작업 트리·현재 브랜치를 건드리지 않음 | 🟡 | `TestDeliverToUserRepository` |
+| 비어 있지 않은 폴더로는 꺼내지 않음 | 🟡 | `TestDeliverCodeToFolder` |
+| 갈라진 코드 단계 합치기, 충돌이면 멈춤 | 🟡 | `TestDeliverMergesLastCodeSteps` |
+| 전달 뒤 다음 실행이 전달된 코드에서 시작 | 🟡 | `TestDeliverCodeToFolder`, `TestBindingsCompanyRequestDeliversCode`(이전 버전 재실행은 앱 저장소의 갱신된 기준 코드, 새 버전은 꺼낸 폴더) |
+| 비용 합산과 보류 | 🟡 | `TestServiceDeskDecides`(서비스 예산 4회), `TestRequestsWaitForDeskAndBudget`(서비스 예산 보류, 회사 월 예산 보류). 실제 AI: 회사 접수 1회 $0.052 |
+| 재시작·중복 | 🟡 | `TestRequestRecoveryAndCancel`(접수 중 중단 → 다시 대기열), `TestAutoWorkAndActions`(조치 중 중단 → ‘확인 필요’, 저절로 다시 실행 안 함), 판단 저장은 한 트랜잭션, 넘김 하나에 하위 요청 하나(`UNIQUE(parent_item_id)`) |
+| 요청에서 만든 업무의 ‘시작한 이유’ | 🟡 | `TestServiceDeskDecides`(`WorkLineage` via request) |
+| 기존 기능이 업그레이드 뒤에도 동작 | 🟡 | `TestUpgradeToRequestsKeepsWork`, 실제 DB 사본에 0017 적용(서비스 3개 유지, 외래 키 위반 0), Go 전체·프론트 전체 시험 |
+
+### 실제 AI로 돌린 대표 시나리오 (2026-10-31)
+
+실제 데이터 사본, sonnet. 회사 접수 담당과 빌라노트 접수 담당(새 AI 담당자)을 두고 요청 3건을 보냈다.
+
+1. 회사에 “빌라노트 코드 내 폴더로 보내 줘” → 회사 접수가 빌라노트로 넘김 → 빌라노트 접수가 MVP 실행(`run-f724riwj…`)의 `deliver_code`를 이유(“코드가 아직 서비스 기준 코드에 들어 있지 않습니다… 합성 자료 단계 구현”)와 함께 제안 → 사본 안의 임시 폴더로 승인 → 꺼내기와 작업 폴더 등록 성공.
+2. 빌라노트에 “QA·전문가 검토에서 나온 문제 고쳐 줘” → 업무 5건(설계 문서 보완, 평가 기준서 보완(전세가율·역전세·사실 확인형 위험 신호), 백엔드 수정(중복 거래·금칙어), 프론트엔드 수정(추정 범위·고지 문구), 재검증). 서비스가 자동 모드여서 바로 등록됨. 접수 담당이 “최신 코드는 이미 서비스 기준 코드에 들어 있어 코드 반영 조치는 필요 없다”고 판단함. 재검증 업무가 앞 업무 뒤에 와야 한다는 순서는 업무 사이에 표현할 수 없어 이유 문장에만 남음.
+3. 빌라노트에 “QA 결과를 한 문단으로 요약해 줘” → QA 보고서의 요약으로 답함(‘조건부 통과’, 시험 수, 고치지 않은 설계 문서).

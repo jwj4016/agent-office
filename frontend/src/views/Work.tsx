@@ -112,6 +112,16 @@ function WorkLineageSection({project, item, onOpenWork}: { project: Project; ite
 }
 
 function CauseCard({c, link}: { c: WorkCause; link: (id: string | undefined, title: string | undefined) => ReactNode }) {
+    if (c.via === 'request') {
+        return (
+            <div className="card subtle tight stack tight small">
+                <strong>사람의 요청으로 등록한 업무</strong>
+                <span className="pre">요청: {c.requestBody}</span>
+                {c.reason ? <span className="pre">접수 담당의 판단: {c.reason}</span> : null}
+                <span className="muted">등록: {c.decidedBy === 'ai' ? '접수 담당(자동 모드)' : '사람'}</span>
+            </div>
+        );
+    }
     if (c.via === 'collab') {
         return (
             <div className="card subtle tight stack tight small">

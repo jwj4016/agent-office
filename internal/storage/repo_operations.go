@@ -17,7 +17,7 @@ import (
 // WorkCause is why a work item exists: a department's proposal from an
 // event, or a collaboration request it was taken on for.
 type WorkCause struct {
-	Via                string `json:"via"` // proposal | collab
+	Via                string `json:"via"` // proposal | collab | request
 	ProposalID         string `json:"proposalId,omitempty"`
 	CollabRequestID    string `json:"collabRequestId,omitempty"`
 	EventSequence      int64  `json:"eventSequence"`
@@ -33,6 +33,9 @@ type WorkCause struct {
 	DepartmentName     string `json:"departmentName"` // the department that judged, or was asked
 	Reason             string `json:"reason"`         // the judgment's reason, or the request
 	DecidedBy          string `json:"decidedBy"`      // user | ai
+	// RequestID and RequestBody name the person's request (via request).
+	RequestID   string `json:"requestId,omitempty"`
+	RequestBody string `json:"requestBody,omitempty"`
 }
 
 // LinkedWork is a work item that came from another.
@@ -55,8 +58,19 @@ type WorkLineage struct {
 // and its collaboration requests.
 func (db *DB) WorkLineage(ctx context.Context, projectID, workID string) (WorkLineage, error) {
 	out := WorkLineage{Causes: []WorkCause{}, Next: []LinkedWork{}}
-	if _, err := workTx(ctx, db.sql, projectID, workID); err != nil {
+	w, err := workTx(ctx, db.sql, projectID, workID)
+	if err != nil {
 		return out, err
+	}
+	if w.OriginRequestID != "" {
+		if r, err := requestTx(ctx, db.sql, w.OriginRequestID); err == nil {
+			var by string
+			db.sql.QueryRowContext(ctx, `SELECT decided_by FROM request_items WHERE work_item_id = ?`, workID).Scan(&by)
+			if by == "auto" {
+				by = "ai"
+			}
+			out.Causes = append(out.Causes, WorkCause{Via: "request", RequestID: r.ID, RequestBody: r.Body, Reason: r.Reason, DecidedBy: by})
+		}
 	}
 	rows, err := db.sql.QueryContext(ctx, `SELECT w.id, j.reason, e.sequence, e.kind, e.payload, d.name
 		FROM work_proposals w JOIN judgments j ON j.id = w.judgment_id JOIN event_deliveries dl ON dl.id = j.delivery_id

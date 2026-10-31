@@ -5,6 +5,7 @@ import {useLoad} from '../live';
 import type {DepartmentTemplate, Role} from '../types';
 import {Building2, CornerDownRight, LayoutTemplate, Network, Pencil, Plus, UserCog} from 'lucide-react';
 import {Button, ConfirmButton, DetailHeader, EmptyState, ErrorBox, Field, Icon, PageHeader, Section, useAction, useDetail, useToast} from '../ui';
+import {CompanyDeskSettings} from './IntakeDesk';
 
 // roleTree orders roles parent-first with their depth for indentation.
 export function roleTree(roles: Role[]): { role: Role; depth: number }[] {
@@ -62,6 +63,7 @@ export function Organization() {
                     </div>
                 </form>
             </Section>
+            <CompanyDeskSettings/>
             <Section title={<><Icon icon={LayoutTemplate} size={18}/>부서 템플릿</>} count={templates.data?.length} label="부서 템플릿"
                      actions={<Button icon={Plus} onClick={() => editTemplate({...emptyTemplate})}>템플릿 추가</Button>}>
                 <p className="muted small">부서는 서비스마다 따로 둡니다. 템플릿을 만들어 두면 서비스의 ‘부서·담당자’ 탭에서 그대로 가져올 수 있습니다.</p>

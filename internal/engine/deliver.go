@@ -74,6 +74,8 @@ type CodeDelivery struct {
 	Note  string `json:"note,omitempty"`
 	Error string `json:"error,omitempty"`
 	At    string `json:"at"`
+	// RequestItemID is the request action the delivery was made for.
+	RequestItemID string `json:"requestItemId,omitempty"`
 }
 
 // DeliverInput asks for one delivery.
@@ -85,6 +87,8 @@ type DeliverInput struct {
 	Folder string `json:"folder,omitempty"`
 	// UseAsWorkspace makes the folder the service's work folder.
 	UseAsWorkspace bool `json:"useAsWorkspace,omitempty"`
+	// RequestItemID names the request action this delivery carries out.
+	RequestItemID string `json:"requestItemId,omitempty"`
 }
 
 // FinalCode returns what a delivery of the run would hand over.
@@ -126,7 +130,7 @@ func (e *Engine) finalCode(ctx context.Context, projectID, runID string) (FinalC
 		}
 		var commit string
 		q.QueryRowContext(ctx, `SELECT w.commit_sha FROM step_attempts s JOIN workspaces w ON w.id = s.workspace_id WHERE s.id = ? AND w.kind = 'code'`, a.ID).Scan(&commit)
-		if commit != "" {
+		if commit != "" && commit != rr.Base { // a step that changed nothing has no code to hand over
 			all = append(all, FinalStep{StepID: id, Title: n.Title, Commit: commit})
 		}
 	}
@@ -174,7 +178,7 @@ func (e *Engine) DeliverCode(ctx context.Context, in DeliverInput) (CodeDelivery
 		return CodeDelivery{}, err
 	}
 	d, err := e.deliverCode(ctx, in, fc, rr, folder)
-	d.Method, d.At = in.Method, storage.Now()
+	d.Method, d.At, d.RequestItemID = in.Method, storage.Now(), in.RequestItemID
 	if err != nil {
 		d.Error = err.Error()
 	}

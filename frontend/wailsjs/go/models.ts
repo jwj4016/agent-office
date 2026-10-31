@@ -830,6 +830,18 @@ export namespace domain {
 	        this.updatedAt = source["updatedAt"];
 	    }
 	}
+	export class DeskBudget {
+	    monthlyCostUsd?: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new DeskBudget(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.monthlyCostUsd = source["monthlyCostUsd"];
+	    }
+	}
 	export class Input {
 	    name: string;
 	    fromStep: string;
@@ -849,6 +861,58 @@ export namespace domain {
 	    }
 	}
 	
+	export class IntakeDesk {
+	    id: string;
+	    organizationId: string;
+	    projectId: string;
+	    name: string;
+	    assignmentId: string;
+	    connectionId: string;
+	    model: string;
+	    instructions: string;
+	    budget: DeskBudget;
+	    enabled: boolean;
+	    createdAt: string;
+	    updatedAt: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new IntakeDesk(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.organizationId = source["organizationId"];
+	        this.projectId = source["projectId"];
+	        this.name = source["name"];
+	        this.assignmentId = source["assignmentId"];
+	        this.connectionId = source["connectionId"];
+	        this.model = source["model"];
+	        this.instructions = source["instructions"];
+	        this.budget = this.convertValues(source["budget"], DeskBudget);
+	        this.enabled = source["enabled"];
+	        this.createdAt = source["createdAt"];
+	        this.updatedAt = source["updatedAt"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class Issue {
 	    nodeId?: string;
 	    field?: string;
@@ -1121,6 +1185,127 @@ export namespace domain {
 	        this.verifiedCapabilities = source["verifiedCapabilities"];
 	    }
 	}
+	export class RequestItem {
+	    id: string;
+	    requestId: string;
+	    projectId: string;
+	    round: number;
+	    position: number;
+	    kind: string;
+	    payload: number[];
+	    status: string;
+	    workItemId: string;
+	    workTitle: string;
+	    workStatus: string;
+	    childRequestId: string;
+	    result: number[];
+	    error: string;
+	    decidedBy: string;
+	    decisionNote: string;
+	    decidedAt: string;
+	    createdAt: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new RequestItem(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.requestId = source["requestId"];
+	        this.projectId = source["projectId"];
+	        this.round = source["round"];
+	        this.position = source["position"];
+	        this.kind = source["kind"];
+	        this.payload = source["payload"];
+	        this.status = source["status"];
+	        this.workItemId = source["workItemId"];
+	        this.workTitle = source["workTitle"];
+	        this.workStatus = source["workStatus"];
+	        this.childRequestId = source["childRequestId"];
+	        this.result = source["result"];
+	        this.error = source["error"];
+	        this.decidedBy = source["decidedBy"];
+	        this.decisionNote = source["decisionNote"];
+	        this.decidedAt = source["decidedAt"];
+	        this.createdAt = source["createdAt"];
+	    }
+	}
+	export class Request {
+	    id: string;
+	    organizationId: string;
+	    projectId: string;
+	    projectName: string;
+	    parentId: string;
+	    previousId: string;
+	    body: string;
+	    status: string;
+	    outcome: string;
+	    round: number;
+	    answer: string;
+	    question: string;
+	    reply: string;
+	    reason: string;
+	    error: string;
+	    holdReason: string;
+	    maxAttempts: number;
+	    attempts: number;
+	    createdAt: string;
+	    updatedAt: string;
+	    closedAt: string;
+	    items: RequestItem[];
+	    children: Request[];
+	
+	    static createFrom(source: any = {}) {
+	        return new Request(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.organizationId = source["organizationId"];
+	        this.projectId = source["projectId"];
+	        this.projectName = source["projectName"];
+	        this.parentId = source["parentId"];
+	        this.previousId = source["previousId"];
+	        this.body = source["body"];
+	        this.status = source["status"];
+	        this.outcome = source["outcome"];
+	        this.round = source["round"];
+	        this.answer = source["answer"];
+	        this.question = source["question"];
+	        this.reply = source["reply"];
+	        this.reason = source["reason"];
+	        this.error = source["error"];
+	        this.holdReason = source["holdReason"];
+	        this.maxAttempts = source["maxAttempts"];
+	        this.attempts = source["attempts"];
+	        this.createdAt = source["createdAt"];
+	        this.updatedAt = source["updatedAt"];
+	        this.closedAt = source["closedAt"];
+	        this.items = this.convertValues(source["items"], RequestItem);
+	        this.children = this.convertValues(source["children"], Request);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
 	export class Role {
 	    id: string;
 	    organizationId: string;
@@ -1199,6 +1384,7 @@ export namespace domain {
 	    createdAt: string;
 	    updatedAt: string;
 	    closedAt: string;
+	    originRequestId?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new WorkItem(source);
@@ -1224,6 +1410,7 @@ export namespace domain {
 	        this.createdAt = source["createdAt"];
 	        this.updatedAt = source["updatedAt"];
 	        this.closedAt = source["closedAt"];
+	        this.originRequestId = source["originRequestId"];
 	    }
 	}
 	export class WorkNote {
@@ -1295,6 +1482,32 @@ export namespace domain {
 		    }
 		    return a;
 		}
+	}
+	export class WorkProposalPayload {
+	    title: string;
+	    description: string;
+	    doneCriteria: string;
+	    categories: string[];
+	    priority: string;
+	    departmentId?: string;
+	    assigneeAssignmentId?: string;
+	    goalId?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new WorkProposalPayload(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.title = source["title"];
+	        this.description = source["description"];
+	        this.doneCriteria = source["doneCriteria"];
+	        this.categories = source["categories"];
+	        this.priority = source["priority"];
+	        this.departmentId = source["departmentId"];
+	        this.assigneeAssignmentId = source["assigneeAssignmentId"];
+	        this.goalId = source["goalId"];
+	    }
 	}
 	export class Workflow {
 	    id: string;
@@ -1502,6 +1715,7 @@ export namespace engine {
 	    note?: string;
 	    error?: string;
 	    at: string;
+	    requestItemId?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new CodeDelivery(source);
@@ -1517,6 +1731,7 @@ export namespace engine {
 	        this.note = source["note"];
 	        this.error = source["error"];
 	        this.at = source["at"];
+	        this.requestItemId = source["requestItemId"];
 	    }
 	}
 	export class ContextNote {
@@ -1541,6 +1756,7 @@ export namespace engine {
 	    method: string;
 	    folder?: string;
 	    useAsWorkspace?: boolean;
+	    requestItemId?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new DeliverInput(source);
@@ -1553,6 +1769,7 @@ export namespace engine {
 	        this.method = source["method"];
 	        this.folder = source["folder"];
 	        this.useAsWorkspace = source["useAsWorkspace"];
+	        this.requestItemId = source["requestItemId"];
 	    }
 	}
 	export class DocumentContent {
@@ -2147,6 +2364,60 @@ export namespace engine {
 
 export namespace main {
 	
+	export class ActionInput {
+	    projectId: string;
+	    itemId: string;
+	    method?: string;
+	    folder?: string;
+	    useAsWorkspace?: boolean;
+	    note?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ActionInput(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.projectId = source["projectId"];
+	        this.itemId = source["itemId"];
+	        this.method = source["method"];
+	        this.folder = source["folder"];
+	        this.useAsWorkspace = source["useAsWorkspace"];
+	        this.note = source["note"];
+	    }
+	}
+	export class ActionOutcome {
+	    item: domain.RequestItem;
+	    cancelled: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new ActionOutcome(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.item = this.convertValues(source["item"], domain.RequestItem);
+	        this.cancelled = source["cancelled"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class ActionResult {
 	    outcome: engine.Outcome;
 	    problem: string;
@@ -2308,6 +2579,7 @@ export namespace main {
 	    autoReviews: storage.AutoStart[];
 	    results: storage.ResultReview[];
 	    goals: Record<string, storage.GoalRef>;
+	    requests: domain.Request[];
 	
 	    static createFrom(source: any = {}) {
 	        return new Decisions(source);
@@ -2323,6 +2595,7 @@ export namespace main {
 	        this.autoReviews = this.convertValues(source["autoReviews"], storage.AutoStart);
 	        this.results = this.convertValues(source["results"], storage.ResultReview);
 	        this.goals = this.convertValues(source["goals"], storage.GoalRef, true);
+	        this.requests = this.convertValues(source["requests"], domain.Request);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -2429,6 +2702,40 @@ export namespace main {
 	        this.request = this.convertValues(source["request"], design.StoredInput);
 	        this.result = this.convertValues(source["result"], design.Result);
 	        this.autoIssues = this.convertValues(source["autoIssues"], domain.Issue);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class DeskView {
+	    desk: domain.IntakeDesk;
+	    exists: boolean;
+	    monthUsage?: storage.AIAttemptUsage;
+	
+	    static createFrom(source: any = {}) {
+	        return new DeskView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.desk = this.convertValues(source["desk"], domain.IntakeDesk);
+	        this.exists = source["exists"];
+	        this.monthUsage = this.convertValues(source["monthUsage"], storage.AIAttemptUsage);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -2834,6 +3141,26 @@ export namespace main {
 
 export namespace storage {
 	
+	export class AIAttemptUsage {
+	    Attempts: number;
+	    UnknownCost: number;
+	    InputTokens: number;
+	    OutputTokens: number;
+	    CostUSD: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new AIAttemptUsage(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Attempts = source["Attempts"];
+	        this.UnknownCost = source["UnknownCost"];
+	        this.InputTokens = source["InputTokens"];
+	        this.OutputTokens = source["OutputTokens"];
+	        this.CostUSD = source["CostUSD"];
+	    }
+	}
 	export class AIJob {
 	    id: string;
 	    projectId: string;
@@ -3849,6 +4176,24 @@ export namespace storage {
 	        this.priority = source["priority"];
 	    }
 	}
+	export class RequestFilter {
+	    projectId: string;
+	    all: boolean;
+	    statuses: string[];
+	    limit: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new RequestFilter(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.projectId = source["projectId"];
+	        this.all = source["all"];
+	        this.statuses = source["statuses"];
+	        this.limit = source["limit"];
+	    }
+	}
 	export class RequiredNotice {
 	    id: string;
 	    projectId: string;
@@ -4021,6 +4366,8 @@ export namespace storage {
 	    departmentName: string;
 	    reason: string;
 	    decidedBy: string;
+	    requestId?: string;
+	    requestBody?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new WorkCause(source);
@@ -4044,6 +4391,8 @@ export namespace storage {
 	        this.departmentName = source["departmentName"];
 	        this.reason = source["reason"];
 	        this.decidedBy = source["decidedBy"];
+	        this.requestId = source["requestId"];
+	        this.requestBody = source["requestBody"];
 	    }
 	}
 	

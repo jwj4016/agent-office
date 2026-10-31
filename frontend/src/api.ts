@@ -13,6 +13,7 @@ import type {
     Decisions, Judgment, Operations, Proposal, ProposalBatch, ProposalEdit, WorkLineage,
     CollabAcceptance, CollabRequest, CollabRequirement, NewCollabRequest, WorkCollab,
     AutoStart, DepartmentAutomation, WorkflowChoice, CodeDeliveryRecord, DeliveryMethod, FinalCode,
+    DeskView, IntakeDesk, RequestItem, ServiceRequest, WorkProposalPayload,
 } from './types';
 
 // The generated d.ts types differ from the real JSON for raw fields, so
@@ -173,6 +174,25 @@ export const api = {
     finalCode: (projectId: string, runId: string) => call<FinalCode>(Go.FinalCode(projectId, runId)),
     deliverCode: (d: { projectId: string; runId: string; method: DeliveryMethod; folder?: string; useAsWorkspace?: boolean }) =>
         call<CodeDeliveryRecord>(Go.DeliverCode(d as never)),
+    deskView: (projectId: string) => call<DeskView>(Go.GetIntakeDesk(projectId)),
+    saveDesk: (d: IntakeDesk) => call<IntakeDesk>(Go.SaveIntakeDesk(d as never)),
+    removeDesk: (projectId: string) => call<void>(Go.RemoveIntakeDesk(projectId)),
+    // projectId '' is the company.
+    submitRequest: (projectId: string, body: string, previousId = '') => call<ServiceRequest>(Go.SubmitRequest(projectId, body, previousId)),
+    requests: (f: { projectId?: string; all?: boolean; statuses?: string[]; limit?: number }) =>
+        call<ServiceRequest[]>(Go.ListRequests({projectId: '', all: false, statuses: [], limit: 0, ...f} as never)),
+    request: (projectId: string, id: string) => call<ServiceRequest>(Go.GetRequest(projectId, id)),
+    answerRequest: (projectId: string, id: string, reply: string) => call<void>(Go.AnswerRequest(projectId, id, reply)),
+    closeRequest: (projectId: string, id: string, note: string) => call<void>(Go.CloseRequest(projectId, id, note)),
+    cancelRequest: (projectId: string, id: string) => call<void>(Go.CancelRequest(projectId, id)),
+    retryRequest: (projectId: string, id: string) => call<void>(Go.RetryRequest(projectId, id)),
+    acceptRequestWork: (projectId: string, itemId: string, edit: WorkProposalPayload) =>
+        call<WorkItem>(Go.AcceptRequestWork(projectId, itemId, edit as never)),
+    rejectRequestItem: (projectId: string, itemId: string, note: string) => call<void>(Go.RejectRequestItem(projectId, itemId, note)),
+    confirmRequestAction: (projectId: string, itemId: string, note: string) => call<void>(Go.ConfirmRequestAction(projectId, itemId, note)),
+    // runRequestAction reports cancelled when the person closed a save dialog.
+    runRequestAction: (a: { projectId: string; itemId: string; method?: DeliveryMethod; folder?: string; useAsWorkspace?: boolean; note?: string }) =>
+        call<{ item: RequestItem; cancelled: boolean }>(Go.RunRequestAction(a as never)),
     runMessages: (projectId: string, runId: string) => call<MessageView[]>(Go.RunMessages(projectId, runId)),
     postNote: (projectId: string, runId: string, stepId: string, kind: 'proposal' | 'decision', body: string) =>
         call<string>(Go.PostNote(projectId, runId, stepId, kind, body)),
@@ -219,6 +239,8 @@ export const api = {
     onOpenInbox: (cb: () => void) => EventsOn('app.openInbox', cb),
     setWindowFocused: (focused: boolean) => call<void>(Go.SetWindowFocused(focused)),
     onDeltas: (cb: (ds: Delta[]) => void) => EventsOn('deltas', cb),
+    // Requests changed (company requests have no service events).
+    onRequests: (cb: () => void) => EventsOn('requests:changed', cb),
 };
 
 export function errorText(e: unknown): string {

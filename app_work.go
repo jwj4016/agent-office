@@ -675,6 +675,9 @@ type Decisions struct {
 	// Goals maps the work each item is about to its shared goal, so the
 	// inbox can group items by goal.
 	Goals map[string]storage.GoalRef `json:"goals"`
+	// Requests are requests to the company or a service that wait on the
+	// person (company-requests plan §4.7).
+	Requests []domain.Request `json:"requests"`
 }
 
 // PendingDecisions lists what every active service waits on a person for,
@@ -704,6 +707,9 @@ func (a *App) PendingDecisions() (Decisions, error) {
 		return Decisions{}, uiErr(err)
 	}
 	if d.Results, err = a.db.ResultsToCheck(a.ctx, ""); err != nil {
+		return Decisions{}, uiErr(err)
+	}
+	if d.Requests, err = a.db.RequestTodos(a.ctx); err != nil {
 		return Decisions{}, uiErr(err)
 	}
 	var works []string

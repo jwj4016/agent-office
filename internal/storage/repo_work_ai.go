@@ -340,11 +340,17 @@ type AIAttemptUsage struct {
 	CostUSD                   float64
 }
 
-// SumAIAttemptUsage adds up every attempt's reported usage. An attempt
-// that reported no cost (or nothing at all) counts as unknown cost.
+// SumAIAttemptUsage adds up every attempt's reported usage, the service
+// desk's request calls included. An attempt that reported no cost (or
+// nothing at all) counts as unknown cost.
 func SumAIAttemptUsage(ctx context.Context, q rowsQueryer, projectID string) (AIAttemptUsage, error) {
+	return sumUsageRows(ctx, q, `SELECT usage, usage_reported FROM work_ai_attempts WHERE project_id = ?
+		UNION ALL SELECT usage, usage_reported FROM request_attempts WHERE project_id = ?`, projectID, projectID)
+}
+
+func sumUsageRows(ctx context.Context, q rowsQueryer, query string, args ...any) (AIAttemptUsage, error) {
 	var u AIAttemptUsage
-	rows, err := q.QueryContext(ctx, `SELECT usage, usage_reported FROM work_ai_attempts WHERE project_id = ?`, projectID)
+	rows, err := q.QueryContext(ctx, query, args...)
 	if err != nil {
 		return u, err
 	}

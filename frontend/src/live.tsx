@@ -51,6 +51,8 @@ export function LiveProvider({children}: { children: ReactNode }) {
                 timer.current = window.setTimeout(flush, 100);
             }
         });
+        // Company requests have no service events: refresh every '*' view.
+        const offRequests = api.onRequests(() => setLive((prev) => ({...prev, version: prev.version + 1})));
         const offDeltas = api.onDeltas((ds) => {
             setLive((prev) => {
                 const deltas = {...prev.deltas};
@@ -61,6 +63,7 @@ export function LiveProvider({children}: { children: ReactNode }) {
         return () => {
             offEvents();
             offDeltas();
+            offRequests();
             window.clearTimeout(timer.current);
         };
     }, []);

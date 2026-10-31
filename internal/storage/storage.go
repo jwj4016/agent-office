@@ -39,6 +39,8 @@ type DB struct {
 	subs    subscribers
 	lock    *os.File
 	engine  atomic.Bool
+	// requestHook is told about request changes (SetRequestHook).
+	requestHook atomic.Pointer[func()]
 }
 
 // Open opens (creating if needed) the database at path and applies
