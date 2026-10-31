@@ -1,5 +1,5 @@
 import {
-    Ban, Check, ClipboardList, CornerDownRight, FileDown, FolderOutput, Inbox as InboxIcon, Play, RotateCcw, Send, Settings2, Undo2, X,
+    Ban, Check, ClipboardList, Sparkles, CornerDownRight, FileDown, FolderOutput, Inbox as InboxIcon, Play, RotateCcw, Send, Settings2, Undo2, X,
 } from 'lucide-react';
 import {useState} from 'react';
 import {api} from '../api';
@@ -98,6 +98,7 @@ export function RequestCard({req, onChanged, onOpenWork, nested}: {
                 <StatusBadge tone={requestTone[req.status]}>{requestStatusLabel[req.status]}</StatusBadge>
             </div>
 
+            {req.staffedDesk ? <p className="small muted"><Icon icon={Sparkles} size={14}/> 접수 담당이 없어 AI가 서비스를 분석해 ‘{req.staffedDesk}’를 새로 배치했습니다. 지침은 부서·담당자 화면에서 보고 바꿀 수 있습니다.</p> : null}
             {req.status === 'received' || req.status === 'triaging'
                 ? <p className="small muted">접수 담당이 요청을 보고 있습니다.</p> : null}
             {req.status === 'waiting_desk' || req.status === 'held' ? <Banner tone="warn">{req.holdReason}</Banner> : null}
@@ -198,7 +199,7 @@ function ActionItem({req, item, onChanged}: { req: ServiceRequest; item: Request
     const p = item.payload as ActionPayload;
     const action = useAction();
     const toast = useToast();
-    const [folder, setFolder] = useState('');
+    const [folder, setFolder] = useState(p.folder ?? '');
     const [useAsWorkspace, setUseAsWorkspace] = useState(true);
     const code = useLoad(() => p.action === 'deliver_code' && p.runId ? api.finalCode(req.projectId, p.runId) : Promise.resolve(undefined),
         [req.projectId, p.runId, item.status]);
@@ -234,7 +235,9 @@ function ActionItem({req, item, onChanged}: { req: ServiceRequest; item: Request
             {open && p.action === 'deliver_code' ? (
                 code.error ? <ErrorBox error={code.error}/> : !fc ? <Loading rows={1}/> : fc.appRepo ? (
                     <>
-                        <Field label="꺼낼 폴더" hint="비어 있거나 아직 없는 폴더만 됩니다. 비워 두면 기준 코드만 갱신합니다.">
+                        <Field label="꺼낼 폴더" hint={p.folder && folder === p.folder
+                            ? '접수 담당이 요청을 보고 제안한 폴더입니다. 바꿀 수 있습니다. 비어 있거나 아직 없는 폴더만 됩니다.'
+                            : '비어 있거나 아직 없는 폴더만 됩니다. 비워 두면 기준 코드만 갱신합니다.'}>
                             <FolderInput value={folder} onChange={setFolder} title="코드를 꺼낼 폴더 선택"/>
                         </Field>
                         <label className="check block">
@@ -301,9 +304,9 @@ function DeskNotice({projectId, onSetup}: { projectId: string; onSetup?: () => v
     const desk = useLoad(() => api.deskView(projectId), [projectId], '*');
     if (!desk.data || (desk.data.exists && desk.data.desk.enabled)) return null;
     return (
-        <Banner tone="warn" title={desk.data.exists ? '접수 담당이 ‘사용 안 함’입니다' : '접수 담당이 없습니다'}
+        <Banner tone={desk.data.exists ? 'warn' : 'info'} title={desk.data.exists ? '접수 담당이 ‘사용 안 함’입니다' : '아직 접수 담당이 없습니다'}
                 actions={onSetup ? <Button size="sm" icon={Settings2} onClick={onSetup}>접수 담당 정하기</Button> : null}>
-            요청은 받아 두고, 접수 담당을 정하면 이어서 처리합니다.
+            {desk.data.exists ? '요청은 받아 두고, 다시 켜면 이어서 처리합니다.' : '요청을 보내면 AI가 분석해 알맞은 접수 담당을 배치하고 이어서 처리합니다. 직접 정할 수도 있습니다.'}
         </Banner>
     );
 }

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -195,3 +196,39 @@ func sameDirForTest(a, b string) bool {
 }
 
 func workspaceGit() *workspace.Git { return workspace.FindGit() }
+
+// Desks through the bindings: a desk assignee written by hand joins the
+// shared desk role; staffing that the AI cannot answer reports why; the
+// desk view names the connection a new desk would get.
+func TestBindingsDeskAssignees(t *testing.T) {
+	a := startApp(t)
+	villa, _ := buildService(t, a, "빌라노트")
+	conn := need(a.EnsureTestConnection())
+	v := need(a.GetIntakeDesk(villa.ID))
+	if v.Exists || v.SuggestedConnectionID != conn.ID {
+		t.Fatalf("desk view before = %+v", v)
+	}
+	if _, err := a.StaffIntakeDesk(villa.ID); err == nil || !strings.Contains(err.Error(), "접수 담당") {
+		t.Fatalf("staffing with a provider that writes no desk: %v", err)
+	}
+	need(a.CreateIntakeAssignee(NewDeskInput{ProjectID: villa.ID, Name: "빌라노트 접수 담당", ConnectionID: conn.ID, Instructions: "법률 판단은 대표에게"}))
+	v = need(a.GetIntakeDesk(villa.ID))
+	if !v.Exists || v.Assignee == nil || v.Assignee.DisplayName != "빌라노트 접수 담당" || v.Assignee.Overrides.Instructions != "법률 판단은 대표에게" {
+		t.Fatalf("desk view after = %+v", v)
+	}
+	if v.LastStaffing == nil || v.LastStaffing.Status != "failed" {
+		t.Fatalf("last staffing = %+v", v.LastStaffing)
+	}
+	roles := 0
+	for _, r := range need(a.ListRoles()) {
+		if r.Name == "접수 담당" {
+			roles++
+		}
+	}
+	if roles != 1 {
+		t.Fatalf("desk roles = %d", roles)
+	}
+	if _, err := a.CreateIntakeAssignee(NewDeskInput{ProjectID: villa.ID, Name: " ", ConnectionID: conn.ID}); err == nil {
+		t.Fatal("a nameless desk was made")
+	}
+}

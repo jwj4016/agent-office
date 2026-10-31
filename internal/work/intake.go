@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"sync"
 	"time"
 
 	"agent-office/internal/design"
@@ -24,7 +25,14 @@ type Intake struct {
 	cfg  IntakeConfig
 	wake chan struct{}
 	tick time.Duration
+	// staffMu runs desk staffing one at a time (the runner and the
+	// person's ‘AI에게 맡기기’ may both ask).
+	staffMu sync.Mutex
 }
+
+// needDesk is gate's answer when only the desk is missing: the runner
+// has an AI set one up (staffing.go).
+const needDesk = "need_desk"
 
 // IntakeConfig wires the intake runner to the app.
 type IntakeConfig struct {
@@ -97,6 +105,18 @@ func (in *Intake) Drain(ctx context.Context) (int, error) {
 			if err != nil {
 				return n, err
 			}
+			if status == needDesk {
+				staffed, err := in.staffFor(ctx, r)
+				if err != nil {
+					return n, err
+				}
+				if staffed {
+					n++
+					took = true
+					break
+				}
+				continue
+			}
 			if why != "" {
 				if err := db.WaitRequest(ctx, r.ID, status, why); err != nil {
 					return n, err
@@ -146,6 +166,15 @@ func (in *Intake) gate(ctx context.Context, r domain.Request) (deskCall, string,
 		if p.Status == "archived" {
 			return dc, domain.ReqHeld, "보관된 서비스여서 접수하지 않았습니다. 보관을 풀면 이어서 접수합니다", nil
 		}
+		if in.cfg.Hold != nil {
+			hold, err := in.cfg.Hold(ctx, r.ProjectID)
+			if err != nil {
+				return dc, "", "", err
+			}
+			if hold != "" {
+				return dc, domain.ReqHeld, hold, nil
+			}
+		}
 	}
 	desk, ok, err := db.IntakeDesk(ctx, r.ProjectID)
 	if err != nil {
@@ -156,7 +185,7 @@ func (in *Intake) gate(ctx context.Context, r domain.Request) (deskCall, string,
 		where = "서비스의 ‘부서·담당자’ 화면"
 	}
 	if !ok {
-		return dc, domain.ReqWaitingDesk, fmt.Sprintf("접수 담당이 없습니다. %s에서 접수 담당을 정하면 이어서 접수합니다", where), nil
+		return dc, needDesk, fmt.Sprintf("접수 담당이 없습니다. %s에서 접수 담당을 정하면 이어서 접수합니다", where), nil
 	}
 	if !desk.Enabled {
 		return dc, domain.ReqWaitingDesk, fmt.Sprintf("접수 담당이 ‘사용 안 함’입니다. %s에서 켜면 이어서 접수합니다", where), nil
@@ -188,17 +217,7 @@ func (in *Intake) gate(ctx context.Context, r domain.Request) (deskCall, string,
 		return dc, domain.ReqWaitingDesk, "접수 담당의 AI 연결이 없거나 실제 호출 시험을 통과하지 않았습니다. 연결 화면에서 확인하세요", nil
 	}
 	dc.conn, dc.model = conn, model
-	if r.ProjectID != "" {
-		if in.cfg.Hold != nil {
-			hold, err := in.cfg.Hold(ctx, r.ProjectID)
-			if err != nil {
-				return dc, "", "", err
-			}
-			if hold != "" {
-				return dc, domain.ReqHeld, hold, nil
-			}
-		}
-	} else if limit := desk.Budget.MonthlyCostUSD; limit != nil {
+	if limit := desk.Budget.MonthlyCostUSD; r.ProjectID == "" && limit != nil {
 		now := in.cfg.Now()
 		u, err := db.CompanyIntakeUsage(ctx, time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location()))
 		if err != nil {
@@ -267,4 +286,54 @@ func (in *Intake) process(ctx context.Context, r domain.Request, dc deskCall) er
 		return db.ReleaseRequest(ctx, r.ID, "접수 판단을 저장하지 못했습니다: "+err.Error())
 	}
 	return nil
+}
+
+// staffFor has an AI set up the missing desk of a request's service (or
+// the company) and then decides the request. A request causes at most
+// staffTriesPerRequest such calls; after that, or without a verified
+// connection, it waits for the person. It reports whether it took the
+// request.
+func (in *Intake) staffFor(ctx context.Context, r domain.Request) (bool, error) {
+	db := in.cfg.DB
+	where := "회사 조직 화면의 ‘회사 접수 담당’"
+	if r.ProjectID != "" {
+		where = "서비스의 ‘부서·담당자’ 화면"
+	}
+	tries, err := db.StaffingTries(ctx, r.ID)
+	if err != nil {
+		return false, err
+	}
+	if tries >= staffTriesPerRequest {
+		return false, db.WaitRequest(ctx, r.ID, domain.ReqWaitingDesk,
+			fmt.Sprintf("AI가 접수 담당을 배치하지 못했습니다. %s에서 접수 담당을 정하거나 ‘AI에게 맡기기’를 다시 눌러 주세요", where))
+	}
+	if _, _, ok, err := db.PreferredConnection(ctx, r.ProjectID); err != nil {
+		return false, err
+	} else if !ok {
+		return false, db.WaitRequest(ctx, r.ID, domain.ReqWaitingDesk, ErrNoConnection.Error())
+	}
+	ok, err := db.ClaimRequest(ctx, r.ID)
+	if err != nil || !ok {
+		return false, err
+	}
+	r.Status = domain.ReqTriaging
+	desk, err := in.StaffDesk(ctx, r.ProjectID, r.ID)
+	if err != nil {
+		if ctx.Err() != nil {
+			return true, ctx.Err()
+		}
+		return true, db.ParkRequest(ctx, r.ID, domain.ReqWaitingDesk, err.Error())
+	}
+	r.StaffedDesk = desk.Name
+	dc, status, why, err := in.gate(ctx, r)
+	if err != nil {
+		return true, err
+	}
+	if why != "" {
+		if status == needDesk {
+			status = domain.ReqWaitingDesk
+		}
+		return true, db.ParkRequest(ctx, r.ID, status, why)
+	}
+	return true, in.process(ctx, r, dc)
 }

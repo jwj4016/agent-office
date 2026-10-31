@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -79,6 +81,9 @@ func (in *Intake) prepare(ctx context.Context, r domain.Request, dc deskCall) (d
 }
 
 func writeRequest(b *strings.Builder, ctx context.Context, db *storage.DB, r domain.Request) {
+	if r.StaffedDesk != "" {
+		fmt.Fprintf(b, "## 접수 담당 배치\n접수 담당이 없어 앱이 이 요청을 받으며 너(%s)를 방금 배치했다. 요청에 접수 담당을 만들어 달라는 말이 있으면 이미 처리된 것이다.\n\n", r.StaffedDesk)
+	}
 	fmt.Fprintf(b, "## 요청\n%s\n\n", r.Body)
 	if r.PreviousID != "" {
 		if prev, err := db.Request(ctx, r.ProjectID, r.PreviousID); err == nil {
@@ -297,7 +302,7 @@ func (in *Intake) servicePrompt(ctx context.Context, r domain.Request, dc deskCa
 
 	b.WriteString(`
 ## 쓸 수 있는 조치
-- deliver_code: 성공한 실행의 코드를 서비스 기준 코드로 반영하고 대표에게 넘긴다(폴더로 꺼내기나 결과 브랜치). runId에 ‘최근 실행’ 중 코드 결과가 있는 실행의 id.
+- deliver_code: 성공한 실행의 코드를 서비스 기준 코드로 반영하고 대표에게 넘긴다(폴더로 꺼내기나 결과 브랜치). runId에 ‘최근 실행’ 중 코드 결과가 있는 실행의 id. 대표가 요청에서 꺼낼 위치를 말했으면 folder에 그 위치 아래 새 폴더의 경로를 적는다(예: ‘~/dev/workspace 아래’ → ~/dev/workspace/서비스이름-영문). 말하지 않았으면 비운다. 대표가 승인할 때 바꿀 수 있다.
 - save_result: 결과 하나를 대표가 고른 위치에 파일로 저장한다. artifactId에 ‘최근 결과’의 id.
 - export_service: 서비스 전체를 ZIP으로 내보낸다(키 제외).
 - start_workflow: 확정된 업무 흐름을 실행한다. AI 비용이 든다. versionId에 ‘확정된 업무 흐름’의 id.
@@ -386,6 +391,7 @@ func outputSpec(company bool, f intakeFacts) string {
 - 회사 전체에 관한 질문을 위 정보로 답할 수 있으면 answer.
 - 어느 서비스의 일인지 알 수 없을 때만 question.
 - 이 앱으로 할 수 없는 일은 decline.
+- reason과 answer는 대표가 읽는다. id 대신 서비스 이름을 쓴다.
 `, intakeMaxRoutes)
 	}
 	return fmt.Sprintf(`## 출력
@@ -393,10 +399,11 @@ func outputSpec(company bool, f intakeFacts) string {
 {"outcome": "answer" | "work" | "action" | "question" | "decline", "reason": 판단 이유(대표가 읽는다),
  "answer": outcome이 answer일 때 대표에게 줄 답,
  "question": outcome이 question일 때 대표에게 물을 한 가지,
- "actions": [{"action": "deliver_code" | "save_result" | "export_service" | "start_workflow", "runId": …, "artifactId": …, "versionId": …, "reason": 왜 이 조치인지}],
+ "actions": [{"action": "deliver_code" | "save_result" | "export_service" | "start_workflow", "runId": …, "artifactId": …, "versionId": …, "folder": deliver_code의 제안 폴더, "reason": 왜 이 조치인지}],
  "work": [{"title": 업무 제목, "description": 할 일, "doneCriteria": 완료 조건, "categories": [%s 중에서], "priority": "urgent"|"high"|"normal"|"low",
            "departmentId": ‘부서’의 id(없으면 비움), "assigneeAssignmentId": ‘담당자’의 id(없으면 비움), "goalId": ‘공동 목표’의 id(없으면 비움)}]}
 - 조치는 %d개까지, 조치와 업무를 합쳐 %d개까지. id는 위 목록에 있는 것만 쓴다.
+- reason과 answer는 대표가 읽는다. id 대신 이름(실행 제목, 부서·담당자 이름)을 쓴다.
 - outcome이 action이면 actions가, work이면 work가 하나 이상 있어야 한다.
 `, strings.Join(f.categories, ", "), intakeMaxActions, intakeMaxItems)
 }
@@ -411,7 +418,7 @@ func intakeSchema(company bool) json.RawMessage {
 	} else {
 		props["outcome"] = map[string]any{"type": "string", "enum": []string{"answer", "work", "action", "question", "decline"}}
 		props["actions"] = map[string]any{"type": "array", "maxItems": intakeMaxActions, "items": map[string]any{"type": "object", "required": []string{"action"},
-			"properties": map[string]any{"action": map[string]any{"type": "string", "enum": domain.Actions}, "runId": str, "artifactId": str, "versionId": str, "reason": str}}}
+			"properties": map[string]any{"action": map[string]any{"type": "string", "enum": domain.Actions}, "runId": str, "artifactId": str, "versionId": str, "folder": str, "reason": str}}}
 		props["work"] = map[string]any{"type": "array", "maxItems": intakeMaxItems, "items": map[string]any{"type": "object", "required": []string{"title"},
 			"properties": map[string]any{"title": str, "description": str, "doneCriteria": str,
 				"categories": map[string]any{"type": "array", "items": str}, "priority": map[string]any{"type": "string", "enum": domain.WorkPriorities},
@@ -491,20 +498,24 @@ func acceptIntake(r domain.Request, f intakeFacts, raw []byte) (domain.IntakeDec
 				return d, fmt.Errorf("코드 결과가 있는 실행이 아닙니다: %q", a.RunID)
 			}
 			a.Title, a.ArtifactID, a.VersionID = title, "", ""
+			a.Folder = suggestedFolder(a.Folder)
 		case domain.ActionSaveResult:
 			title, ok := f.results[a.ArtifactID]
 			if !ok {
 				return d, fmt.Errorf("최근 결과에 없는 결과입니다: %q", a.ArtifactID)
 			}
 			a.Title, a.RunID, a.VersionID = title, "", ""
+			a.Folder = ""
 		case domain.ActionExportService:
 			a.Title, a.RunID, a.ArtifactID, a.VersionID = "", "", "", ""
+			a.Folder = ""
 		case domain.ActionStartWorkflow:
 			title, ok := f.versions[a.VersionID]
 			if !ok {
 				return d, fmt.Errorf("확정된 업무 흐름이 아닙니다: %q", a.VersionID)
 			}
 			a.Title, a.RunID, a.ArtifactID = title, "", ""
+			a.Folder = ""
 		default:
 			return d, fmt.Errorf("알 수 없는 조치입니다: %q", a.Action)
 		}
@@ -542,4 +553,29 @@ func acceptIntake(r domain.Request, f intakeFacts, raw []byte) (domain.IntakeDec
 	}
 	d.Routes, d.Actions, d.Work, d.Question = nil, actions, work, ""
 	return d, nil
+}
+
+// suggestedFolder keeps a desk's folder suggestion only when it is a path
+// inside the person's home folder ("~/" is expanded); otherwise the person
+// picks one when approving.
+func suggestedFolder(p string) string {
+	p = strings.TrimSpace(p)
+	if p == "" {
+		return ""
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	if p == "~" || strings.HasPrefix(p, "~/") {
+		p = filepath.Join(home, strings.TrimPrefix(p, "~"))
+	}
+	if !filepath.IsAbs(p) {
+		return ""
+	}
+	p = filepath.Clean(p)
+	if rel, err := filepath.Rel(home, p); err != nil || rel == "." || strings.HasPrefix(rel, "..") {
+		return ""
+	}
+	return p
 }

@@ -112,12 +112,14 @@ type Request struct {
 	HoldReason     string `json:"holdReason"`
 	MaxAttempts    int    `json:"maxAttempts"`
 	// Attempts counts the provider calls of the current round.
-	Attempts  int           `json:"attempts"`
-	CreatedAt string        `json:"createdAt"`
-	UpdatedAt string        `json:"updatedAt"`
-	ClosedAt  string        `json:"closedAt"`
-	Items     []RequestItem `json:"items"`
-	Children  []Request     `json:"children"`
+	Attempts  int    `json:"attempts"`
+	CreatedAt string `json:"createdAt"`
+	UpdatedAt string `json:"updatedAt"`
+	ClosedAt  string `json:"closedAt"`
+	// StaffedDesk names the desk an AI set up because of this request.
+	StaffedDesk string        `json:"staffedDesk,omitempty"`
+	Items       []RequestItem `json:"items"`
+	Children    []Request     `json:"children"`
 }
 
 // RequestItem is one route, piece of work or action a desk asked for.
@@ -161,7 +163,11 @@ type ActionPayload struct {
 	ArtifactID string `json:"artifactId,omitempty"`
 	VersionID  string `json:"versionId,omitempty"`
 	// Title names the target for the person (run, result or flow title).
-	Title  string `json:"title,omitempty"`
+	Title string `json:"title,omitempty"`
+	// Folder is where the desk suggests code be copied out (deliver_code),
+	// read from the request; the person sees it filled in and may change
+	// it when approving.
+	Folder string `json:"folder,omitempty"`
 	Reason string `json:"reason"`
 }
 

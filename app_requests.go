@@ -24,6 +24,14 @@ type DeskView struct {
 	Exists bool              `json:"exists"`
 	// MonthUsage is the company desk's use since the start of the month.
 	MonthUsage *storage.AIAttemptUsage `json:"monthUsage,omitempty"`
+	// Assignee is a service desk's AI assignee (with its instructions).
+	Assignee *domain.Assignment `json:"assignee,omitempty"`
+	// LastStaffing is the last time an AI wrote this desk.
+	LastStaffing *storage.Staffing `json:"lastStaffing,omitempty"`
+	// SuggestedConnectionID and SuggestedModel are what the app would give
+	// a new desk: the verified connection the assignees use most.
+	SuggestedConnectionID string `json:"suggestedConnectionId"`
+	SuggestedModel        string `json:"suggestedModel"`
 }
 
 // GetIntakeDesk returns the company desk (projectID "") or a service's.
@@ -36,6 +44,27 @@ func (a *App) GetIntakeDesk(projectID string) (DeskView, error) {
 		return DeskView{}, uiErr(err)
 	}
 	v := DeskView{Desk: d, Exists: ok}
+	if ok && projectID != "" {
+		list, err := a.db.Assignments(a.ctx, projectID)
+		if err != nil {
+			return v, uiErr(err)
+		}
+		for i := range list {
+			if list[i].ID == d.AssignmentID {
+				v.Assignee = &list[i]
+			}
+		}
+	}
+	if s, found, err := a.db.LatestStaffing(a.ctx, projectID); err != nil {
+		return v, uiErr(err)
+	} else if found {
+		v.LastStaffing = &s
+	}
+	if c, model, found, err := a.db.PreferredConnection(a.ctx, projectID); err != nil {
+		return v, uiErr(err)
+	} else if found {
+		v.SuggestedConnectionID, v.SuggestedModel = c.ID, model
+	}
 	if projectID == "" {
 		now := time.Now()
 		u, err := a.db.CompanyIntakeUsage(a.ctx, time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location()))
@@ -57,6 +86,61 @@ func (a *App) SaveIntakeDesk(d domain.IntakeDesk) (domain.IntakeDesk, error) {
 		a.intake.Wake()
 	}
 	return out, uiErr(err)
+}
+
+// StaffIntakeDesk has an AI look at the service (projectID "" for the
+// company) and set up a new desk for it. It waits for the AI (up to a few
+// minutes) and uses its connection's quota.
+func (a *App) StaffIntakeDesk(projectID string) (domain.IntakeDesk, error) {
+	if err := a.ready(); err != nil {
+		return domain.IntakeDesk{}, err
+	}
+	if projectID != "" {
+		if err := a.db.CheckScope(a.ctx, projectID); err != nil {
+			return domain.IntakeDesk{}, uiErr(err)
+		}
+	}
+	d, err := a.intake.StaffDesk(a.ctx, projectID, "")
+	if err == nil {
+		a.intake.Wake()
+	}
+	return d, uiErr(err)
+}
+
+// RewriteIntakeDesk has an AI write a desk's instructions again.
+func (a *App) RewriteIntakeDesk(projectID string) (domain.IntakeDesk, error) {
+	if err := a.ready(); err != nil {
+		return domain.IntakeDesk{}, err
+	}
+	if projectID != "" {
+		if err := a.db.CheckScope(a.ctx, projectID); err != nil {
+			return domain.IntakeDesk{}, uiErr(err)
+		}
+	}
+	d, err := a.intake.RewriteDesk(a.ctx, projectID)
+	return d, uiErr(err)
+}
+
+// NewDeskInput is a desk assignee the person writes themselves.
+type NewDeskInput struct {
+	ProjectID    string `json:"projectId"`
+	Name         string `json:"name"`
+	ConnectionID string `json:"connectionId"`
+	Model        string `json:"model"`
+	Instructions string `json:"instructions"`
+}
+
+// CreateIntakeAssignee makes a new AI assignee in the shared desk role and
+// sets it as the service's desk.
+func (a *App) CreateIntakeAssignee(in NewDeskInput) (domain.IntakeDesk, error) {
+	if err := a.ready(); err != nil {
+		return domain.IntakeDesk{}, err
+	}
+	d, _, err := a.db.CreateDeskAssignee(a.ctx, in.ProjectID, in.Name, in.ConnectionID, in.Model, in.Instructions)
+	if err == nil {
+		a.intake.Wake()
+	}
+	return d, uiErr(err)
 }
 
 // RemoveIntakeDesk takes a service's desk away.

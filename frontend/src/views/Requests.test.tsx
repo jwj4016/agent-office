@@ -44,6 +44,20 @@ describe('RequestCard', () => {
         expect(onChanged).toHaveBeenCalled();
     });
 
+    it('fills in the folder the desk suggested and says which desk the AI set up', async () => {
+        fakeApi.finalCode.mockResolvedValue({runId: 'run-1', repo: '', appRepo: true, base: '', steps: [{stepId: 'web', title: '웹', commit: 'c'}],
+            commit: 'c', stat: {files: 1, insertions: 1, deletions: 0}, included: false, deliveries: []});
+        fakeApi.runRequestAction.mockResolvedValue({item: item({status: 'done'}), cancelled: false});
+        const suggested = item({payload: {action: 'deliver_code', runId: 'run-1', reason: '전달', folder: '/Users/me/dev/workspace/villanote'}});
+        render(<LiveProvider><RequestCard req={{...base, staffedDesk: '빌라노트 접수 담당', items: [suggested]}} onChanged={() => {}}/></LiveProvider>);
+        expect(screen.getByText(/‘빌라노트 접수 담당’를 새로 배치했습니다/)).toBeInTheDocument();
+        const action = await screen.findByRole('group', {name: '조치 제안: 코드 결과 전달'});
+        expect(within(action).getByText(/접수 담당이 요청을 보고 제안한 폴더/)).toBeInTheDocument();
+        fireEvent.click(within(action).getByRole('button', {name: '승인: 폴더로 꺼내기'}));
+        await waitFor(() => expect(fakeApi.runRequestAction).toHaveBeenCalledWith(expect.objectContaining(
+            {method: 'folder', folder: '/Users/me/dev/workspace/villanote'})));
+    });
+
     it('registers proposed work with the person’s title and answers a question', async () => {
         const work = item({id: 'rqi-2', kind: 'work', payload: {title: '역전세 지표 추가', doneCriteria: '리포트에 나온다', departmentId: 'dep-1'}});
         fakeApi.departments.mockResolvedValue([{id: 'dep-1', name: '개발팀'}]);

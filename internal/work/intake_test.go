@@ -253,14 +253,21 @@ func TestRequestsWaitForDeskAndBudget(t *testing.T) {
 	r := f.submit(t, f.villa.ID, "안녕")
 	c := f.submit(t, "", "회사 소개해 줘")
 	f.drain(t)
-	if got := f.get(t, f.villa.ID, r.ID); got.Status != domain.ReqWaitingDesk || !strings.Contains(got.HoldReason, "부서·담당자") {
+	// The AI could not staff a desk (it answered something else): after two
+	// tries per request they wait for the person, and no desk decided.
+	if got := f.get(t, f.villa.ID, r.ID); got.Status != domain.ReqWaitingDesk || !strings.Contains(got.HoldReason, "부서·담당자") ||
+		!strings.Contains(got.HoldReason, "AI가 접수 담당을 배치하지 못했습니다") {
 		t.Fatalf("no desk = %+v", got)
 	}
 	if got := f.get(t, "", c.ID); got.Status != domain.ReqWaitingDesk {
 		t.Fatalf("no company desk = %+v", got)
 	}
-	if len(f.calls) != 0 {
-		t.Fatal("called without a desk")
+	if len(f.calls) != 4 || f.calls[0] != "접수 담당 배치 AI" || f.calls[3] != "접수 담당 배치 AI" {
+		t.Fatalf("calls without a desk = %v", f.calls)
+	}
+	f.drain(t)
+	if len(f.calls) != 4 {
+		t.Fatal("staffing was tried again")
 	}
 	// A desk that is a person is refused.
 	human, _ := f.db.SaveAssignment(ctx, domain.Assignment{ProjectID: f.villa.ID, RoleID: f.villaAI.RoleID, ActorKind: domain.ActorHuman,
@@ -294,7 +301,8 @@ func TestRequestsWaitForDeskAndBudget(t *testing.T) {
 	if got := f.get(t, "", c2.ID); got.Status != domain.ReqHeld || !strings.Contains(got.HoldReason, "이번 달 예산") {
 		t.Fatalf("company over budget = %+v", got)
 	}
-	if u, _ := f.db.CompanyIntakeUsage(ctx, testMonthStart()); u.Attempts != 1 {
+	// Two failed staffing calls and one decision, all counted.
+	if u, _ := f.db.CompanyIntakeUsage(ctx, testMonthStart()); u.Attempts != 3 {
 		t.Fatalf("company usage = %+v", u)
 	}
 }
@@ -466,4 +474,107 @@ func TestArchivedServicesAreNotRoutedTo(t *testing.T) {
 	if got := f.get(t, f.blog.ID, held.ID); got.Status != domain.ReqHeld || !strings.Contains(got.HoldReason, "보관된 서비스") {
 		t.Fatalf("archived service's request = %+v", got)
 	}
+}
+
+// A request to a service without a desk makes an AI look at the service
+// and set up a new desk: an AI assignee in the one shared desk role, with
+// instructions written for the service. The request is then decided, and
+// shows which desk was set up for it. The company desk is set up alike.
+func TestMissingDeskIsStaffedByAI(t *testing.T) {
+	f := newIntakeFixture(t)
+	ctx := context.Background()
+	f.answer = func(desk, prompt string) (string, error) {
+		switch {
+		case desk == "접수 담당 배치 AI" && strings.Contains(prompt, "회사 접수 담당 배치"):
+			return `{"name":"비서실","instructions":"빌라노트와 블로그 중 어디의 일인지 가린다."}`, nil
+		case desk == "접수 담당 배치 AI" && strings.Contains(prompt, "## 지금 지침"):
+			return `{"name":"빌라노트 접수 담당","instructions":"새 지침: 실제 자료 연결 여부를 먼저 본다."}`, nil
+		case desk == "접수 담당 배치 AI":
+			if !strings.Contains(prompt, "빌라 물건을 분석한다") && !strings.Contains(prompt, "회사 블로그") {
+				return "", errors.New("the service was not described")
+			}
+			name := "빌라노트 접수 담당"
+			if strings.Contains(prompt, "회사 블로그") {
+				name = "블로그 접수 담당"
+			}
+			return asJSON(map[string]string{"name": name, "instructions": name + " 지침: 개발팀이 코드를 맡는다."}), nil
+		case desk == "비서실":
+			return asJSON(map[string]any{"outcome": "route", "reason": "블로그", "routes": []map[string]any{{"projectId": f.blog.ID}}}), nil
+		default:
+			return `{"outcome":"answer","reason":"r","answer":"네"}`, nil
+		}
+	}
+	r := f.submit(t, f.villa.ID, "안녕")
+	f.drain(t)
+	got := f.get(t, f.villa.ID, r.ID)
+	if got.Status != domain.ReqDone || got.StaffedDesk != "빌라노트 접수 담당" {
+		t.Fatalf("request = %+v", got)
+	}
+	desk, ok, _ := f.db.IntakeDesk(ctx, f.villa.ID)
+	people, _ := f.db.Assignments(ctx, f.villa.ID)
+	var a domain.Assignment
+	for _, x := range people {
+		if x.ID == desk.AssignmentID {
+			a = x
+		}
+	}
+	if !ok || !desk.Enabled || a.DisplayName != "빌라노트 접수 담당" || a.ConnectionID != f.conn.ID || a.Model != "m" ||
+		!strings.Contains(a.Overrides.Instructions, "개발팀이 코드를 맡는다") {
+		t.Fatalf("desk = %+v, assignee = %+v", desk, a)
+	}
+	if !slicesContain(f.calls, "빌라노트 접수 담당") {
+		t.Fatalf("the new desk did not decide: %v", f.calls)
+	}
+	if last := f.prompts[len(f.prompts)-1]; !strings.Contains(last, "너(빌라노트 접수 담당)를 방금 배치했다") {
+		t.Fatalf("the new desk was not told it was just set up:\n%s", last)
+	}
+	// Staffing is paid from the service budget like any desk call.
+	if u, _ := f.eng.ProjectUsage(ctx, f.villa.ID); u.Attempts != 2 {
+		t.Fatalf("usage = %+v", u)
+	}
+
+	// The company desk is set up too, and its route to 블로그 sets up
+	// 블로그's desk in the same shared role.
+	c := f.submit(t, "", "블로그에 글 써 줘")
+	f.drain(t)
+	if got := f.get(t, "", c.ID); got.Status != domain.ReqDone || got.StaffedDesk != "비서실" || len(got.Children) != 1 || got.Children[0].StaffedDesk != "블로그 접수 담당" {
+		t.Fatalf("company request = %+v", got)
+	}
+	cd, _, _ := f.db.IntakeDesk(ctx, "")
+	if cd.ConnectionID != f.conn.ID || cd.Instructions == "" {
+		t.Fatalf("company desk = %+v", cd)
+	}
+	roles, _ := f.db.Roles(ctx)
+	n := 0
+	for _, r := range roles {
+		if r.Name == storage.DeskRoleName {
+			n++
+		}
+	}
+	if n != 1 {
+		t.Fatalf("desk roles = %d", n)
+	}
+
+	// The person can have the instructions written again.
+	if _, err := f.in.RewriteDesk(ctx, f.villa.ID); err != nil {
+		t.Fatal(err)
+	}
+	people, _ = f.db.Assignments(ctx, f.villa.ID)
+	for _, x := range people {
+		if x.ID == desk.AssignmentID && !strings.Contains(x.Overrides.Instructions, "실제 자료 연결") {
+			t.Fatalf("rewritten = %+v", x)
+		}
+	}
+	if s, ok, _ := f.db.LatestStaffing(ctx, f.villa.ID); !ok || s.Kind != "rewrite" || s.Status != "succeeded" {
+		t.Fatalf("latest staffing = %+v", s)
+	}
+}
+
+func slicesContain(list []string, v string) bool {
+	for _, x := range list {
+		if x == v {
+			return true
+		}
+	}
+	return false
 }

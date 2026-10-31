@@ -58,6 +58,8 @@ export function ConfirmRequestAction(arg1:string,arg2:string,arg3:string):Promis
 
 export function ConfirmVersion(arg1:string,arg2:string,arg3:number):Promise<main.ConfirmResult>;
 
+export function CreateIntakeAssignee(arg1:main.NewDeskInput):Promise<domain.IntakeDesk>;
+
 export function CreateProject(arg1:main.ProjectInput):Promise<domain.Project>;
 
 export function CreateWorkItem(arg1:domain.WorkItem):Promise<domain.WorkItem>;
@@ -238,6 +240,8 @@ export function RevertCollabDecision(arg1:string,arg2:string,arg3:string):Promis
 
 export function ReviewCollabDecision(arg1:string,arg2:string):Promise<storage.CollabRequest>;
 
+export function RewriteIntakeDesk(arg1:string):Promise<domain.IntakeDesk>;
+
 export function RunMessages(arg1:string,arg2:string):Promise<Array<engine.MessageView>>;
 
 export function RunRequestAction(arg1:main.ActionInput):Promise<main.ActionOutcome>;
@@ -291,6 +295,8 @@ export function ShareArtifact(arg1:string,arg2:string,arg3:storage.NewDocumentVe
 export function ShareWorkspaceFile(arg1:string,arg2:string,arg3:storage.NewDocumentVersion):Promise<storage.DocumentVersion>;
 
 export function SkipDelivery(arg1:string,arg2:string,arg3:string):Promise<void>;
+
+export function StaffIntakeDesk(arg1:string):Promise<domain.IntakeDesk>;
 
 export function StartDesign(arg1:main.DesignInput):Promise<main.DesignView>;
 

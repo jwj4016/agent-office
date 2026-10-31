@@ -102,6 +102,10 @@ export function ConfirmVersion(arg1, arg2, arg3) {
   return window['go']['main']['App']['ConfirmVersion'](arg1, arg2, arg3);
 }
 
+export function CreateIntakeAssignee(arg1) {
+  return window['go']['main']['App']['CreateIntakeAssignee'](arg1);
+}
+
 export function CreateProject(arg1) {
   return window['go']['main']['App']['CreateProject'](arg1);
 }
@@ -462,6 +466,10 @@ export function ReviewCollabDecision(arg1, arg2) {
   return window['go']['main']['App']['ReviewCollabDecision'](arg1, arg2);
 }
 
+export function RewriteIntakeDesk(arg1) {
+  return window['go']['main']['App']['RewriteIntakeDesk'](arg1);
+}
+
 export function RunMessages(arg1, arg2) {
   return window['go']['main']['App']['RunMessages'](arg1, arg2);
 }
@@ -568,6 +576,10 @@ export function ShareWorkspaceFile(arg1, arg2, arg3) {
 
 export function SkipDelivery(arg1, arg2, arg3) {
   return window['go']['main']['App']['SkipDelivery'](arg1, arg2, arg3);
+}
+
+export function StaffIntakeDesk(arg1) {
+  return window['go']['main']['App']['StaffIntakeDesk'](arg1);
 }
 
 export function StartDesign(arg1) {

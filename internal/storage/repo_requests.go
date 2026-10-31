@@ -189,14 +189,16 @@ func connectionTx(ctx context.Context, q queryer, id string) (string, error) {
 
 const requestCols = `r.id, r.organization_id, COALESCE(r.project_id, ''), COALESCE(p.name, ''), COALESCE(r.parent_id, ''), COALESCE(r.previous_id, ''),
 	r.body, r.status, r.outcome, r.round, r.answer, r.question, r.reply, r.reason, r.error, r.hold_reason, r.max_attempts,
-	(SELECT COUNT(*) FROM request_attempts a WHERE a.request_id = r.id AND a.round = r.round), r.created_at, r.updated_at, COALESCE(r.closed_at, '')`
+	(SELECT COUNT(*) FROM request_attempts a WHERE a.request_id = r.id AND a.round = r.round), r.created_at, r.updated_at, COALESCE(r.closed_at, ''),
+	COALESCE((SELECT json_extract(s.result, '$.name') FROM desk_staffing s WHERE s.request_id = r.id AND s.kind = 'create' AND s.status = 'succeeded'
+		ORDER BY s.started_at DESC LIMIT 1), '')`
 
 const requestFrom = ` FROM requests r LEFT JOIN projects p ON p.id = r.project_id`
 
 func scanRequest(s interface{ Scan(...any) error }) (domain.Request, error) {
 	var r domain.Request
 	err := s.Scan(&r.ID, &r.OrganizationID, &r.ProjectID, &r.ProjectName, &r.ParentID, &r.PreviousID, &r.Body, &r.Status, &r.Outcome, &r.Round,
-		&r.Answer, &r.Question, &r.Reply, &r.Reason, &r.Error, &r.HoldReason, &r.MaxAttempts, &r.Attempts, &r.CreatedAt, &r.UpdatedAt, &r.ClosedAt)
+		&r.Answer, &r.Question, &r.Reply, &r.Reason, &r.Error, &r.HoldReason, &r.MaxAttempts, &r.Attempts, &r.CreatedAt, &r.UpdatedAt, &r.ClosedAt, &r.StaffedDesk)
 	r.Items, r.Children = []domain.RequestItem{}, []domain.Request{}
 	return r, err
 }
@@ -441,6 +443,25 @@ func (db *DB) WaitRequest(ctx context.Context, id, status, reason string) error 
 		db.requestChanged()
 	}
 	return err
+}
+
+// ParkRequest puts a triaging request back to waiting for a desk or held,
+// with the reason (its desk could not be set up, or went away meanwhile).
+func (db *DB) ParkRequest(ctx context.Context, id, status, reason string) error {
+	if status != domain.ReqWaitingDesk && status != domain.ReqHeld {
+		return invalid("요청을 기다리게 할 수 없는 상태입니다: %s", status)
+	}
+	return db.requestChange(ctx, func(c *Change) error {
+		r, err := requestTx(ctx, c.Tx, id)
+		if err != nil || r.Status != domain.ReqTriaging {
+			return err
+		}
+		if _, err := c.Tx.ExecContext(ctx, `UPDATE requests SET status = ?, hold_reason = ?, updated_at = ? WHERE id = ? AND status = 'triaging'`,
+			status, reason, Now(), id); err != nil {
+			return err
+		}
+		return emitRequestTx(c, r.ProjectID, id, status)
+	})
 }
 
 // ClaimRequest moves a queued request to triaging, reporting false when
@@ -1062,6 +1083,10 @@ func (db *DB) RecoverRequests(ctx context.Context) error {
 			WHERE status = 'working'`, now); err != nil {
 			return err
 		}
+		if _, err := c.Tx.ExecContext(ctx, `UPDATE desk_staffing SET status = 'interrupted', error = '앱이 다시 시작되어 중단되었습니다', ended_at = ?
+			WHERE status = 'working'`, now); err != nil {
+			return err
+		}
 		if _, err := c.Tx.ExecContext(ctx, `UPDATE requests SET status = CASE
 				WHEN (SELECT COUNT(*) FROM request_attempts a WHERE a.request_id = requests.id AND a.round = requests.round) >= max_attempts THEN 'failed'
 				ELSE 'received' END,
@@ -1107,6 +1132,7 @@ func (db *DB) RequestTodos(ctx context.Context) ([]domain.Request, error) {
 // CompanyIntakeUsage sums the company desk's calls since a time (the
 // start of the month for its budget).
 func (db *DB) CompanyIntakeUsage(ctx context.Context, since time.Time) (AIAttemptUsage, error) {
-	return sumUsageRows(ctx, db.sql, `SELECT usage, usage_reported FROM request_attempts WHERE project_id IS NULL AND started_at >= ?`,
-		since.UTC().Format(time.RFC3339Nano))
+	t := since.UTC().Format(time.RFC3339Nano)
+	return sumUsageRows(ctx, db.sql, `SELECT usage, usage_reported FROM request_attempts WHERE project_id IS NULL AND started_at >= ?
+		UNION ALL SELECT usage, usage_reported FROM desk_staffing WHERE project_id IS NULL AND started_at >= ?`, t, t)
 }

@@ -177,6 +177,12 @@ export const api = {
     deskView: (projectId: string) => call<DeskView>(Go.GetIntakeDesk(projectId)),
     saveDesk: (d: IntakeDesk) => call<IntakeDesk>(Go.SaveIntakeDesk(d as never)),
     removeDesk: (projectId: string) => call<void>(Go.RemoveIntakeDesk(projectId)),
+    // staffDesk has an AI set up a new desk ('' for the company); rewriteDesk
+    // has it write the desk's instructions again. Both wait for the AI.
+    staffDesk: (projectId: string) => call<IntakeDesk>(Go.StaffIntakeDesk(projectId)),
+    rewriteDesk: (projectId: string) => call<IntakeDesk>(Go.RewriteIntakeDesk(projectId)),
+    createDeskAssignee: (d: { projectId: string; name: string; connectionId: string; model: string; instructions: string }) =>
+        call<IntakeDesk>(Go.CreateIntakeAssignee(d as never)),
     // projectId '' is the company.
     submitRequest: (projectId: string, body: string, previousId = '') => call<ServiceRequest>(Go.SubmitRequest(projectId, body, previousId)),
     requests: (f: { projectId?: string; all?: boolean; statuses?: string[]; limit?: number }) =>

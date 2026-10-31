@@ -472,7 +472,7 @@ export type WorkProposalPayload = {
     title: string; description?: string; doneCriteria?: string; categories?: string[]; priority?: string;
     departmentId?: string; assigneeAssignmentId?: string; goalId?: string;
 };
-export type ActionPayload = { action: RequestAction; runId?: string; artifactId?: string; versionId?: string; title?: string; reason: string };
+export type ActionPayload = { action: RequestAction; runId?: string; artifactId?: string; versionId?: string; title?: string; folder?: string; reason: string };
 export type RoutePayload = { projectId: string; body: string; reason?: string };
 export type RequestItem = {
     id: string; requestId: string; projectId: string; round: number; position: number; kind: 'route' | 'work' | 'action';
@@ -484,14 +484,20 @@ export type ServiceRequest = {
     id: string; organizationId: string; projectId: string; projectName: string; parentId: string; previousId: string; body: string;
     status: RequestStatus; outcome: RequestOutcome; round: number; answer: string; question: string; reply: string; reason: string;
     error: string; holdReason: string; maxAttempts: number; attempts: number; createdAt: string; updatedAt: string; closedAt: string;
-    items: RequestItem[]; children: ServiceRequest[];
+    staffedDesk?: string; items: RequestItem[]; children: ServiceRequest[];
 };
 export type IntakeDesk = {
     id?: string; organizationId?: string; projectId: string; name: string; assignmentId: string; connectionId: string; model: string;
     instructions: string; budget: { monthlyCostUsd?: number }; enabled: boolean;
 };
+export type DeskStaffing = {
+    id: string; projectId: string; requestId: string; kind: 'create' | 'rewrite'; connectionId: string; model: string;
+    status: 'working' | 'succeeded' | 'failed' | 'interrupted'; result: { name?: string; instructions?: string } | null; error: string;
+    startedAt: string; endedAt: string;
+};
 export type DeskView = {
-    desk: IntakeDesk; exists: boolean;
+    desk: IntakeDesk; exists: boolean; assignee?: Assignment; lastStaffing?: DeskStaffing;
+    suggestedConnectionId: string; suggestedModel: string;
     monthUsage?: { Attempts: number; UnknownCost: number; InputTokens: number; OutputTokens: number; CostUSD: number };
 };
 

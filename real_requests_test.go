@@ -13,6 +13,7 @@ import (
 	"agent-office/internal/connect"
 	"agent-office/internal/domain"
 	"agent-office/internal/engine"
+	"agent-office/internal/storage"
 
 	"github.com/zalando/go-keyring"
 )
@@ -221,4 +222,75 @@ func clip(s string, n int) string {
 		return s
 	}
 	return string(r[:n]) + "…"
+}
+
+// TestRealDeskStaffing lets the real Claude staff the missing desks of a
+// copy of real data while it takes the requests already waiting there
+// (company-requests plan, 3rd revision). Nothing is approved: proposed
+// actions are only reported. Off by default:
+//
+//	AGENT_OFFICE_REAL_STAFFING=1 AGENT_OFFICE_REAL_REQUESTS_DATA=<copied data dir> \
+//	  [AGENT_OFFICE_REAL_REQUESTS_OUT=<file>] go test . -run TestRealDeskStaffing -v -timeout 30m
+func TestRealDeskStaffing(t *testing.T) {
+	data := os.Getenv("AGENT_OFFICE_REAL_REQUESTS_DATA")
+	if os.Getenv("AGENT_OFFICE_REAL_STAFFING") == "" || data == "" {
+		t.Skip("set AGENT_OFFICE_REAL_STAFFING=1 and AGENT_OFFICE_REAL_REQUESTS_DATA=<copied data dir>")
+	}
+	var report []string
+	note := func(format string, args ...any) {
+		line := fmt.Sprintf(format, args...)
+		report = append(report, line)
+		t.Log(line)
+	}
+	t.Cleanup(func() {
+		if out := os.Getenv("AGENT_OFFICE_REAL_REQUESTS_OUT"); out != "" {
+			os.WriteFile(out, []byte(strings.Join(report, "\n")+"\n"), 0o644)
+		}
+	})
+	keyring.MockInit()
+	t.Setenv("AGENT_OFFICE_DATA_DIR", data)
+	a := NewApp()
+	a.emit = func(context.Context, string, ...interface{}) {}
+	a.startup(context.Background())
+	if st := a.SystemStatus(); st.Error != "" {
+		t.Fatal(st.Error)
+	}
+	t.Cleanup(func() { a.shutdown(context.Background()) })
+	start := time.Now()
+	deadline := start.Add(15 * time.Minute)
+	var list []domain.Request
+	for {
+		list = need(a.ListRequests(storage.RequestFilter{All: true}))
+		busy := false
+		for _, r := range list {
+			if r.Status == domain.ReqReceived || r.Status == domain.ReqTriaging || r.Status == domain.ReqWaitingDesk && r.StaffedDesk == "" &&
+				!strings.Contains(r.HoldReason, "배치하지 못했습니다") {
+				busy = true
+			}
+		}
+		if !busy || time.Now().After(deadline) {
+			break
+		}
+		time.Sleep(2 * time.Second)
+	}
+	for _, r := range list {
+		note("request %q → %s/%s staffed=%q hold=%q reason=%q", clip(r.Body, 80), r.Status, r.Outcome, r.StaffedDesk, r.HoldReason, clip(r.Reason, 300))
+		for _, it := range r.Items {
+			note("  item %s %s %s", it.Kind, it.Status, clip(string(it.Payload), 400))
+		}
+		if r.ProjectID != "" {
+			if v := need(a.GetIntakeDesk(r.ProjectID)); v.Assignee != nil {
+				note("  desk %q (connection %s, model %q)\n%s", v.Assignee.DisplayName, v.Assignee.ConnectionID, v.Assignee.Model, v.Assignee.Overrides.Instructions)
+			}
+		}
+	}
+	rows, _ := a.db.Read().QueryContext(a.ctx, `SELECT kind, status, usage, usage_reported, error FROM desk_staffing`)
+	for rows.Next() {
+		var kind, status, usage, errText string
+		var rep int
+		rows.Scan(&kind, &status, &usage, &rep, &errText)
+		note("staffing %s %s usage=%s %s", kind, status, usage, errText)
+	}
+	rows.Close()
+	note("took %s", time.Since(start).Round(time.Second))
 }
