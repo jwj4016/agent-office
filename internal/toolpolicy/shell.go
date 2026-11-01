@@ -347,7 +347,7 @@ func expandAll(words []string, env map[string]string) []string {
 
 // pathIn resolves p against dir for checks that take an absolute path.
 func (c *checker) pathIn(p, dir string) string {
-	if p == "" || strings.ContainsAny(p, "$`*?") || filepath.IsAbs(p) || p == "~" || strings.HasPrefix(p, "~/") {
+	if p == "" || strings.ContainsAny(p, "$`*?") || isAbs(p) || p == "~" || strings.HasPrefix(p, "~/") {
 		return p
 	}
 	return filepath.Join(dir, p)

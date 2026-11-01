@@ -214,7 +214,7 @@ func (c *checker) read(p string) {
 		return
 	}
 	abs := c.abs(p, c.req.Workspace)
-	if secretPattern.MatchString(abs) && !c.insideRoots(abs) {
+	if secretPattern.MatchString(filepath.ToSlash(abs)) && !c.insideRoots(abs) {
 		c.risk(fmt.Sprintf("열쇠·비밀번호가 든 파일을 읽습니다(%s)", c.show(abs)), nil)
 	}
 }
@@ -241,7 +241,7 @@ func (c *checker) abs(p, dir string) string {
 	if p == "~" || strings.HasPrefix(p, "~/") {
 		p = filepath.Join(home(), strings.TrimPrefix(p, "~"))
 	}
-	if !filepath.IsAbs(p) {
+	if !isAbs(p) {
 		if dir == "" {
 			dir = c.req.Workspace
 		}
@@ -249,6 +249,10 @@ func (c *checker) abs(p, dir string) string {
 	}
 	return filepath.Clean(p)
 }
+
+// isAbs also takes /path as absolute on Windows: commands run in a POSIX
+// shell there too, and such a path is never inside the step's folders.
+func isAbs(p string) bool { return filepath.IsAbs(p) || strings.HasPrefix(p, "/") }
 
 // show writes a path for the person, with the home folder as ~.
 func (c *checker) show(p string) string {
