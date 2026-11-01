@@ -229,7 +229,7 @@ func (c *checker) write(p string) {
 		return
 	}
 	abs := c.abs(p, c.req.Workspace)
-	if abs == "/dev/null" || strings.HasPrefix(abs, "/dev/std") || strings.HasPrefix(abs, "/dev/fd/") {
+	if dev := filepath.ToSlash(abs); dev == "/dev/null" || strings.HasPrefix(dev, "/dev/std") || strings.HasPrefix(dev, "/dev/fd/") {
 		return
 	}
 	if !c.insideRoots(abs) {
