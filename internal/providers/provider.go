@@ -161,6 +161,9 @@ type RequestPayload struct {
 	Action    string   `json:"action"`
 	Detail    string   `json:"detail"`
 	Options   []string `json:"options,omitempty"`
+	// Input is the tool's full input when the provider sends it (Detail
+	// is cut short for display); the app checks it before asking.
+	Input json.RawMessage `json:"input,omitempty"`
 }
 
 type ResolvedPayload struct {

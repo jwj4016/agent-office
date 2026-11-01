@@ -72,6 +72,12 @@ type ToolRequest struct {
 	Path    string `json:"path,omitempty"`
 	Command string `json:"command,omitempty"`
 	Input   string `json:"input,omitempty"`
+	// Summary and Risks say what the request does and why the app asks;
+	// Rules are what "always allow here" would keep (none when a risk may
+	// not be waived).
+	Summary string   `json:"summary,omitempty"`
+	Risks   []string `json:"risks,omitempty"`
+	Rules   []string `json:"rules,omitempty"`
 }
 
 // parseToolRequest reads a provider's approval request. Claude sends the
@@ -207,6 +213,17 @@ func (e *Engine) Inbox(ctx context.Context) ([]InboxItem, error) {
 					it.Detail = t.Action + ": " + t.Detail
 					tool := parseToolRequest(t.Action, t.Detail)
 					tool.Input = inputNamed(e.cfg.DataDir, base.Inputs, tool.Path)
+					if v, ok := storedVerdict(ctx, q, it.ApprovalID); ok {
+						tool.Summary = v.Summary
+						for _, r := range v.Risks {
+							tool.Risks = append(tool.Risks, r.Reason)
+						}
+						if rules, ok := v.Rules(); ok {
+							for _, r := range rules {
+								tool.Rules = append(tool.Rules, r.Key())
+							}
+						}
+					}
 					it.Tool = &tool
 					items = append(items, it)
 				}

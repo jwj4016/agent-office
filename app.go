@@ -1183,11 +1183,44 @@ func (a *App) DecideApproval(projectID, approvalID string, generation int, decis
 	return actionResult(a.eng.DecideApproval(a.ctx, projectID, approvalID, generation, decision, reason, targets))
 }
 
-func (a *App) DecideToolApproval(projectID, approvalID string, accept bool) (ActionResult, error) {
+// DecideToolApproval answers an AI's tool request. With remember (and
+// accept) the service keeps the rules that waive what it was asked about,
+// and its other waiting requests those rules now cover are approved too.
+func (a *App) DecideToolApproval(projectID, approvalID string, accept, remember bool) (ActionResult, error) {
 	if err := a.ready(); err != nil {
 		return ActionResult{}, err
 	}
-	return actionResult(a.eng.DecideToolApproval(a.ctx, projectID, approvalID, accept))
+	if accept && remember {
+		if _, err := a.eng.RememberToolRules(a.ctx, projectID, approvalID); err != nil {
+			return ActionResult{}, uiErr(err)
+		}
+	}
+	res, err := actionResult(a.eng.DecideToolApproval(a.ctx, projectID, approvalID, accept))
+	if err == nil && accept && remember {
+		a.eng.ApproveAllowedToolRequests(a.ctx, projectID)
+	}
+	return res, err
+}
+
+// ListToolRules lists the kinds of command a service lets AI steps run
+// without asking.
+func (a *App) ListToolRules(projectID string) ([]storage.ToolRule, error) {
+	if err := a.ready(); err != nil {
+		return nil, err
+	}
+	if err := a.db.CheckScope(a.ctx, projectID); err != nil {
+		return nil, uiErr(err)
+	}
+	list, err := a.db.ToolRules(a.ctx, projectID)
+	return list, uiErr(err)
+}
+
+// DeleteToolRule takes a rule away; that kind of command asks again.
+func (a *App) DeleteToolRule(projectID, id string) error {
+	if err := a.ready(); err != nil {
+		return err
+	}
+	return uiErr(a.db.DeleteToolRule(a.ctx, projectID, id))
 }
 
 func (a *App) AnswerQuestion(projectID, messageID, answer string) (ActionResult, error) {

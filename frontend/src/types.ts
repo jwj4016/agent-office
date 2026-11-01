@@ -151,7 +151,13 @@ export type InboxItem = {
 
 // ToolRequest is what a tool approval asks: the tool as the provider names
 // it, the file or command, and the input result the file is.
-export type ToolRequest = { name: string; path?: string; command?: string; input?: string };
+export type ToolRequest = {
+    name: string; path?: string; command?: string; input?: string;
+    // What the request does and why the app asks; rules are what "always
+    // allow here" would keep (none when a risk may not be waived).
+    summary?: string; risks?: string[] | null; rules?: string[] | null;
+};
+export type ToolRule = { id: string; projectId: string; program: string; sub: string; key: string; createdAt: string };
 
 export type ContextNote = { label: string; ref: string; text: string };
 

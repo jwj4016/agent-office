@@ -74,13 +74,15 @@ export function DecideApproval(arg1:string,arg2:string,arg3:number,arg4:string,a
 
 export function DecideProposals(arg1:string,arg2:Array<string>,arg3:boolean,arg4:string):Promise<main.ProposalBatch>;
 
-export function DecideToolApproval(arg1:string,arg2:string,arg3:boolean):Promise<main.ActionResult>;
+export function DecideToolApproval(arg1:string,arg2:string,arg3:boolean,arg4:boolean):Promise<main.ActionResult>;
 
 export function DeclineCollab(arg1:string,arg2:string,arg3:string):Promise<storage.CollabRequest>;
 
 export function DeleteDepartmentTemplate(arg1:string):Promise<void>;
 
 export function DeleteRole(arg1:string):Promise<void>;
+
+export function DeleteToolRule(arg1:string,arg2:string):Promise<void>;
 
 export function DeliverCode(arg1:engine.DeliverInput):Promise<engine.CodeDelivery>;
 
@@ -175,6 +177,8 @@ export function ListRunDocuments(arg1:string,arg2:string):Promise<Array<storage.
 export function ListRuns(arg1:string):Promise<Array<engine.RunDetail>>;
 
 export function ListSubscriptions(arg1:string,arg2:string):Promise<Array<domain.Subscription>>;
+
+export function ListToolRules(arg1:string):Promise<Array<storage.ToolRule>>;
 
 export function ListWorkDocuments(arg1:string,arg2:string):Promise<Array<storage.LinkedDocument>>;
 

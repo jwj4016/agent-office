@@ -24,6 +24,7 @@ import {Documents} from './Documents';
 import {Operations} from './Operations';
 import {pendingCount} from './Judgments';
 import {ServiceRequests} from './Requests';
+import {ToolRules} from './ToolApprovals';
 import {Work} from './Work';
 import {Workflows} from './Workflows';
 
@@ -315,6 +316,8 @@ function ProjectSettings({project, onSaved}: { project: Project; onSaved: () => 
             {form.mode === 'auto' ? <AutoScope project={project}/> : null}
 
             <Categories project={project}/>
+
+            <ToolRules project={project}/>
 
             <Section title="내보내기">
                 <div className="card stack">

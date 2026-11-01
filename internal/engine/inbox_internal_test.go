@@ -3,6 +3,7 @@ package engine
 import (
 	"encoding/json"
 	"path/filepath"
+	"reflect"
 	"testing"
 )
 
@@ -21,7 +22,7 @@ func TestParseToolRequest(t *testing.T) {
 		{"Read", "Claude가 파일을 읽으려 합니다", ToolRequest{Name: "Read"}}, // a title, not JSON
 		{"Read", `Read {"file_path":`, ToolRequest{Name: "Read"}},  // cut at 500 characters
 	} {
-		if got := parseToolRequest(c.action, c.detail); got != c.want {
+		if got := parseToolRequest(c.action, c.detail); !reflect.DeepEqual(got, c.want) {
 			t.Errorf("%s %q = %+v, want %+v", c.action, c.detail, got, c.want)
 		}
 	}

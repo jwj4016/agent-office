@@ -148,10 +148,26 @@ describe('tool approvals', () => {
         // The instructions are there but folded.
         expect(within(card).getByText('업무 지침 보기').closest('details')).not.toHaveAttribute('open');
         fireEvent.click(within(card).getByRole('button', {name: '명령 실행 ls 거절'}));
-        await waitFor(() => expect(fakeApi.decideTool).toHaveBeenCalledWith('prj-1', 'apr-3', false));
+        await waitFor(() => expect(fakeApi.decideTool).toHaveBeenCalledWith('prj-1', 'apr-3', false, false));
         fireEvent.click(await within(card).findByRole('button', {name: '모두 허용 (2)'}));
         await waitFor(() => expect(fakeApi.decideTool).toHaveBeenCalledTimes(3));
-        expect(fakeApi.decideTool).toHaveBeenCalledWith('prj-1', 'apr-1', true);
-        expect(fakeApi.decideTool).toHaveBeenCalledWith('prj-1', 'apr-2', true);
+        expect(fakeApi.decideTool).toHaveBeenCalledWith('prj-1', 'apr-1', true, false);
+        expect(fakeApi.decideTool).toHaveBeenCalledWith('prj-1', 'apr-2', true, false);
+    });
+
+    it('says why it asks and keeps "always allow" for the service', async () => {
+        const bash = (id: string, command: string, risks: string[], rules: string[]) => inboxItem({kind: 'tool_approval', approvalId: id, attemptId: 'att-8',
+            stepTitle: '로컬 실행 확인', detail: `Bash: Bash {"command":"${command}"}`, tool: {name: 'Bash', command, summary: '명령 실행', risks, rules}});
+        state.inbox = [bash('apr-9', 'npm install', ['패키지를 인터넷에서 내려받아 설치합니다'], ['npm install']),
+            bash('apr-8', 'sudo rm -rf /x', ['관리자 권한으로 실행합니다'], [])];
+        renderInbox();
+        const install = await screen.findByRole('listitem', {name: '명령 실행 npm install'});
+        expect(within(install).getByRole('list', {name: '확인이 필요한 이유'})).toHaveTextContent('패키지를 인터넷에서 내려받아 설치합니다');
+        const sudo = screen.getByRole('listitem', {name: '명령 실행 sudo rm -rf /x'});
+        expect(within(sudo).getByText('이 위험은 항상 허용할 수 없어 매번 확인합니다.')).toBeInTheDocument();
+        expect(within(sudo).queryByRole('checkbox')).not.toBeInTheDocument();
+        fireEvent.click(within(install).getByRole('checkbox'));
+        fireEvent.click(within(install).getByRole('button', {name: '명령 실행 npm install 허용'}));
+        await waitFor(() => expect(fakeApi.decideTool).toHaveBeenCalledWith('prj-1', 'apr-9', true, true));
     });
 });

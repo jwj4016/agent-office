@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"agent-office/internal/domain"
 	"agent-office/internal/providers"
 	"agent-office/internal/storage"
+	"agent-office/internal/toolpolicy"
 )
 
 // outputPath is where a step's output file lives inside the attempt dir.
@@ -226,6 +228,9 @@ func (e *Engine) launchAI(a *activeAttempt, n *domain.Node, snap domain.Assignme
 		fail(err)
 		return
 	}
+	a.mu.Lock()
+	a.folders = toolpolicy.Request{Workspace: req.Workspace, Writable: req.WritableDirs, Readable: req.ReadableDirs}
+	a.mu.Unlock()
 	session, err := prov.Start(e.ctx, req)
 	if err != nil {
 		fail(err)
@@ -347,7 +352,32 @@ func (e *Engine) onEvent(a *activeAttempt, n *domain.Node, ev providers.Event) e
 			var p providers.RequestPayload
 			json.Unmarshal(ev.Payload, &p)
 			apr := storage.NewID("apr")
-			target, _ := json.Marshal(map[string]string{"action": p.Action, "detail": p.Detail})
+			verdict, err := toolVerdict(ctx, c.Tx, a, p)
+			if err != nil {
+				return err
+			}
+			target, _ := json.Marshal(map[string]any{"action": p.Action, "detail": p.Detail, "input": p.Input, "verdict": verdict})
+			if verdict.Allow {
+				// Safe, or allowed by the service's rules: recorded as
+				// approved by the app and answered at once (6th revision).
+				reason := "자동 허용: " + verdict.Summary
+				if len(verdict.Waived) > 0 {
+					reason += " (서비스 규칙: " + strings.Join(verdict.Waived, ", ") + ")"
+				}
+				now := storage.Now()
+				if _, err := c.Tx.ExecContext(ctx, `INSERT INTO approvals (id, project_id, run_id, step_attempt_id, generation, kind, request_key, target_manifest,
+					decision, reason, created_at, decided_at) VALUES (?, ?, ?, ?, ?, 'tool', ?, ?, 'approved', ?, ?, ?)`,
+					apr, a.projectID, a.runID, a.id, a.generation, p.RequestID, string(target), reason, now, now); err != nil {
+					return err
+				}
+				requestID := p.RequestID
+				after = func() {
+					if err := a.respond(context.Background(), providers.Response{RequestID: requestID, Decision: providers.DecisionAccept}); err != nil {
+						e.cfg.Logf("engine: auto approval %s: %v", apr, err)
+					}
+				}
+				return c.Emit(a.projectID, a.runID, a.id, "approval.auto", map[string]any{"approvalId": apr, "action": p.Action, "detail": p.Detail, "reason": reason})
+			}
 			if _, err := c.Tx.ExecContext(ctx, `INSERT INTO approvals (id, project_id, run_id, step_attempt_id, generation, kind, request_key, target_manifest, created_at)
 				VALUES (?, ?, ?, ?, ?, 'tool', ?, ?, ?)`, apr, a.projectID, a.runID, a.id, a.generation, p.RequestID, string(target), storage.Now()); err != nil {
 				return err

@@ -11,6 +11,7 @@ import (
 	"agent-office/internal/domain"
 	"agent-office/internal/providers"
 	"agent-office/internal/storage"
+	"agent-office/internal/toolpolicy"
 	"agent-office/internal/workspace"
 )
 
@@ -112,6 +113,8 @@ type activeAttempt struct {
 	mu      sync.Mutex
 	session providers.Session
 	stopped bool
+	// folders are where the attempt works, for checking its tool requests.
+	folders toolpolicy.Request
 }
 
 func (e *Engine) newActive(id string, st *runState, stepID string, generation int) *activeAttempt {

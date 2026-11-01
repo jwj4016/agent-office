@@ -134,8 +134,8 @@ export function DecideProposals(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['DecideProposals'](arg1, arg2, arg3, arg4);
 }
 
-export function DecideToolApproval(arg1, arg2, arg3) {
-  return window['go']['main']['App']['DecideToolApproval'](arg1, arg2, arg3);
+export function DecideToolApproval(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['DecideToolApproval'](arg1, arg2, arg3, arg4);
 }
 
 export function DeclineCollab(arg1, arg2, arg3) {
@@ -148,6 +148,10 @@ export function DeleteDepartmentTemplate(arg1) {
 
 export function DeleteRole(arg1) {
   return window['go']['main']['App']['DeleteRole'](arg1);
+}
+
+export function DeleteToolRule(arg1, arg2) {
+  return window['go']['main']['App']['DeleteToolRule'](arg1, arg2);
 }
 
 export function DeliverCode(arg1) {
@@ -336,6 +340,10 @@ export function ListRuns(arg1) {
 
 export function ListSubscriptions(arg1, arg2) {
   return window['go']['main']['App']['ListSubscriptions'](arg1, arg2);
+}
+
+export function ListToolRules(arg1) {
+  return window['go']['main']['App']['ListToolRules'](arg1);
 }
 
 export function ListWorkDocuments(arg1, arg2) {

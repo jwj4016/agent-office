@@ -35,6 +35,7 @@ export const fakeApi = {
     submitReview: acted('succeeded'),
     submitHuman: acted('succeeded'),
     decideTool: acted('running'),
+    toolRules: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []), deleteToolRule: ok(undefined),
     answer: acted('running'),
     workflow: vi.fn(),
     saveDraft: vi.fn(),

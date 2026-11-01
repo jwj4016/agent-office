@@ -13,7 +13,7 @@ import type {
     Decisions, Judgment, Operations, Proposal, ProposalBatch, ProposalEdit, WorkLineage,
     CollabAcceptance, CollabRequest, CollabRequirement, NewCollabRequest, WorkCollab,
     AutoStart, DepartmentAutomation, WorkflowChoice, CodeDeliveryRecord, DeliveryMethod, FinalCode,
-    DeskView, IntakeDesk, RequestItem, ServiceRequest, WorkProposalPayload, OrgApplied, OrgView,
+    DeskView, IntakeDesk, RequestItem, ServiceRequest, WorkProposalPayload, OrgApplied, OrgView, ToolRule,
 } from './types';
 
 // The generated d.ts types differ from the real JSON for raw fields, so
@@ -241,8 +241,11 @@ export const api = {
         call<ActionResult>(Go.SubmitReview(projectId, attemptId, generation, decision, comment, targets, outputs)),
     decideApproval: (projectId: string, approvalId: string, generation: number, decision: string, reason: string, targets: string[]) =>
         call<ActionResult>(Go.DecideApproval(projectId, approvalId, generation, decision, reason, targets)),
-    decideTool: (projectId: string, approvalId: string, accept: boolean) =>
-        call<ActionResult>(Go.DecideToolApproval(projectId, approvalId, accept)),
+    // remember keeps "always allow this kind here" for the service.
+    decideTool: (projectId: string, approvalId: string, accept: boolean, remember = false) =>
+        call<ActionResult>(Go.DecideToolApproval(projectId, approvalId, accept, remember)),
+    toolRules: (projectId: string) => call<ToolRule[]>(Go.ListToolRules(projectId)),
+    deleteToolRule: (projectId: string, id: string) => call<void>(Go.DeleteToolRule(projectId, id)),
     answer: (projectId: string, messageId: string, answer: string) =>
         call<ActionResult>(Go.AnswerQuestion(projectId, messageId, answer)),
     eventsAfter: (projectId: string, after: number) => call<StoredEvent[]>(Go.EventsAfter(projectId, after)),

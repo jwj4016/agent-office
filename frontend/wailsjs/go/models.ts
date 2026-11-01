@@ -2081,6 +2081,9 @@ export namespace engine {
 	    path?: string;
 	    command?: string;
 	    input?: string;
+	    summary?: string;
+	    risks?: string[];
+	    rules?: string[];
 	
 	    static createFrom(source: any = {}) {
 	        return new ToolRequest(source);
@@ -2092,6 +2095,9 @@ export namespace engine {
 	        this.path = source["path"];
 	        this.command = source["command"];
 	        this.input = source["input"];
+	        this.summary = source["summary"];
+	        this.risks = source["risks"];
+	        this.rules = source["rules"];
 	    }
 	}
 	export class InboxItem {
@@ -4646,6 +4652,28 @@ export namespace storage {
 	        this.by = source["by"];
 	        this.at = source["at"];
 	        this.valid = source["valid"];
+	    }
+	}
+	export class ToolRule {
+	    id: string;
+	    projectId: string;
+	    program: string;
+	    sub: string;
+	    key: string;
+	    createdAt: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ToolRule(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.projectId = source["projectId"];
+	        this.program = source["program"];
+	        this.sub = source["sub"];
+	        this.key = source["key"];
+	        this.createdAt = source["createdAt"];
 	    }
 	}
 	export class ValidationResult {

@@ -247,7 +247,8 @@ export function runBridge({input, output, query, log = () => {}}: BridgeIO): Pro
             }
             const full = opts.title ?? `${toolName} ${JSON.stringify(toolInput)}`;
             const detail = full.length > 500 ? full.slice(0, 500) + '…' : full;
-            const r = await ask('approval_request', {action: toolName, detail, options: ['accept', 'decline']});
+            // The full input lets the app check the request before asking.
+            const r = await ask('approval_request', {action: toolName, detail, input: toolInput, options: ['accept', 'decline']});
             write('request_resolved', {requestId: r.requestId, decision: r.decision === 'accept' ? 'accept' : 'decline'});
             return r.decision === 'accept'
                 ? {behavior: 'allow', updatedInput: toolInput}
