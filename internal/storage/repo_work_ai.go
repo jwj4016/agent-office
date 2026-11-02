@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"time"
 
 	"agent-office/internal/domain"
 )
@@ -343,12 +344,18 @@ type AIAttemptUsage struct {
 // SumAIAttemptUsage adds up every attempt's reported usage, the service
 // desk's request calls and desk-writing calls included. An attempt that reported no cost (or
 // nothing at all) counts as unknown cost.
-func SumAIAttemptUsage(ctx context.Context, q rowsQueryer, projectID string) (AIAttemptUsage, error) {
-	return sumUsageRows(ctx, q, `SELECT usage, usage_reported FROM work_ai_attempts WHERE project_id = ?
-		UNION ALL SELECT usage, usage_reported FROM request_attempts WHERE project_id = ?
-		UNION ALL SELECT usage, usage_reported FROM desk_staffing WHERE project_id = ?
-		UNION ALL SELECT usage, usage_reported FROM org_proposals WHERE project_id = ?
-		UNION ALL SELECT usage, usage_reported FROM request_reports WHERE project_id = ?`, projectID, projectID, projectID, projectID, projectID)
+//
+// A non-zero since counts only calls started from then (a daily budget).
+func SumAIAttemptUsage(ctx context.Context, q rowsQueryer, projectID string, since time.Time) (AIAttemptUsage, error) {
+	t := ""
+	if !since.IsZero() {
+		t = since.UTC().Format(time.RFC3339Nano)
+	}
+	return sumUsageRows(ctx, q, `SELECT usage, usage_reported FROM work_ai_attempts WHERE project_id = ?1 AND started_at >= ?2
+		UNION ALL SELECT usage, usage_reported FROM request_attempts WHERE project_id = ?1 AND started_at >= ?2
+		UNION ALL SELECT usage, usage_reported FROM desk_staffing WHERE project_id = ?1 AND started_at >= ?2
+		UNION ALL SELECT usage, usage_reported FROM org_proposals WHERE project_id = ?1 AND started_at >= ?2
+		UNION ALL SELECT usage, usage_reported FROM request_reports WHERE project_id = ?1 AND started_at >= ?2`, projectID, t)
 }
 
 func sumUsageRows(ctx context.Context, q rowsQueryer, query string, args ...any) (AIAttemptUsage, error) {

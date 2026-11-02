@@ -556,6 +556,9 @@ func (a *App) UpdateProject(in ProjectInput) (domain.Project, error) {
 	if (in.Budget.MaxTokens != nil && *in.Budget.MaxTokens <= 0) || (in.Budget.MaxCostUSD != nil && *in.Budget.MaxCostUSD <= 0) {
 		return cur, errors.New("예산은 0보다 커야 합니다 (제한하지 않으려면 비워 두세요)")
 	}
+	if in.Budget.Period != "" && in.Budget.Period != engine.PeriodDay {
+		return cur, errors.New("예산 기간은 전체 누적 또는 하루만 고를 수 있습니다")
+	}
 	ws, err := checkWorkspace(in.WorkspacePath)
 	if err != nil {
 		return cur, err

@@ -1842,6 +1842,7 @@ export namespace engine {
 	export class Budget {
 	    maxTokens?: number;
 	    maxCostUsd?: number;
+	    period?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new Budget(source);
@@ -1851,6 +1852,7 @@ export namespace engine {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.maxTokens = source["maxTokens"];
 	        this.maxCostUsd = source["maxCostUsd"];
+	        this.period = source["period"];
 	    }
 	}
 	export class CodeDelivery {
@@ -2478,6 +2480,7 @@ export namespace engine {
 	    attempts: number;
 	    budget: Budget;
 	    holdReason?: string;
+	    since?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new Usage(source);
@@ -2492,6 +2495,7 @@ export namespace engine {
 	        this.attempts = source["attempts"];
 	        this.budget = this.convertValues(source["budget"], Budget);
 	        this.holdReason = source["holdReason"];
+	        this.since = source["since"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

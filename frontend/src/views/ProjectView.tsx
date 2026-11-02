@@ -229,7 +229,7 @@ const optNum = (v: string) => (v.trim() === '' ? undefined : Number(v));
 
 // ProjectSettings holds everything about a service that is set rather
 // than run: identity, how it runs, budget, export and archiving.
-function ProjectSettings({project, onSaved}: { project: Project; onSaved: () => void }) {
+export function ProjectSettings({project, onSaved}: { project: Project; onSaved: () => void }) {
     const [form, setForm] = useState(project);
     const [budget, setBudget] = useState<Budget>(budgetOf(project));
     useEffect(() => { setForm(project); setBudget(budgetOf(project)); }, [project]);
@@ -239,7 +239,8 @@ function ProjectSettings({project, onSaved}: { project: Project; onSaved: () => 
     const archived = project.status === 'archived';
     const saved = budgetOf(project);
     const dirty = form.name !== project.name || form.goal !== project.goal || form.instructions !== project.instructions || form.mode !== project.mode
-        || form.workspacePath !== project.workspacePath || budget.maxTokens !== saved.maxTokens || budget.maxCostUsd !== saved.maxCostUsd;
+        || form.workspacePath !== project.workspacePath || budget.maxTokens !== saved.maxTokens || budget.maxCostUsd !== saved.maxCostUsd
+        || budget.period !== saved.period;
     const save = () => action.run(async () => {
         await api.updateProject({id: project.id, name: form.name, goal: form.goal, instructions: form.instructions, mode: form.mode, budget,
             workspacePath: form.workspacePath});
@@ -285,7 +286,8 @@ function ProjectSettings({project, onSaved}: { project: Project; onSaved: () => 
                 <Section title="AI 사용량과 예산">
                     <div className="card stack">
                         {u ? (
-                            <dl className="kv">
+                            <dl className="kv" aria-label={u.since ? '오늘 사용량' : '전체 사용량'}>
+                                <dt>기준</dt><dd>{u.since ? '오늘(0시부터)' : '서비스 시작부터 전체'}</dd>
                                 <dt>토큰</dt><dd className="num">입력 {u.inputTokens.toLocaleString()} · 출력 {u.outputTokens.toLocaleString()}</dd>
                                 <dt>AI 업무</dt><dd className="num">{u.attempts.toLocaleString()}건</dd>
                                 <dt>비용</dt><dd className="num">${u.costUsd.toFixed(4)}
@@ -293,16 +295,24 @@ function ProjectSettings({project, onSaved}: { project: Project; onSaved: () => 
                             </dl>
                         ) : null}
                         {u?.holdReason ? <Banner tone="warn" title="새 AI 업무가 멈춰 있습니다">{u.holdReason}</Banner> : null}
+                        <Field label="예산 기간">
+                            <select disabled={archived} value={budget.period ?? ''}
+                                    onChange={(e) => setBudget({...budget, period: e.target.value === 'day' ? 'day' : undefined})}>
+                                <option value="">전체 누적 — 서비스가 쓴 전체에 대한 한도</option>
+                                <option value="day">하루 — 매일 0시에 다시 셉니다</option>
+                            </select></Field>
                         <div className="grid-2">
-                            <Field label="토큰 예산" optional hint="비우면 제한 없음">
+                            <Field label={budget.period === 'day' ? '하루 토큰 예산' : '토큰 예산'} optional hint="비우면 제한 없음">
                                 <input inputMode="numeric" disabled={archived} value={budget.maxTokens ?? ''}
                                        onChange={(e) => setBudget({...budget, maxTokens: optNum(e.target.value)})}/></Field>
-                            <Field label="비용 예산 (USD)" optional hint="비용을 알려 주는 연결만 계산됩니다">
+                            <Field label={budget.period === 'day' ? '하루 비용 예산 (USD)' : '비용 예산 (USD)'} optional hint="비용을 알려 주는 연결만 계산됩니다">
                                 <input inputMode="decimal" disabled={archived} value={budget.maxCostUsd ?? ''}
                                        onChange={(e) => setBudget({...budget, maxCostUsd: optNum(e.target.value)})}/></Field>
                         </div>
                         <p className="muted small">새 AI 업무를 시작하기 전에 확인합니다. 진행 중인 요청과 청구 지연 때문에 정확한 상한은 아닙니다.
-                            비용을 알려 주지 않는 연결(예: Codex)은 토큰 예산으로 관리하세요.</p>
+                            비용을 알려 주지 않는 연결(예: Codex)은 토큰 예산으로 관리하세요.
+                            구독 요금제로 쓰는 연결의 비용은 실제 청구액이 아니라 API로 썼다면 들었을 금액입니다.
+                            하루 예산에 닿아 멈춘 업무는 다음 날 자동으로 이어집니다.</p>
                     </div>
                 </Section>
 

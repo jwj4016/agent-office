@@ -1,6 +1,6 @@
 // A controllable stand-in for ../api used by component tests.
 import {vi} from 'vitest';
-import type {ActionResult, InboxItem, ProjectSummary, WorkPlanView} from '../types';
+import type {ActionResult, InboxItem, ProjectSummary, Usage, WorkPlanView} from '../types';
 
 export const state = {
     summaries: [] as ProjectSummary[],
@@ -30,7 +30,8 @@ export const fakeApi = {
     startAssist: vi.fn(), assists: vi.fn(async (..._args: unknown[]): Promise<unknown[]> => []), assist: vi.fn(), applyAssist: vi.fn(),
     aiActivity: vi.fn(async (..._args: unknown[]): Promise<{events: unknown[]; hasMore: boolean}> => ({events: [], hasMore: false})),
     discardAssist: ok(undefined), workflowDiagram: vi.fn(async (..._args: unknown[]) => ''), saveWorkflowDiagram: vi.fn(async (..._args: unknown[]) => ''),
-    projectUsage: ok({inputTokens: 0, outputTokens: 0, costUsd: 0, unknownCostAttempts: 0, attempts: 0, budget: {}}),
+    updateProject: vi.fn(async (p: unknown) => p),
+    projectUsage: vi.fn(async (..._args: unknown[]): Promise<Usage> => ({inputTokens: 0, outputTokens: 0, costUsd: 0, unknownCostAttempts: 0, attempts: 0, budget: {}})),
     decideApproval: acted('succeeded'),
     submitReview: acted('succeeded'),
     submitHuman: acted('succeeded'),

@@ -2,6 +2,7 @@ package engine_test
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -55,5 +56,24 @@ func TestUsageUnknownCost(t *testing.T) {
 	u, _ := h.eng.ProjectUsage(h.ctx, p.ID)
 	if u.UnknownCostAttempts != 1 || u.CostUSD != 0 || u.InputTokens != 120 {
 		t.Fatalf("usage = %+v", u)
+	}
+}
+
+// A daily budget counts today's use and says it starts again tomorrow.
+func TestDailyBudgetHolds(t *testing.T) {
+	h := newHarness(t)
+	p := testenv.ServiceDev(t, h.db, "게임")
+	proj, _ := h.db.Project(h.ctx, p.ID)
+	proj.Budget = json.RawMessage(`{"maxTokens": 500, "period": "day"}`)
+	if _, err := h.db.UpdateProject(h.ctx, proj); err != nil {
+		t.Fatal(err)
+	}
+	h.useScenario("plan", "plan-heavy")
+	runID := h.start(p)
+	h.approve(p.ID, runID, "approve")
+	h.waitRun(p.ID, runID, engine.RunWaiting)
+	u, err := h.eng.ProjectUsage(h.ctx, p.ID)
+	if err != nil || u.InputTokens != 400 || u.Since == "" || !strings.Contains(u.HoldReason, "오늘 토큰 예산") {
+		t.Fatalf("usage = %+v, %v", u, err)
 	}
 }

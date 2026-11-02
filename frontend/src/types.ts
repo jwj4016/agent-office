@@ -186,10 +186,13 @@ export type SystemStatus = {
     perf?: boolean;
 };
 
-export type Budget = { maxTokens?: number; maxCostUsd?: number };
+/** period 'day': the limits are per day, counted from midnight on this computer. */
+export type Budget = { maxTokens?: number; maxCostUsd?: number; period?: 'day' };
 export type Usage = {
     inputTokens: number; outputTokens: number; costUsd: number; unknownCostAttempts: number; attempts: number;
     budget: Budget; holdReason?: string;
+    /** Set for a daily budget: when today's counting started. */
+    since?: string;
 };
 
 export type ProposedRole = { ref: string; reuseRoleId: string; name: string; mission: string; instructions: string; parentRef: string };
