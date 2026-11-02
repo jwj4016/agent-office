@@ -177,7 +177,7 @@ func TestScriptsAreCheckedForWhatTheyDo(t *testing.T) {
 		if err := os.WriteFile(p, []byte(body), 0o755); err != nil {
 			t.Fatal(err)
 		}
-		return p
+		return filepath.ToSlash(p) // a shell reads backslashes as escapes
 	}
 	nav := write("nav.sh", "#!/bin/zsh\nosascript - \"$1\" <<'AS'\non run argv\n  tell application \"Google Chrome\" to set URL of active tab of front window to (item 1 of argv)\nend run\nAS\nsleep 4\n")
 	tidy := write("tidy.sh", "#!/bin/sh\nls -la\nwc -l *.py\n")
