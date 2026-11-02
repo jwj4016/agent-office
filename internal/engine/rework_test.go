@@ -158,13 +158,15 @@ func TestLateResultFromSupersededAttemptIsIgnored(t *testing.T) {
 	h.waitStep(p.ID, runID, "side", engine.StSucceeded)
 	var oldStatus string
 	var oldArtifacts, late int
+	// The rework marks the old attempt superseded; its provider's late
+	// result is recorded when it arrives, which may be a moment later.
 	deadline := time.Now().Add(5 * time.Second)
-	for oldStatus != engine.StSuperseded && time.Now().Before(deadline) {
+	for (oldStatus != engine.StSuperseded || late == 0) && time.Now().Before(deadline) {
 		h.db.Read().QueryRow(`SELECT status FROM step_attempts WHERE id = ?`, old.AttemptID).Scan(&oldStatus)
+		h.db.Read().QueryRow(`SELECT COUNT(*) FROM execution_events WHERE step_attempt_id = ? AND kind = 'provider.late'`, old.AttemptID).Scan(&late)
 		time.Sleep(10 * time.Millisecond)
 	}
 	h.db.Read().QueryRow(`SELECT COUNT(*) FROM artifacts WHERE step_attempt_id = ?`, old.AttemptID).Scan(&oldArtifacts)
-	h.db.Read().QueryRow(`SELECT COUNT(*) FROM execution_events WHERE step_attempt_id = ? AND kind = 'provider.late'`, old.AttemptID).Scan(&late)
 	if oldStatus != engine.StSuperseded || oldArtifacts != 0 || late == 0 {
 		t.Fatalf("old attempt: status=%s artifacts=%d lateEvents=%d", oldStatus, oldArtifacts, late)
 	}
