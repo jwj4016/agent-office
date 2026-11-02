@@ -46,6 +46,7 @@ EOF`,
 		`git archive HEAD | tar -x -C /tmp/qa-copy`,
 		`/bin/zsh -lc 'npm run test:e2e'`,
 		`python3 src/check.py --offline`,
+		`nc -z 127.0.0.1 5173 && echo in-use`,
 	} {
 		req, _ := testReq(t, "Bash", cmd)
 		if v := Check(req, nil); !v.Allow {
@@ -79,6 +80,8 @@ func TestRiskyCommandsAreExplained(t *testing.T) {
 		{`open http://localhost:5173`, "다른 앱을 열거나", "open"},
 		{`docker compose up -d`, "도커", "docker compose"},
 		{`brew install jq`, "컴퓨터 전체에 프로그램", "brew install"},
+		{`nc example.com 80`, "다른 컴퓨터에 접속", "nc"},
+		{`nc -l 127.0.0.1 9000`, "다른 컴퓨터에 접속", "nc"},
 		{`frobnicate --all`, "앱이 모르는 프로그램입니다(frobnicate)", "frobnicate"},
 		{`/bin/zsh -lc 'npm install --no-fund'`, "패키지를 인터넷에서 내려받아", "npm install"},
 		{`bash -ec "git push"`, "원격 저장소로 올립니다", "git push"},
@@ -161,5 +164,86 @@ func TestFileAndWebTools(t *testing.T) {
 	}
 	if v := Check(req, []Rule{{Program: "WebFetch"}}); !v.Allow {
 		t.Fatalf("web fetch with a rule = %+v", v)
+	}
+}
+
+// Scripts a command runs are checked for what they do: an AI's script
+// in the temporary folder in full, the project's own code for driving
+// other apps. Driving other apps always asks.
+func TestScriptsAreCheckedForWhatTheyDo(t *testing.T) {
+	tmp := t.TempDir()
+	write := func(name, body string) string {
+		p := filepath.Join(tmp, name)
+		if err := os.WriteFile(p, []byte(body), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	nav := write("nav.sh", "#!/bin/zsh\nosascript - \"$1\" <<'AS'\non run argv\n  tell application \"Google Chrome\" to set URL of active tab of front window to (item 1 of argv)\nend run\nAS\nsleep 4\n")
+	tidy := write("tidy.sh", "#!/bin/sh\nls -la\nwc -l *.py\n")
+	push := write("push.sh", "git add -A && git push origin main\n")
+	rm := write("clean.py", "import shutil\nshutil.rmtree('build')\n")
+	osa := `osascript -e 'tell application "Google Chrome" to get URL of active tab of front window'`
+	rules := []Rule{{Program: "osascript"}}
+	for _, tc := range []struct {
+		cmd, reason string
+		rule        string
+	}{
+		{nav + " https://www.data.go.kr", "다른 앱(브라우저 등)을 조작", ""},
+		{"zsh " + nav, "다른 앱(브라우저 등)을 조작", ""},
+		{"source " + nav, "다른 앱(브라우저 등)을 조작", ""},
+		{osa, "다른 앱(브라우저 등)을 조작", ""},
+		{"cat > /tmp/go.sh <<'EOF'\n#!/bin/zsh\nopen -a Safari https://example.com\nEOF\nchmod +x /tmp/go.sh\n/tmp/go.sh", "다른 앱을 열거나", "open"},
+		{"echo 'git push' > /tmp/p.sh; sh /tmp/p.sh", "이 명령이 만든 스크립트", ""},
+		{"bash " + push, "원격 저장소로 올립니다", "git push"},
+		{"python3 " + rm, "파일을 지웁니다", "python3 inline"},
+		{"cat ~/.villanote_datagokr_key", "열쇠·비밀번호", ""},
+	} {
+		req, _ := testReq(t, "Bash", tc.cmd)
+		v := Check(req, rules)
+		if v.Allow {
+			t.Errorf("%s was allowed", tc.cmd)
+			continue
+		}
+		found := false
+		for _, r := range v.Risks {
+			if strings.Contains(r.Reason, tc.reason) {
+				found = true
+				got := ""
+				if r.Rule != nil {
+					got = r.Rule.Key()
+				}
+				if got != tc.rule {
+					t.Errorf("%s: rule %q, want %q", tc.cmd, got, tc.rule)
+				}
+			}
+		}
+		if !found {
+			t.Errorf("%s: reasons %+v, want one with %q", tc.cmd, v.Risks, tc.reason)
+		}
+	}
+
+	// Harmless scripts, and the project's own code, still run.
+	req, ws := testReq(t, "Bash", "")
+	os.WriteFile(filepath.Join(ws, "fetch.py"), []byte("import urllib.request\nurllib.request.urlopen('https://example.com')\n"), 0o644)
+	os.MkdirAll(filepath.Join(ws, "scripts"), 0o755)
+	os.WriteFile(filepath.Join(ws, "scripts", "check.sh"), []byte("#!/bin/sh\nnpm test && go vet ./...\n"), 0o755)
+	os.WriteFile(filepath.Join(ws, "drive.py"), []byte("import subprocess\nsubprocess.run(['osascript', '-e', 'x'])\n"), 0o644)
+	for _, cmd := range []string{tidy, "sh " + tidy, "python3 fetch.py", "./scripts/check.sh",
+		"cat > /tmp/s.sh <<'EOF'\nls\nEOF\nsh /tmp/s.sh",
+		`curl -s -o c5-trace.json -D headers.txt -w '%{http_code}' http://127.0.0.1:8100/api/v1/trace`} {
+		req.Command = cmd
+		if v := Check(req, nil); !v.Allow {
+			t.Errorf("%s\n  asked: %+v", cmd, v.Risks)
+		}
+	}
+	req.Command = "python3 drive.py"
+	if v := Check(req, nil); v.Allow || v.Risks[0].Rule != nil {
+		t.Errorf("project code driving other apps = %+v", v)
+	}
+	req.Command = `curl -sS -o out.json -H 'Accept: application/json' https://apis.data.go.kr/1613000/x`
+	v := Check(req, nil)
+	if keys, ok := v.Rules(); !ok || len(keys) != 1 || keys[0].Key() != "curl apis.data.go.kr" {
+		t.Errorf("curl to one address = %+v", v)
 	}
 }

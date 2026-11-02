@@ -1,8 +1,12 @@
 package toolpolicy
 
 import (
+	"bytes"
+	"cmp"
 	"fmt"
+	"io"
 	"net/url"
+	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -196,15 +200,15 @@ func stripHeredocs(cmd string) (string, []string) {
 		}
 		bodyStart := loc[1] + nl + 1
 		lines := strings.SplitAfter(cmd[bodyStart:], "\n")
-		end, consumed := len(cmd), 0
+		end, bodyEnd, consumed := len(cmd), len(cmd), 0
 		for _, l := range lines {
 			consumed += len(l)
 			if strings.TrimSpace(l) == delim {
-				end = bodyStart + consumed
+				end, bodyEnd = bodyStart+consumed, bodyStart+consumed-len(l)
 				break
 			}
 		}
-		body := cmd[bodyStart:min(end, len(cmd))]
+		body := cmd[bodyStart:bodyEnd]
 		bodies = append(bodies, body)
 		cmd = cmd[:loc[0]] + cmd[loc[1]:bodyStart] + cmd[min(end, len(cmd)):]
 	}
@@ -221,6 +225,11 @@ func (c *checker) command(cmd string) {
 		c.risk("명령의 따옴표가 닫히지 않아 내용을 읽을 수 없습니다", &Rule{Program: "unreadable"})
 		return
 	}
+	// Scripts this command writes are checked from what it writes, not
+	// from what is on disk now.
+	prevWritten, prevHeredocs := c.written, c.heredocs
+	c.written, c.heredocs = map[string]bool{}, heredocs
+	defer func() { c.written, c.heredocs = prevWritten, prevHeredocs }()
 	env := map[string]string{"HOME": home()}
 	dir := c.req.Workspace
 	prevFetchesWeb := false
@@ -236,6 +245,7 @@ func (c *checker) command(cmd string) {
 		}
 		for _, w := range expandAll(s.writes, env) {
 			c.write(c.pathIn(w, dir))
+			c.wrote(c.pathIn(w, dir))
 		}
 		words = stripAssignments(words)
 		if len(words) == 0 {
@@ -251,7 +261,7 @@ func (c *checker) command(cmd string) {
 		c.command(in)
 	}
 	for _, h := range heredocs {
-		c.script(h, "python")
+		c.script(h, "python", true)
 	}
 	if len(c.kinds) > 0 {
 		c.summary = strings.Join(c.kinds, ", ")
@@ -281,6 +291,25 @@ func runsStdin(words []string) bool {
 		}
 	}
 	return true
+}
+
+// localOnly reports whether nc names only this computer ("nc -z
+// 127.0.0.1 5173" checks a port) and does not listen.
+func localOnly(args []string) bool {
+	host := false
+	for _, a := range args {
+		switch {
+		case strings.HasPrefix(a, "-"):
+			if strings.Contains(a, "l") || strings.Contains(a, "e") || strings.Contains(a, "c") {
+				return false
+			}
+		case slices.Contains(localHosts, a):
+			host = true
+		case !isNumberish(a):
+			return false
+		}
+	}
+	return host
 }
 
 // fetchesLocal reports whether every address a curl or wget names is on
@@ -392,7 +421,8 @@ var (
 		"reboot": "컴퓨터를 다시 켭니다", "halt": "컴퓨터를 멈춥니다", "launchctl": "컴퓨터의 백그라운드 서비스를 바꿉니다",
 		"crontab": "정해진 시각에 도는 작업을 바꿉니다", "defaults": "컴퓨터·앱 설정을 바꿀 수 있습니다", "systemctl": "컴퓨터의 서비스를 바꿉니다",
 		"security": "키체인(비밀번호 보관함)에 접근합니다", "csrutil": "컴퓨터 보안 설정을 바꿉니다", "spctl": "컴퓨터 보안 설정을 바꿉니다",
-		"nvram": "컴퓨터 설정을 바꿉니다", "chflags": "파일 보호 설정을 바꿉니다", "passwd": "비밀번호를 바꿉니다", "dscl": "사용자 계정을 바꿉니다",
+		"nvram":     "컴퓨터 설정을 바꿉니다",
+		"osascript": appControl, "automator": appControl, "shortcuts": appControl, "cliclick": appControl, "chflags": "파일 보호 설정을 바꿉니다", "passwd": "비밀번호를 바꿉니다", "dscl": "사용자 계정을 바꿉니다",
 	}
 )
 
@@ -465,6 +495,13 @@ func (c *checker) simple(words []string, dir string, env map[string]string) stri
 			args = dropMode(args)
 		}
 		c.writeArgs(args, dir)
+		if prog == "tee" {
+			for _, a := range args {
+				if !strings.HasPrefix(a, "-") {
+					c.wrote(c.pathIn(a, dir))
+				}
+			}
+		}
 	case prog == "rm" || prog == "rmdir" || prog == "unlink" || prog == "shred" || prog == "trash":
 		c.kind("파일 지우기")
 		c.remove(args, dir)
@@ -506,14 +543,17 @@ func (c *checker) simple(words []string, dir string, env map[string]string) stri
 		c.risk("도커 컨테이너·이미지를 다룹니다(컴퓨터 자원과 네트워크를 씁니다)", &Rule{Program: prog, Sub: firstWord(args)})
 	case prog == "kill" || prog == "pkill" || prog == "killall":
 		c.risk("실행 중인 프로그램을 끕니다. 사장님이 쓰는 프로그램일 수도 있습니다", &Rule{Program: prog})
-	case prog == "open" || prog == "osascript" || prog == "xdg-open":
+	case prog == "open" || prog == "xdg-open":
 		c.risk("다른 앱을 열거나 조작합니다", &Rule{Program: prog})
+	case (prog == "nc" || prog == "ncat") && localOnly(args):
+		c.kind("로컬 주소 확인")
 	case prog == "ssh" || prog == "scp" || prog == "sftp" || prog == "nc" || prog == "ncat" || prog == "telnet" || prog == "ftp":
 		c.risk("다른 컴퓨터에 접속합니다", &Rule{Program: prog})
 	default:
-		// A program inside the step's folders is the step's own code.
+		// A program inside the step's folders is the step's own code;
+		// what a script in it runs is checked too.
 		if strings.Contains(words[0], "/") && c.mayRun(c.abs(words[0], dir)) {
-			c.kind("스크립트 실행")
+			c.runFile("", c.abs(words[0], dir))
 			return dir
 		}
 		c.risk(fmt.Sprintf("앱이 모르는 프로그램입니다(%s)", prog), &Rule{Program: prog})
@@ -616,6 +656,7 @@ func (c *checker) copy(prog string, args []string, dir string) {
 	}
 	dest := paths[len(paths)-1]
 	c.write(c.pathIn(dest, dir))
+	c.wrote(c.pathIn(dest, dir))
 	for _, src := range paths[:len(paths)-1] {
 		if prog == "mv" {
 			c.write(c.pathIn(src, dir)) // moving removes the source
@@ -713,11 +754,37 @@ func (c *checker) xargs(args []string) {
 
 var localHosts = []string{"localhost", "127.0.0.1", "0.0.0.0", "::1", "[::1]"}
 
+var (
+	bareHost = regexp.MustCompile(`^[A-Za-z0-9.-]+\.[A-Za-z]{2,}(:\d+)?(/|$)`)
+	// fileExt marks a word that names a file, not an address.
+	fileExt = regexp.MustCompile(`(?i)\.(json|xml|txt|html?|log|md|csv|ya?ml|sh|py|js|ts|body|out|tmp|gz|zip|tar|png|jpe?g|pdf)$`)
+)
+
+// takesValue reports whether a curl or wget option takes the next word as
+// its value (a file, a header, a time…), which is then not an address.
+func takesValue(prog, opt string) bool {
+	if strings.Contains(opt, "=") {
+		return false
+	}
+	if prog == "wget" {
+		return slices.Contains([]string{"-O", "-o", "-a", "-P", "-T", "-t", "-U", "-e", "--header", "--output-document",
+			"--output-file", "--directory-prefix", "--timeout", "--tries", "--user-agent", "--post-data", "--post-file"}, opt)
+	}
+	if strings.HasPrefix(opt, "--") {
+		return slices.Contains([]string{"--output", "--header", "--data", "--data-raw", "--data-binary", "--data-urlencode",
+			"--form", "--user", "--user-agent", "--referer", "--cookie", "--cookie-jar", "--upload-file", "--config", "--proxy",
+			"--range", "--retry", "--write-out", "--max-time", "--connect-timeout", "--trace", "--trace-ascii", "--dump-header",
+			"--stderr", "--cacert", "--cert", "--key", "--request", "--resolve", "--output-dir"}, opt)
+	}
+	// Short options may be combined ("-sSo file"): the last letter decides.
+	return len(opt) >= 2 && opt[0] == '-' && strings.ContainsRune("oHdXmwuAebcTFKxrCEyYzD", rune(opt[len(opt)-1]))
+}
+
 func (c *checker) fetch(prog string, args []string, dir string) {
 	sends := false
 	for i, a := range args {
 		switch {
-		case a == "-o" || a == "--output" || a == "-O" && prog == "wget":
+		case a == "-o" || a == "--output" || a == "-O" && prog == "wget" || prog == "curl" && i+1 < len(args) && writesFile(a):
 			if i+1 < len(args) {
 				c.write(c.pathIn(args[i+1], dir))
 			}
@@ -728,8 +795,8 @@ func (c *checker) fetch(prog string, args []string, dir string) {
 		}
 	}
 	local := true
-	for _, a := range args {
-		if strings.HasPrefix(a, "-") {
+	for i, a := range args {
+		if strings.HasPrefix(a, "-") || i > 0 && takesValue(prog, args[i-1]) {
 			continue
 		}
 		host := ""
@@ -737,7 +804,7 @@ func (c *checker) fetch(prog string, args []string, dir string) {
 			if u, err := url.Parse(a); err == nil {
 				host = u.Hostname()
 			}
-		} else if regexp.MustCompile(`^[A-Za-z0-9.-]+\.[A-Za-z]{2,}(:\d+)?(/|$)`).MatchString(a) {
+		} else if bareHost.MatchString(a) && !fileExt.MatchString(a) {
 			host = strings.Split(strings.Split(a, "/")[0], ":")[0]
 		} else if strings.HasPrefix(a, "localhost") || strings.HasPrefix(a, "127.0.0.1") {
 			host = "localhost"
@@ -758,6 +825,15 @@ func (c *checker) fetch(prog string, args []string, dir string) {
 	if local {
 		c.kind("로컬 주소 확인")
 	}
+}
+
+// writesFile reports whether a curl option writes its value as a file.
+func writesFile(opt string) bool {
+	switch opt {
+	case "--dump-header", "--trace", "--trace-ascii", "--stderr", "--cookie-jar", "--output":
+		return true
+	}
+	return !strings.HasPrefix(opt, "--") && strings.HasPrefix(opt, "-") && strings.ContainsRune("oDc", rune(opt[len(opt)-1]))
 }
 
 func (c *checker) git(args []string, dir string) {
@@ -881,7 +957,7 @@ func (c *checker) interpreter(prog string, args []string, dir string) {
 			return
 		case a == "-c" || a == "-e" || a == "--eval" || a == "-p":
 			if i+1 < len(args) {
-				c.script(args[i+1], prog)
+				c.script(args[i+1], prog, true)
 			}
 			c.kind("스크립트 실행")
 			return
@@ -891,8 +967,8 @@ func (c *checker) interpreter(prog string, args []string, dir string) {
 		case strings.HasPrefix(a, "-"):
 			continue
 		default:
-			if p := c.abs(a, dir); !strings.ContainsAny(a, "$`") && !c.mayRun(p) {
-				c.risk(fmt.Sprintf("작업 폴더 밖의 스크립트(%s)를 실행합니다", c.show(p)), &Rule{Program: prog, Sub: "outside"})
+			if !strings.ContainsAny(a, "$`") {
+				c.runFile(prog, c.abs(a, dir))
 			}
 			c.kind("스크립트 실행")
 			c.readArgs(args[i+1:], dir)
@@ -922,20 +998,151 @@ var riskyCode = []struct {
 	re     *regexp.Regexp
 	reason string
 }{
+	{appControlCode, appControl},
 	{regexp.MustCompile(`shutil\.rmtree|os\.remove|os\.unlink|os\.rmdir|\.unlink\(|fs\.rm|rmSync|unlinkSync|rimraf`), "직접 쓴 스크립트가 파일을 지웁니다"},
 	{regexp.MustCompile(`subprocess|os\.system|os\.popen|child_process|execSync|spawnSync|\bexec\(`), "직접 쓴 스크립트가 다른 프로그램을 실행합니다"},
 	{regexp.MustCompile(`requests\.(post|put|patch|delete)|urlopen\(|http\.client|socket\.|fetch\(['"]https?://(?:[^'"/]*)(?:[^l/]|l[^o])`), "직접 쓴 스크립트가 인터넷과 통신합니다"},
 }
 
-func (c *checker) script(code, prog string) {
+// appControl is never waived: a script that drives other apps can read
+// and click the person's signed-in pages.
+const appControl = "다른 앱(브라우저 등)을 조작합니다. 로그인된 화면을 읽거나 누를 수 있습니다"
+
+var appControlCode = regexp.MustCompile(`osascript|(?i:tell\s+application)|System Events|NSAppleScript|pyautogui|cliclick|CGEventPost`)
+
+// script checks the code of a script. full is false for the step's own
+// project code, where only driving other apps is looked for.
+func (c *checker) script(code, prog string, full bool) {
 	for _, r := range riskyCode {
-		if r.re.MatchString(code) {
+		if r.reason == appControl {
+			if r.re.MatchString(code) {
+				c.risk(appControl, nil)
+			}
+			continue
+		}
+		if full && r.re.MatchString(code) {
 			c.risk(r.reason+" — 내용을 확인하세요", &Rule{Program: prog, Sub: "inline"})
 		}
+	}
+	if !full {
+		return
 	}
 	for _, m := range regexp.MustCompile(`['"](~?/[^'"\s]+)['"]`).FindAllStringSubmatch(code, -1) {
 		c.read(c.abs(m[1], c.req.Workspace))
 	}
+}
+
+// wrote records a file the command being checked writes.
+func (c *checker) wrote(p string) {
+	if c.written != nil && p != "" {
+		c.written[clean(p)] = true
+	}
+}
+
+// maxScript bounds how much of a script file is read to check it.
+const maxScript = 256 << 10
+
+// runFile checks a script or program file a command runs: where it is and
+// what it does. A shell script is checked like a command. A script the
+// AI wrote (in this command, in the temporary folder or in an output
+// folder) is checked in full; the project's own code only for driving
+// other apps. A file whose content cannot be checked runs only when it is
+// the project's own.
+func (c *checker) runFile(prog, p string) {
+	if !c.mayRun(p) {
+		c.risk(fmt.Sprintf("작업 폴더 밖의 스크립트(%s)를 실행합니다", c.show(p)), &Rule{Program: cmp.Or(prog, "script"), Sub: "outside"})
+		return
+	}
+	c.kind("스크립트 실행")
+	own := c.ownCode(p)
+	var bodies []string
+	if c.written[clean(p)] {
+		// Written by this command: only a heredoc shows its content.
+		if len(c.heredocs) == 0 {
+			c.risk(fmt.Sprintf("이 명령이 만든 스크립트(%s)의 내용을 확인할 수 없습니다", c.show(p)), nil)
+			return
+		}
+		bodies, own = c.heredocs, false
+	} else {
+		b, err := readHead(p)
+		if err != nil || bytes.IndexByte(b, 0) >= 0 {
+			if !own {
+				c.risk(fmt.Sprintf("AI가 만든 프로그램(%s)의 내용을 확인할 수 없습니다", c.show(p)), nil)
+			}
+			return
+		}
+		bodies = []string{string(b)}
+	}
+	if c.depth >= 3 {
+		c.risk("스크립트가 다른 스크립트를 여러 겹으로 실행해 끝까지 확인할 수 없습니다", nil)
+		return
+	}
+	c.depth++
+	defer func() { c.depth-- }()
+	for _, body := range bodies {
+		lang := scriptLang(prog, p, body)
+		if lang == "shell" {
+			c.command(body)
+		} else {
+			c.script(body, lang, !own)
+		}
+	}
+}
+
+// ownCode reports whether p is the project's code or a file the app gave
+// the step, rather than something the AI put in a temporary or output
+// folder.
+func (c *checker) ownCode(p string) bool {
+	p = clean(p)
+	if c.req.Workspace != "" && inside(clean(c.req.Workspace), p) {
+		return true
+	}
+	for _, r := range c.req.Readable {
+		if inside(clean(r), p) {
+			return true
+		}
+	}
+	return false
+}
+
+func readHead(p string) ([]byte, error) {
+	f, err := os.Open(p)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	return io.ReadAll(io.LimitReader(f, maxScript))
+}
+
+// scriptLang says how a script runs: by the program that runs it, its
+// first line (#!) or its extension. Text without either runs in a shell.
+func scriptLang(prog, p, body string) string {
+	switch prog {
+	case "sh", "bash", "zsh", "source", ".":
+		return "shell"
+	case "":
+	default:
+		return prog
+	}
+	if first, _, _ := strings.Cut(body, "\n"); strings.HasPrefix(first, "#!") {
+		for _, l := range []string{"python", "node", "ruby", "perl"} {
+			if strings.Contains(first, l) {
+				return l
+			}
+		}
+		return "shell"
+	}
+	switch filepath.Ext(p) {
+	case ".py":
+		return "python"
+	case ".js", ".mjs", ".cjs":
+		return "node"
+	case ".rb":
+		return "ruby"
+	case ".pl":
+		return "perl"
+	}
+	return "shell"
 }
 
 func (c *checker) shellRun(prog string, args []string, dir string) {
@@ -948,11 +1155,10 @@ func (c *checker) shellRun(prog string, args []string, dir string) {
 	}
 	for _, a := range args {
 		if !strings.HasPrefix(a, "-") {
-			if c.mayRun(c.abs(a, dir)) {
-				c.kind("스크립트 실행")
-			} else {
-				c.risk(fmt.Sprintf("작업 폴더 밖의 스크립트(%s)를 실행합니다", c.show(c.abs(a, dir))), &Rule{Program: prog, Sub: "outside"})
+			if !strings.ContainsAny(a, "$`") {
+				c.runFile(prog, c.abs(a, dir))
 			}
+			c.kind("스크립트 실행")
 			return
 		}
 	}

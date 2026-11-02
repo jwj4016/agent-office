@@ -121,6 +121,12 @@ type checker struct {
 	summary string
 	// kinds of work seen in a command, for the summary
 	kinds []string
+	// written and heredocs belong to the command being checked: the
+	// files it writes and the heredoc texts it carries.
+	written  map[string]bool
+	heredocs []string
+	// depth counts scripts checked inside scripts.
+	depth int
 }
 
 func (c *checker) risk(reason string, rule *Rule) {
@@ -206,7 +212,7 @@ func home() string {
 }
 
 // secretPattern matches files that hold keys, passwords and tokens.
-var secretPattern = regexp.MustCompile(`(^|/)(\.ssh|\.aws|\.gnupg|\.kube|\.docker/config\.json|\.netrc|\.npmrc|\.pypirc|\.git-credentials|\.config/gh|Keychains|id_rsa|id_ed25519|id_ecdsa|\.pem$|\.p12$|credentials(\.json)?$|\.env(\.[a-z]+)?$)`)
+var secretPattern = regexp.MustCompile(`(^|/)(\.ssh|\.aws|\.gnupg|\.kube|\.docker/config\.json|\.netrc|\.npmrc|\.pypirc|\.git-credentials|\.config/gh|Keychains|id_rsa|id_ed25519|id_ecdsa|\.pem$|\.p12$|credentials(\.json)?$|\.env(\.[a-z]+)?$)|[._-](api_?)?keys?$|[._-]tokens?$|[._-]secrets?$`)
 
 // read checks a file a tool reads: anything but key and password files.
 func (c *checker) read(p string) {
