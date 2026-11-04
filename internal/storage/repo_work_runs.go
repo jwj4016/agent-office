@@ -239,7 +239,7 @@ func workStatusForRun(runStatus string) (string, string) {
 	case "succeeded":
 		return domain.WorkWaiting, "실행이 끝났습니다. 결과를 확인하고 완료하거나 수정을 요청하세요"
 	case "failed":
-		return domain.WorkBlocked, "실행이 실패했습니다. 실행 화면에서 원인을 확인하세요"
+		return domain.WorkBlocked, "실행이 실패했습니다. 실행 탭에서 원인을 확인하세요"
 	case "interrupted":
 		return domain.WorkBlocked, "실행이 중단되었습니다. 다시 시도하거나 새로 실행하세요"
 	case "cancelled":

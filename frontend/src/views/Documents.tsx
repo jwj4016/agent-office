@@ -306,7 +306,7 @@ export function WorkDocuments({project, item}: { project: Project; item: WorkIte
     const close = (c: ImpactCheck, status: 'resolved' | 'dismissed') =>
         action.run(async () => { await api.closeImpactCheck(project.id, c.id, status, ''); checks.reload(); });
     return (
-        <Section title="참고 공유 자료" count={links.data.length}>
+        <Section title="연결한 자료" count={links.data.length}>
             {checks.data.map((c) => (
                 <Banner key={c.id} tone="warn" title="사용한 자료가 바뀌었습니다"
                         actions={<span className="row nowrap">
@@ -343,7 +343,7 @@ export function WorkDocuments({project, item}: { project: Project; item: WorkIte
                 const v = d && latest(d);
                 if (v) action.run(async () => { await api.linkDocument(project.id, item.id, v.id); setPick(''); links.reload(); });
             }}>
-                <select value={pick} disabled={archived} aria-label="연결할 자료" onChange={(e) => setPick(e.target.value)}>
+                <select value={pick} disabled={archived} aria-label="연결할 자료" style={{flex: 1, minWidth: 0}} onChange={(e) => setPick(e.target.value)}>
                     <option value="">연결할 자료 선택 (최신 판)</option>
                     {candidates.map((d) => <option key={d.id} value={d.id}>{d.title} · {latest(d)?.number}판 {latest(d) ? stageLabel(latest(d)!) : ''}</option>)}
                 </select>

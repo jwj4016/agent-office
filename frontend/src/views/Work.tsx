@@ -90,7 +90,7 @@ function WorkLineageSection({project, item, onOpenWork}: { project: Project; ite
     if (!l.data) return null;
     const {causes, next} = l.data;
     const link = (id: string | undefined, title: string | undefined) =>
-        id ? <button className="btn ghost small" onClick={() => onOpenWork(id)}>{title || '업무'}</button> : null;
+        id ? <button className="btn ghost small wrap" onClick={() => onOpenWork(id)}>{title || '업무'}</button> : null;
     return (
         <Section title={<><Icon icon={GitBranch} size={18}/>시작한 이유와 이어진 업무</>} label="시작한 이유와 이어진 업무">
             {causes.length === 0 ? <p className="muted small">사람이 직접 만든 업무입니다.</p> : null}
@@ -258,24 +258,24 @@ export function Work({project, workItemId, onTeam, onOpenRun}: {
                         {filtered ? '조회 조건을 바꿔 보세요.' : '부서가 맡을 일을 등록하세요. 공동 목표 아래에 둘 수도 있습니다.'}
                     </EmptyState>
                 ) : (
-                    <div className="table-wrap">
+                    <div className="table-wrap work-table">
                         <table className="list">
-                            <thead><tr><th>업무</th><th>부서</th><th>상태</th><th>우선순위</th><th>기한</th><th>분류</th></tr></thead>
+                            <thead><tr><th>업무</th><th>부서</th><th>상태</th><th className="col-extra">우선순위</th><th className="col-extra">기한</th><th className="col-extra">분류</th></tr></thead>
                             <tbody>
                             {list.data.map((w) => (
                                 <tr key={w.id}>
                                     <td>
-                                        <button className="btn ghost small" onClick={() => open(w.id)} aria-label={`${w.title} 업무 보기`}>
-                                            <strong>{w.title}</strong></button>
+                                        <button className="btn ghost small wrap work-title" onClick={() => open(w.id)} aria-label={`${w.title} 업무 보기`} title={w.title}>
+                                            <span>{w.title}</span></button>
                                         {w.parentId ? <div className="muted xsmall">목표: {goalTitle(ctx, w.parentId)}</div> : null}
                                     </td>
                                     <td className="small">{deptName(ctx, w.departmentId) || <span className="muted">미배정</span>}</td>
                                     <td><WorkStatusBadge status={w.status} reason={w.statusReason}/></td>
-                                    <td><StatusBadge tone={priorityTone[w.priority]}>{t.workPriority[w.priority]}</StatusBadge></td>
-                                    <td className="small nowrap">{w.dueAt ? (
+                                    <td className="col-extra"><StatusBadge tone={priorityTone[w.priority]}>{t.workPriority[w.priority]}</StatusBadge></td>
+                                    <td className="col-extra small nowrap">{w.dueAt ? (
                                         overdue(w) ? <StatusBadge tone="bad" icon={CalendarClock}>{w.dueAt} 지남</StatusBadge> : w.dueAt
                                     ) : <span className="muted">—</span>}</td>
-                                    <td className="small">{w.categories.join(', ') || <span className="muted">—</span>}</td>
+                                    <td className="col-extra small">{w.categories.join(', ') || <span className="muted">—</span>}</td>
                                 </tr>
                             ))}
                             </tbody>
@@ -315,9 +315,9 @@ function WorkPanel({ctx, id, onChanged}: { ctx: Context; id: string; onChanged: 
             </DetailHeader>
             <dl className="kv">
                 <dt>{w.kind === 'goal' ? '책임 부서' : '담당 부서'}</dt><dd>{deptName(ctx, w.departmentId) || '미배정'}</dd>
-                <dt>담당자</dt><dd>{personName(ctx, w.assigneeAssignmentId) || '—'}</dd>
+                <dt>담당자</dt><dd>{w.kind === 'work' ? <WorkAssignee ctx={ctx} item={w}/> : personName(ctx, w.assigneeAssignmentId) || '—'}</dd>
                 {w.kind === 'work' ? <><dt>공동 목표</dt><dd>{w.parentId ? (
-                    <button className="btn ghost small" onClick={() => setDetail(<WorkPanel key={w.parentId} ctx={ctx} id={w.parentId} onChanged={onChanged}/>)}>
+                    <button className="btn ghost small wrap" onClick={() => setDetail(<WorkPanel key={w.parentId} ctx={ctx} id={w.parentId} onChanged={onChanged}/>)}>
                         {goalTitle(ctx, w.parentId) || '목표 보기'}</button>) : '—'}</dd></> : null}
                 {w.afterIds?.length ? <><dt>앞 업무</dt><dd><AfterWork projectId={ctx.project.id} ids={w.afterIds}
                     open={(other) => setDetail(<WorkPanel key={other} ctx={ctx} id={other} onChanged={onChanged}/>)}/></dd></> : null}
@@ -374,6 +374,16 @@ function WorkPanel({ctx, id, onChanged}: { ctx: Context; id: string; onChanged: 
             <History ctx={ctx} itemId={w.id} notes={d.data.notes} disabled={archived} onAdded={d.reload}/>
         </div>
     );
+}
+
+// WorkAssignee names who does the work: the person set on it, or else
+// the one its saved plan gives it to.
+function WorkAssignee({ctx, item}: { ctx: Context; item: WorkItem }) {
+    const plan = useLoad(() => api.workPlan(ctx.project.id, item.id), [ctx.project.id, item.id, item.updatedAt], ctx.project.id);
+    const set = personName(ctx, item.assigneeAssignmentId);
+    if (set) return <>{set}</>;
+    if (plan.data?.plan.workflowVersionId) return <>업무 흐름대로 실행</>;
+    return <>{personName(ctx, plan.data?.plan.assignmentId ?? '') || '—'}</>;
 }
 
 // StatusChanger moves the item to another status. Waiting and blocked
@@ -551,7 +561,7 @@ function AfterWork({projectId, ids, open}: { projectId: string; ids: string[]; o
         <span className="stack tight">
             {list.data.map((x) => (
                 <span key={x.id} className="row small">
-                    <button className="btn ghost small" onClick={() => open(x.id)}>{x.title}</button><WorkStatusBadge status={x.status}/>
+                    <button className="btn ghost small wrap" onClick={() => open(x.id)}>{x.title}</button><WorkStatusBadge status={x.status}/>
                 </span>
             ))}
             <span className="muted xsmall">앞 업무가 모두 끝나야 자동으로 시작합니다.</span>

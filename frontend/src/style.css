@@ -269,6 +269,8 @@ legend { padding: 0; }
 .btn.small { min-height: 28px; padding: 0 10px; font-size: var(--fs-sm); gap: 4px; border-radius: var(--r-sm); }
 .btn.icon { padding: 0; width: 34px; }
 .btn.small.icon { width: 28px; }
+/* A button that holds a long title: it wraps instead of widening its container. */
+.btn.wrap { white-space: normal; text-align: left; justify-content: flex-start; max-width: 100%; padding-block: 4px; overflow-wrap: anywhere; }
 .btn.block { width: 100%; }
 .btn[aria-busy="true"] { cursor: progress; }
 
@@ -392,6 +394,12 @@ table.list th { font-size: var(--fs-xs); color: var(--text-2); font-weight: 600;
 table.list tbody tr { transition: background var(--t-fast) var(--ease-out); }
 table.list tbody tr:hover { background: var(--surface-2); }
 table.list td.actions { text-align: right; white-space: nowrap; }
+/* The work list: at most two lines a title, and when the detail pane takes
+   room the columns that matter least give way so the status stays in view. */
+.work-table { container-type: inline-size; }
+.work-title { font-weight: 500; }
+.work-title > span { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+@container (max-width: 760px) { .work-table .col-extra { display: none; } }
 
 /* ---------- progress ---------- */
 
@@ -501,6 +509,10 @@ details > summary::marker { color: var(--text-2); }
     padding: var(--s-5); display: flex; flex-direction: column; gap: var(--s-4);
 }
 .detail:focus { outline: none; }
+/* Long prose reads in the pane: a size up from the 13px of lists. */
+.detail .kv { font-size: var(--fs-md); line-height: 1.6; }
+.detail .card.subtle.small { font-size: var(--fs-md); line-height: 1.6; }
+.detail .field-hint { font-size: var(--fs-sm); }
 .detail-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--s-2); }
 .scrim { display: none; }
 @media (max-width: 1200px) {

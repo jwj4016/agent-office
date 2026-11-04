@@ -146,6 +146,20 @@ describe('Work', () => {
         expect(await screen.findByRole('heading', {name: '기획안 작성'})).toBeInTheDocument();
     });
 
+    it('names who does the work from its plan when the item names no one', async () => {
+        fakeApi.assignments.mockResolvedValue([{id: 'a-be', displayName: '백엔드 개발자'}]);
+        fakeApi.workItem.mockResolvedValue({item: items[2], children: [], notes: []} satisfies WorkDetail);
+        fakeApi.workPlan.mockImplementation(async () => ({
+            plan: {workItemId: 'w2', projectId: 'prj-1', assignmentId: 'a-be', instructions: '', materials: '', outputs: [], workflowVersionId: '', updatedAt: 't'},
+            saved: true, preview: '', problem: '', approval: {by: '', at: '', valid: false},
+        }));
+        renderIt();
+        fireEvent.click(await screen.findByRole('button', {name: '페이지 구현 검토 업무 보기'}));
+        const pane = await screen.findByRole('complementary', {name: '상세'});
+        const label = await within(pane).findByText('담당자');
+        await waitFor(() => expect(label.nextElementSibling).toHaveTextContent('백엔드 개발자'));
+    });
+
     it('needs a reason to block work and keeps the history', async () => {
         const item = items[2];
         fakeApi.workItem.mockResolvedValue({

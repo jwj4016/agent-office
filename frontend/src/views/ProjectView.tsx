@@ -146,7 +146,7 @@ function Status({project, onRoute}: { project: Project; onRoute: (r: Route) => v
                                     actions={<Button variant="primary" size="sm" onClick={() => openRun(r)}>원인 보기<Icon icon={ArrowRight} size={14}/></Button>}>
                                 {blocked.length
                                     ? blocked.map((s) => <div key={s.id}><strong>{s.title}</strong> — {blockReason(s).text}</div>)
-                                    : '멈춘 업무를 찾지 못했습니다. 실행 화면에서 각 업무 상태를 확인하세요.'}
+                                    : '멈춘 업무를 찾지 못했습니다. 실행 탭에서 각 업무 상태를 확인하세요.'}
                             </Banner>
                         );
                     })}

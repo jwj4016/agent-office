@@ -113,21 +113,21 @@ function PlanForm({project, itemId, initial, assignments, choices, disabled, onS
             <Field label="참고 자료" optional hint="읽어 볼 문서나 경로, 링크를 적으세요.">
                 <textarea value={plan.materials} rows={2} disabled={disabled} onChange={(e) => set({materials: e.target.value})}/></Field>
             <fieldset className="stack tight">
-                <legend className="field-label">산출물</legend>
+                <legend className="field-label">결과물</legend>
                 {plan.outputs.map((o, i) => (
                     <div key={i} className="row nowrap">
-                        <input value={o.key} disabled={disabled} aria-label={`산출물 ${i + 1} 이름`} placeholder="이름 (예: result)"
+                        <input value={o.key} disabled={disabled} aria-label={`결과물 ${i + 1} 이름`} placeholder="이름 (예: result)"
                                style={{flex: 1, minWidth: 0}} onChange={(e) => setOutput(i, {key: e.target.value})}/>
-                        <select value={o.type} disabled={disabled} aria-label={`산출물 ${i + 1} 형식`} style={{flex: 1, minWidth: 0}}
+                        <select value={o.type} disabled={disabled} aria-label={`결과물 ${i + 1} 형식`} style={{flex: 1, minWidth: 0}}
                                 onChange={(e) => setOutput(i, {type: e.target.value as OutputType})}>
                             {outputTypes.map((ty) => <option key={ty} value={ty}>{t.outputType[ty]}</option>)}
                         </select>
-                        <Button size="sm" variant="ghost" iconOnly icon={Trash2} aria-label={`산출물 ${i + 1} 빼기`}
+                        <Button size="sm" variant="ghost" iconOnly icon={Trash2} aria-label={`결과물 ${i + 1} 빼기`}
                                 disabled={disabled || plan.outputs.length === 1} onClick={() => set({outputs: plan.outputs.filter((_, j) => j !== i)})}/>
                     </div>
                 ))}
                 <div><Button size="sm" variant="ghost" icon={Plus} disabled={disabled}
-                             onClick={() => set({outputs: [...plan.outputs, {key: '', type: 'markdown'}]})}>산출물 추가</Button></div>
+                             onClick={() => set({outputs: [...plan.outputs, {key: '', type: 'markdown'}]})}>결과물 추가</Button></div>
             </fieldset>
             </>}
             <ErrorBox error={action.error}/>
@@ -192,8 +192,8 @@ function RunList({project, runs, item, departments, categories, onOpenRun}: {
                     <li key={r.id} className="card stack tight">
                         <div className="row between nowrap">
                             <span className="row nowrap small"><strong>v{r.versionNumber}</strong><RunBadge status={r.status}/></span>
-                            <Button size="sm" variant="ghost" icon={ExternalLink} aria-label={`v${r.versionNumber} 실행 화면에서 보기`}
-                                    onClick={() => onOpenRun(r.id)}>실행 화면</Button>
+                            <Button size="sm" variant="ghost" icon={ExternalLink} aria-label={`v${r.versionNumber} 실행 보기`}
+                                    onClick={() => onOpenRun(r.id)}>실행 보기</Button>
                         </div>
                         {arts.length ? (
                             <div className="row">
@@ -268,7 +268,7 @@ function PlanProposal({project, itemId, assignments, disabled, onApplied}: {
                             <dt>담당자</dt><dd>{who(p.assignmentId)}</dd>
                             <dt>작업 지침</dt><dd className="pre">{p.instructions}</dd>
                             {p.materials ? <><dt>참고 자료</dt><dd className="pre">{p.materials}</dd></> : null}
-                            <dt>산출물</dt><dd>{p.outputs.map((o) => `${o.key} (${t.outputType[o.type] ?? o.type})`).join(', ')}</dd>
+                            <dt>결과물</dt><dd>{p.outputs.map((o) => `${o.key} (${t.outputType[o.type] ?? o.type})`).join(', ')}</dd>
                             {p.notes ? <><dt>근거·가정</dt><dd className="pre">{p.notes}</dd></> : null}
                         </dl>
                         {latest.stale ? <p className="muted small">제안을 만든 뒤 업무 내용이 바뀌어 적용할 수 없습니다. 다시 요청하세요.</p> : null}

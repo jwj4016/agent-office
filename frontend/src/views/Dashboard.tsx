@@ -138,7 +138,7 @@ export function Dashboard({summaries, inbox, decisions, loaded, onRoute, onCreat
                                 <span className="icon-wrap warn"><Icon icon={PauseCircle} size={18}/></span>
                                 <div className="body">
                                     <span className="title">{s.project.name} · 일시 정지된 실행 {s.pausedRuns}건</span>
-                                    <span className="meta">새 업무가 시작되지 않습니다. 실행 화면에서 재개할 수 있습니다.</span>
+                                    <span className="meta">새 업무가 시작되지 않습니다. 실행 탭에서 재개할 수 있습니다.</span>
                                 </div>
                                 <Button size="sm" onClick={() => onRoute(lastRunRoute(s))}>실행 열기</Button>
                             </li>

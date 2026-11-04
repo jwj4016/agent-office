@@ -54,9 +54,9 @@ describe('work plan and runs', () => {
         const form = await screen.findByRole('form', {name: '작업 계획'});
         expect(screen.getByRole('button', {name: '계획대로 실행'})).toBeDisabled();
         fireEvent.change(within(form).getByLabelText(/작업 지침/), {target: {value: '기존 화면을 먼저 본다'}});
-        fireEvent.click(within(form).getByRole('button', {name: '산출물 추가'}));
-        fireEvent.change(within(form).getByLabelText('산출물 2 이름'), {target: {value: 'schedule'}});
-        fireEvent.change(within(form).getByLabelText('산출물 2 형식'), {target: {value: 'json'}});
+        fireEvent.click(within(form).getByRole('button', {name: '결과물 추가'}));
+        fireEvent.change(within(form).getByLabelText('결과물 2 이름'), {target: {value: 'schedule'}});
+        fireEvent.change(within(form).getByLabelText('결과물 2 형식'), {target: {value: 'json'}});
         fireEvent.click(within(form).getByRole('button', {name: '계획 저장'}));
         await waitFor(() => expect(fakeApi.saveWorkPlan).toHaveBeenCalledWith(expect.objectContaining({
             projectId: 'prj-1', workItemId: 'w1', assignmentId: 'a-dev', instructions: '기존 화면을 먼저 본다',
@@ -90,7 +90,7 @@ describe('work plan and runs', () => {
         expect(await screen.findByText('실행에 전달되는 내용 보기')).toBeInTheDocument();
         fireEvent.click(await screen.findByRole('button', {name: 'result 결과'}));
         expect(await screen.findByText(/2주 소요/)).toBeInTheDocument();
-        fireEvent.click(screen.getByRole('button', {name: 'v1 실행 화면에서 보기'}));
+        fireEvent.click(screen.getByRole('button', {name: 'v1 실행 보기'}));
         expect(onOpenRun).toHaveBeenCalledWith('run-1');
         const form = screen.getByRole('form', {name: '수정 요청'});
         fireEvent.change(within(form).getByLabelText('수정 요청 내용'), {target: {value: '일정 근거 추가'}});
@@ -125,7 +125,7 @@ describe('AI plan proposals', () => {
         renderIt();
         const card = await screen.findByLabelText('AI 계획 제안');
         expect(within(card).getByText('화면별로 나눈다')).toBeInTheDocument();
-        expect(within(card).getByText('review (문서(Markdown))')).toBeInTheDocument();
+        expect(within(card).getByText('review (문서)')).toBeInTheDocument();
         fireEvent.click(within(card).getByRole('button', {name: '이 계획 적용'}));
         await waitFor(() => expect(fakeApi.applyPlanJob).toHaveBeenCalledWith('prj-1', 'aij-1'));
         expect(fakeApi.startWork).not.toHaveBeenCalled();
