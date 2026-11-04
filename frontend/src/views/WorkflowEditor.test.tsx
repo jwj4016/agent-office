@@ -1,4 +1,4 @@
-import {fireEvent, render, screen, waitFor} from '@testing-library/react';
+import {act, fireEvent, render, screen, waitFor} from '@testing-library/react';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 import {type ReactNode, useState} from 'react';
 import {fakeApi} from '../test/fakeApi';
@@ -47,6 +47,21 @@ describe('WorkflowEditor', () => {
         fireEvent.click(screen.getByRole('button', {name: '원래 초안 보기'}));
         expect(screen.getByLabelText('흐름 이름')).toBeEnabled();
         expect(screen.getByLabelText('업무 흐름 편집기')).toBeInTheDocument();
+    });
+    it('keeps the assistant open when the people load after it was opened', async () => {
+        let loaded: (v: never[]) => void = () => {};
+        fakeApi.assignments.mockImplementationOnce(() => new Promise((r) => { loaded = r; }));
+        fakeApi.assists.mockResolvedValue([]);
+        function Host() {
+            const [detail, setDetail] = useState<ReactNode | null>(null);
+            return <LiveProvider><DetailProvider value={setDetail}><WorkflowEditor project={project} workflowId="wf-1" onStarted={() => {}} onClose={() => {}}/>
+                <DetailPane detail={detail} onClose={() => setDetail(null)}/></DetailProvider></LiveProvider>;
+        }
+        render(<Host/>);
+        fireEvent.click(await screen.findByRole('button', {name: 'AI로 수정'}));
+        expect(await screen.findByRole('complementary')).toHaveTextContent('AI');
+        await act(async () => { loaded([]); await new Promise((r) => setTimeout(r, 50)); });
+        expect(screen.getByRole('complementary')).toHaveTextContent('AI');
     });
     // Review finding 5: a failed save must stop the confirm.
     it('does not confirm a version when saving the edited draft fails', async () => {

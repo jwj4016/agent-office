@@ -106,12 +106,16 @@ export function WorkflowEditor({project, workflowId, onStarted, onClose}: {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [draft, preview, people, issues, selected]);
 
-    // The selected node's form lives in the detail pane.
+    // The selected node's form lives in the detail pane. It closes only
+    // its own form: the assistant may be open there while people reload.
+    const formOpen = useRef(false);
     useEffect(() => {
         if (!draft || !selected || !byId(draft).has(selected)) {
-            setDetail(null);
+            if (formOpen.current) setDetail(null);
+            formOpen.current = false;
             return;
         }
+        formOpen.current = true;
         setDetail(<NodeForm spec={draft} id={selected} people={people} readOnly={archived}
                             onChange={edit} onRenamed={setSelected} onDeleted={() => setSelected(null)}
                             onClose={() => setSelected(null)}/>);
@@ -141,10 +145,10 @@ export function WorkflowEditor({project, workflowId, onStarted, onClose}: {
 
     editor.current = {dirty, revision, persist};
     const applied = () => { setPreview(null); setDirty(false); setVersion(null); setChecked(false); setIssues([]); loaded.reload(); };
-    const openAssistant = () => setDetail(<WorkflowAssist project={project} workflowId={workflowId} workflowTitle={draft.title}
+    const openAssistant = () => { formOpen.current = false; setSelected(null); setDetail(<WorkflowAssist project={project} workflowId={workflowId} workflowTitle={draft.title}
         selectedNode={selected ? byId(draft).get(selected) : undefined} dirty={dirty}
         getEditorState={() => editor.current!} saveFirst={() => editor.current!.persist()} onApplied={applied}
-        onPreview={setPreview} onClose={() => { setPreview(null); setDetail(null); }}/>);
+        onPreview={setPreview} onClose={() => { setPreview(null); setDetail(null); }}/>); };
 
     const confirm = () => action.run(async () => {
         if (dirty) await persist();
