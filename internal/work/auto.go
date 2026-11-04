@@ -374,11 +374,28 @@ func (s *AutoStarter) planIssue(ctx context.Context, w domain.WorkItem) (string,
 		}
 		for _, o := range st.outputs {
 			if !rules.AllowsOutput(o.Type) {
-				return fmt.Sprintf("결과 형식 ‘%s’는 %s의 자동 작업 범위 밖입니다", o.Type, dept.Name), nil
+				return fmt.Sprintf("결과 형식 ‘%s’은(는) %s의 자동 작업 범위 밖입니다", outputLabel(o.Type), dept.Name), nil
 			}
 		}
 	}
 	return "", nil
+}
+
+// outputLabel names a result type as the screens do.
+func outputLabel(t domain.OutputType) string {
+	switch t {
+	case domain.OutCodeChange:
+		return "코드 변경"
+	case domain.OutFile:
+		return "파일"
+	case domain.OutDiagram:
+		return "다이어그램"
+	case domain.OutMarkdown:
+		return "문서"
+	case domain.OutReport:
+		return "보고서"
+	}
+	return string(t)
 }
 
 // uiReason is an error as a person reads it.

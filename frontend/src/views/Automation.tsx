@@ -1,4 +1,4 @@
-import {Bot, ExternalLink, RotateCcw, X} from 'lucide-react';
+import {Bot, ExternalLink, Play, RotateCcw, X} from 'lucide-react';
 import {useState} from 'react';
 import {api} from '../api';
 import {t} from '../i18n';
@@ -115,6 +115,13 @@ export function AutoStartBanner({a, onDone, showProject, onOpenWork}: { a: AutoS
                 actions={review || onOpenWork ? <span className="row nowrap">
                     {onOpenWork ? <Button size="sm" variant="ghost" icon={ExternalLink} onClick={onOpenWork}>업무 열기</Button> : null}
                     {review ? <>
+                    <Button size="sm" variant="primary" icon={Play} busy={action.busy}
+                            onClick={() => action.run(async () => {
+                                const res = await api.startWork(a.projectId, a.workItemId, '');
+                                if (res.issues.length && !res.runId) throw new Error(res.issues.map((i) => i.message).join(' '));
+                                toast('이번 업무만 시작했습니다. 부서 규칙은 그대로입니다');
+                                onDone();
+                            })}>이번만 시작</Button>
                     <Button size="sm" icon={RotateCcw} busy={action.busy}
                             onClick={() => action.run(async () => { await api.retryAutoStart(a.projectId, a.id); toast('자동 시작 조건을 다시 확인합니다'); onDone(); })}>다시 확인</Button>
                     <Button size="sm" variant="ghost" icon={X} busy={action.busy}

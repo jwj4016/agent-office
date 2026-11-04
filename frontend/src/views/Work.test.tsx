@@ -8,7 +8,7 @@ vi.mock('../api', () => ({api: fakeApi, errorText: (e: unknown) => String(e)}));
 import {LiveProvider} from '../live';
 import type {Project, Department, WorkDetail, WorkFilter, WorkItem} from '../types';
 import {DetailProvider} from '../ui';
-import {goalProgress, overdue, Work} from './Work';
+import {goalProgress, overdue, Work, workNext} from './Work';
 
 const project: Project = {id: 'prj-1', organizationId: 'org-default', name: '캠페인', goal: '', instructions: '', workspacePath: '',
     budget: {}, mode: 'review', status: 'active', createdAt: '', updatedAt: ''};
@@ -46,7 +46,8 @@ function Shell({children}: { children: ReactNode }) {
 
 const onTeam = vi.fn();
 const onOpenRun = vi.fn();
-const renderIt = (p = project) => render(<Shell><Work project={p} onTeam={onTeam} onOpenRun={onOpenRun}/></Shell>);
+const onRequest = vi.fn();
+const renderIt = (p = project) => render(<Shell><Work project={p} onTeam={onTeam} onRequest={onRequest} onOpenRun={onOpenRun}/></Shell>);
 
 beforeEach(() => {
     vi.clearAllMocks();
@@ -70,22 +71,45 @@ describe('work helpers', () => {
     });
 });
 
+describe('workNext', () => {
+    const auto = (status: string) => ({status}) as never;
+    const next = (over: Partial<WorkItem>, a?: never, all: WorkItem[] = []) => workNext(work(over), a, all);
+    it('says who the work waits for', () => {
+        expect(next({status: 'in_progress'})).toEqual({group: 'working', label: '작업 중'});
+        expect(next({status: 'waiting', statusReason: '실행이 끝났습니다. 결과를 확인하고 완료하거나 수정을 요청하세요'})).toEqual({group: 'you', label: '결과 보고 완료하기'});
+        expect(next({status: 'waiting', statusReason: '실행이 사람의 작업이나 승인을 기다립니다'})).toEqual({group: 'you', label: '승인·입력하기'});
+        expect(next({status: 'waiting', statusReason: '기획안 대기'})).toEqual({group: 'you', label: '내용 확인하기'});
+        expect(next({status: 'blocked'}).group).toBe('you');
+        expect(next({status: 'received'}, auto('review'))).toEqual({group: 'you', label: '시작할지 정하기'});
+        expect(next({status: 'received'}, auto('planning'))).toEqual({group: 'working', label: 'AI가 계획 작성 중'});
+        expect(next({status: 'received'})).toEqual({group: 'you', label: '시작하기'});
+        expect(next({status: 'done'}).group).toBe('closed');
+        const first = work({id: 'a', status: 'in_progress'});
+        expect(next({status: 'received', afterIds: ['a']}, undefined, [first]).group).toBe('after');
+        expect(next({status: 'received', afterIds: ['a']}, undefined, [{...first, status: 'done'}]).label).toBe('시작하기');
+    });
+});
+
 describe('Work', () => {
     it('shows goals with progress and open work with departments and reasons', async () => {
         renderIt();
         const card = await screen.findByRole('button', {name: '신규 고객 캠페인 준비 공동 목표 보기'});
         expect(card).toHaveTextContent('책임: 마케팅팀');
         expect(card).toHaveTextContent('하위 업무 3건 · 완료 1 · 진행 중 2');
-        const table = await screen.findByRole('table');
-        expect(within(table).getByRole('button', {name: '페이지 구현 검토 업무 보기'})).toBeInTheDocument();
-        expect(within(table).queryByText('기획안 작성')).toBeNull(); // done work is not open
-        expect(within(table).getByText('대기 · 기획안 대기')).toBeInTheDocument();
-        expect(within(table).getByText('2000-01-01 지남')).toBeInTheDocument();
+        const you = await screen.findByRole('region', {name: '사장님 확인 필요'});
+        expect(within(you).getByRole('button', {name: '페이지 구현 검토 업무 보기'})).toHaveTextContent('시작하기');
+        expect(within(you).queryByText('기획안 작성')).toBeNull(); // done work is not open
+        expect(within(you).getByRole('button', {name: '예산 검토 업무 보기'})).toHaveTextContent('내용 확인하기');
+        expect(within(you).getByText('기획안 대기')).toBeInTheDocument();
+        expect(within(you).getByText('2000-01-01 지남')).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', {name: '요청하기'}));
+        expect(onRequest).toHaveBeenCalled();
     });
 
     it('filters by department through the API', async () => {
         renderIt();
-        await screen.findByRole('table');
+        await screen.findByRole('region', {name: '사장님 확인 필요'});
+        fireEvent.click(screen.getByRole('button', {name: '찾기·거르기'}));
         const group = screen.getByRole('group', {name: '업무 조회 조건'});
         fireEvent.change(within(group).getByLabelText('부서'), {target: {value: 'dev'}});
         await waitFor(() => expect(fakeApi.workItems).toHaveBeenLastCalledWith('prj-1', {status: 'open', departmentId: 'dev', kind: 'work'}));
@@ -122,7 +146,7 @@ describe('Work', () => {
 
     it('opens the work item it was sent to, e.g. from the inbox', async () => {
         fakeApi.workItem.mockResolvedValue({item: items[2], notes: [], children: []} satisfies WorkDetail);
-        render(<Shell><Work project={project} workItemId="w2" onTeam={onTeam} onOpenRun={onOpenRun}/></Shell>);
+        render(<Shell><Work project={project} workItemId="w2" onTeam={onTeam} onRequest={onRequest} onOpenRun={onOpenRun}/></Shell>);
         const pane = await screen.findByRole('complementary', {name: '상세'});
         expect(await within(pane).findByRole('heading', {name: '페이지 구현 검토'})).toBeInTheDocument();
         expect(fakeApi.workItem).toHaveBeenCalledWith('prj-1', 'w2');
@@ -136,7 +160,9 @@ describe('Work', () => {
                 decidedBy: 'user'}],
             next: [{id: 'w3', title: '예산 검토', status: 'waiting', departmentName: '재무팀', via: 'collab'}],
         });
-        render(<Shell><Work project={project} workItemId="w2" onTeam={onTeam} onOpenRun={onOpenRun}/></Shell>);
+        render(<Shell><Work project={project} workItemId="w2" onTeam={onTeam} onRequest={onRequest} onOpenRun={onOpenRun}/></Shell>);
+        expect(await screen.findByText('개발팀에서 제안해 등록했습니다.')).toBeInTheDocument();
+        fireEvent.click(await screen.findByRole('tab', {name: '기록'}));
         const lineage = await screen.findByRole('region', {name: '시작한 이유와 이어진 업무'});
         expect(within(lineage).getByText('개발팀 제안으로 등록한 업무')).toBeInTheDocument();
         expect(within(lineage).getByText(/판단 이유: 새 페이지가 있다/)).toBeInTheDocument();
@@ -156,8 +182,7 @@ describe('Work', () => {
         renderIt();
         fireEvent.click(await screen.findByRole('button', {name: '페이지 구현 검토 업무 보기'}));
         const pane = await screen.findByRole('complementary', {name: '상세'});
-        const label = await within(pane).findByText('담당자');
-        await waitFor(() => expect(label.nextElementSibling).toHaveTextContent('백엔드 개발자'));
+        expect(await within(pane).findByText(/개발팀 · 백엔드 개발자/)).toBeInTheDocument();
     });
 
     it('needs a reason to block work and keeps the history', async () => {
@@ -170,8 +195,11 @@ describe('Work', () => {
         renderIt();
         fireEvent.click(await screen.findByRole('button', {name: '페이지 구현 검토 업무 보기'}));
         const pane = await screen.findByRole('complementary', {name: '상세'});
+        fireEvent.click(await within(pane).findByRole('tab', {name: '기록'}));
         expect(await within(pane).findByText('접수 상태로 등록')).toBeInTheDocument();
-        const form = within(pane).getByRole('form', {name: '상태 변경'});
+        fireEvent.click(within(pane).getByRole('tab', {name: '요약'}));
+        fireEvent.click(await within(pane).findByRole('button', {name: /더보기/}));
+        const form = await within(pane).findByRole('form', {name: '상태 변경'});
         fireEvent.change(within(form).getByLabelText('상태'), {target: {value: 'blocked'}});
         const submit = within(form).getByRole('button', {name: '상태 변경'});
         expect(submit).toBeDisabled();

@@ -8,7 +8,8 @@ vi.mock('../api', () => ({api: fakeApi, errorText: (e: unknown) => String(e)}));
 import {LiveProvider} from '../live';
 import type {AIJob, Assignment, PlanJobView, Project, RunDetail, StoredEvent, WorkItem, WorkPlanView} from '../types';
 import {ToastProvider} from '../ui';
-import {WorkRun} from './WorkRuns';
+import {AutoStartBanner} from './Automation';
+import {nextKind, WorkTabs} from './WorkRuns';
 
 const project: Project = {id: 'prj-1', organizationId: 'org-default', name: '캠페인', goal: '', instructions: '', workspacePath: '',
     budget: {}, mode: 'review', status: 'active', createdAt: '', updatedAt: ''};
@@ -32,7 +33,10 @@ const run = (over: Partial<RunDetail>): RunDetail => ({
 const onChanged = vi.fn();
 const onOpenRun = vi.fn();
 const Shell = ({children}: { children: ReactNode }) => <LiveProvider><ToastProvider>{children}</ToastProvider></LiveProvider>;
-const renderIt = () => render(<Shell><WorkRun project={project} item={item} assignments={assignments} onChanged={onChanged} onOpenRun={onOpenRun}/></Shell>);
+const renderIt = (over: Partial<WorkItem> = {}) => render(<Shell><WorkTabs project={project} item={{...item, ...over}} assignments={assignments} onChanged={onChanged} onOpenRun={onOpenRun}
+                                                                              onOpenRules={onOpenRules}/></Shell>);
+const onOpenRules = vi.fn();
+const tab = async (name: string) => fireEvent.click(await screen.findByRole('tab', {name}));
 
 beforeEach(() => {
     vi.clearAllMocks();
@@ -51,8 +55,9 @@ describe('work plan and runs', () => {
         fakeApi.workPlan.mockResolvedValue(view());
         fakeApi.saveWorkPlan.mockResolvedValue(view().plan);
         renderIt();
+        fireEvent.click(await screen.findByRole('button', {name: '계획 세우기'}));
         const form = await screen.findByRole('form', {name: '작업 계획'});
-        expect(screen.getByRole('button', {name: '계획대로 실행'})).toBeDisabled();
+        expect(screen.queryByRole('button', {name: '계획대로 실행'})).toBeNull();
         fireEvent.change(within(form).getByLabelText(/작업 지침/), {target: {value: '기존 화면을 먼저 본다'}});
         fireEvent.click(within(form).getByRole('button', {name: '결과물 추가'}));
         fireEvent.change(within(form).getByLabelText('결과물 2 이름'), {target: {value: 'schedule'}});
@@ -68,6 +73,7 @@ describe('work plan and runs', () => {
     it('keeps an unsaved plan when the service records events', async () => {
         fakeApi.workPlan.mockImplementation(async () => view()); // a fresh object per load, like the app
         renderIt();
+        await tab('계획');
         const form = await screen.findByRole('form', {name: '작업 계획'});
         fireEvent.change(within(form).getByLabelText(/작업 지침/), {target: {value: '기존 화면을 먼저 본다'}});
         const loads = fakeApi.workPlan.mock.calls.length;
@@ -87,7 +93,7 @@ describe('work plan and runs', () => {
             stepId: 'work', content: '# 검토 결과\n2주 소요', binary: false, truncated: false, hashOk: true});
         fakeApi.startWork.mockResolvedValue({runId: 'run-2', issues: []});
         renderIt();
-        expect(await screen.findByText('실행에 전달되는 내용 보기')).toBeInTheDocument();
+        expect(await screen.findByText('작업이 끝났습니다. 결과를 보고 완료해 주세요')).toBeInTheDocument();
         fireEvent.click(await screen.findByRole('button', {name: 'result 결과'}));
         expect(await screen.findByText(/2주 소요/)).toBeInTheDocument();
         fireEvent.click(screen.getByRole('button', {name: 'v1 실행 보기'}));
@@ -97,22 +103,27 @@ describe('work plan and runs', () => {
         fireEvent.click(within(form).getByRole('button', {name: '수정 요청하고 다시 실행'}));
         await waitFor(() => expect(fakeApi.startWork).toHaveBeenCalledWith('prj-1', 'w1', '일정 근거 추가'));
         expect(onChanged).toHaveBeenCalled();
+        await tab('계획');
+        expect(await screen.findByText('실행에 전달되는 내용 보기')).toBeInTheDocument();
     });
 
     it('does not start a second run while one is active', async () => {
         fakeApi.workPlan.mockResolvedValue(view({saved: true, preview: '...'}));
         fakeApi.workRuns.mockResolvedValue([run({status: 'running'})]);
         renderIt();
-        expect(await screen.findByText(/실행 중입니다/)).toBeInTheDocument();
-        expect(screen.getByRole('button', {name: '계획대로 실행'})).toBeDisabled();
-        expect(screen.getByRole('button', {name: '계획 저장'})).toBeDisabled();
+        expect(await screen.findByText('AI가 작업 중입니다')).toBeInTheDocument();
+        expect(screen.queryByRole('button', {name: '계획대로 실행'})).toBeNull();
+        await tab('계획');
+        expect(screen.getByRole('button', {name: '계획 편집'})).toBeDisabled();
+        await tab('결과');
+        expect(screen.getByRole('button', {name: '그대로 다시 실행'})).toBeDisabled();
     });
 
     it('explains why a saved plan cannot run', async () => {
         fakeApi.workPlan.mockResolvedValue(view({saved: true, problem: '닫힌 업무는 실행할 수 없습니다. 먼저 다시 여세요'}));
         renderIt();
         expect(await screen.findByText('닫힌 업무는 실행할 수 없습니다. 먼저 다시 여세요')).toBeInTheDocument();
-        expect(screen.getByRole('button', {name: '계획대로 실행'})).toBeDisabled();
+        expect(screen.queryByRole('button', {name: '계획대로 실행'})).toBeNull();
     });
 });
 
@@ -123,6 +134,7 @@ describe('AI plan proposals', () => {
         fakeApi.planJobs.mockResolvedValue([{job: job({}), proposal, stale: false}] satisfies PlanJobView[]);
         fakeApi.applyPlanJob.mockResolvedValue(view().plan);
         renderIt();
+        await tab('계획');
         const card = await screen.findByLabelText('AI 계획 제안');
         expect(within(card).getByText('화면별로 나눈다')).toBeInTheDocument();
         expect(within(card).getByText('review (문서)')).toBeInTheDocument();
@@ -147,6 +159,7 @@ describe('AI plan proposals', () => {
         fakeApi.workPlan.mockResolvedValue(view());
         fakeApi.planJobs.mockResolvedValue([{job: job({}), proposal, stale: true}] satisfies PlanJobView[]);
         const {unmount} = renderIt();
+        await tab('계획');
         const card = await screen.findByLabelText('AI 계획 제안');
         expect(within(card).getByText('업무가 바뀜')).toBeInTheDocument();
         expect(within(card).getByRole('button', {name: '이 계획 적용'})).toBeDisabled();
@@ -154,6 +167,7 @@ describe('AI plan proposals', () => {
 
         fakeApi.planJobs.mockResolvedValue([{job: job({status: 'failed', error: 'rate limited', attempts: 3}), stale: false}] satisfies PlanJobView[]);
         renderIt();
+        await tab('계획');
         expect(await screen.findByText(/rate limited \(시도 3회\)/)).toBeInTheDocument();
         fireEvent.click(screen.getByRole('button', {name: '다시 시도'}));
         await waitFor(() => expect(fakeApi.retryAIJob).toHaveBeenCalledWith('prj-1', 'aij-1'));
@@ -166,6 +180,7 @@ describe('automatic mode on a work item', () => {
         fakeApi.workPlan.mockResolvedValue(view());
         fakeApi.saveWorkPlan.mockResolvedValue(view().plan);
         renderIt();
+        await tab('계획');
         const form = await screen.findByRole('form', {name: '작업 계획'});
         await screen.findByRole('option', {name: '업무 흐름: 정기 배포 2판'});
         fireEvent.change(within(form).getByLabelText(/실행 방식/), {target: {value: 'wv-1'}});
@@ -178,8 +193,9 @@ describe('automatic mode on a work item', () => {
         fakeApi.workPlan.mockResolvedValue(view({saved: true, preview: '업무 흐름', plan: {...view().plan, workflowVersionId: 'wv-1'}}));
         fakeApi.workRuns.mockResolvedValue([run({})]);
         renderIt();
-        expect(await screen.findByRole('button', {name: '다시 실행'})).toBeEnabled();
+        expect(await screen.findByRole('button', {name: '그대로 다시 실행'})).toBeEnabled();
         expect(screen.queryByRole('form', {name: '수정 요청'})).toBeNull();
+        await tab('계획');
         expect(screen.queryByRole('button', {name: 'AI에게 계획 제안 받기'})).toBeNull();
     });
 
@@ -189,12 +205,61 @@ describe('automatic mode on a work item', () => {
                 status: 'review', planJobId: '', runId: '', reason: '결과 형식 ‘code_change’는 개발팀의 자동 작업 범위 밖입니다', note: '', createdAt: '', updatedAt: ''}}));
         fakeApi.updateWorkItem.mockResolvedValue({...item, reviewBeforeStart: true});
         renderIt();
-        expect(await screen.findByText(/자동 시작 승인 · 이후 계획·조건·자료·담당자가 바뀜/)).toBeInTheDocument();
-        expect(screen.getByText(/자동 작업 범위 밖/)).toBeInTheDocument();
+        expect(await screen.findByText(/자동 작업 범위 밖/)).toBeInTheDocument();
         fireEvent.click(screen.getByRole('button', {name: '다시 확인'}));
         await waitFor(() => expect(fakeApi.retryAutoStart).toHaveBeenCalledWith('prj-1', 'as-1'));
+        await tab('계획');
+        expect(await screen.findByText(/자동 시작 승인 · 이후 계획·조건·자료·담당자가 바뀜/)).toBeInTheDocument();
         fireEvent.click(screen.getByRole('checkbox', {name: '자동 모드에서도 시작 전에 직접 검토'}));
         await waitFor(() => expect(fakeApi.updateWorkItem).toHaveBeenCalledWith(expect.objectContaining({id: 'w1', reviewBeforeStart: true})));
     });
-});
 
+    const review = {id: 'as-1', projectId: 'prj-1', projectName: '캠페인', workItemId: 'w1', workTitle: '구현 검토', departmentId: 'dev', causeSequence: 3,
+        status: 'review' as const, planJobId: '', runId: '', reason: '결과 형식 ‘코드 변경’은(는) 개발팀의 자동 작업 범위 밖입니다', note: '', createdAt: '', updatedAt: ''};
+
+    it('starts just this work when asked, and leaves the department rules alone', async () => {
+        const plan = {...view().plan, outputs: [{key: 'change', type: 'code_change' as const}]};
+        fakeApi.workPlan.mockResolvedValue(view({saved: true, plan, autoStart: review}));
+        fakeApi.startWork.mockResolvedValue({runId: 'run-2', issues: []});
+        renderIt();
+        expect(await screen.findByText('코드를 고치는 일이라 자동으로 시작하지 않았습니다')).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', {name: '이번만 시작'}));
+        await waitFor(() => expect(fakeApi.startWork).toHaveBeenCalledWith('prj-1', 'w1', ''));
+        expect(fakeApi.setDepartmentAutomation).not.toHaveBeenCalled();
+        expect(onChanged).toHaveBeenCalled();
+        fireEvent.click(screen.getByRole('button', {name: '부서 자동화 규칙 열기'}));
+        expect(onOpenRules).toHaveBeenCalled();
+    });
+
+    it('asks for a plan before it can start just this work', async () => {
+        fakeApi.workPlan.mockResolvedValue(view({autoStart: {...review, reason: '자동 실행에는 서비스 예산(토큰 또는 비용)을 먼저 정해야 합니다'}}));
+        renderIt();
+        fireEvent.click(await screen.findByRole('button', {name: '계획 세우기'}));
+        expect(screen.queryByRole('button', {name: '이번만 시작'})).toBeNull();
+        expect(await screen.findByRole('form', {name: '작업 계획'})).toBeInTheDocument();
+    });
+
+    it('offers it on the review card of the inbox too and shows why it cannot', async () => {
+        fakeApi.startWork.mockResolvedValue({runId: '', issues: [{code: 'x', message: '담당자가 없습니다', severity: 'run'}]});
+        const onDone = vi.fn();
+        render(<Shell><AutoStartBanner a={review} onDone={onDone}/></Shell>);
+        fireEvent.click(screen.getByRole('button', {name: '이번만 시작'}));
+        expect(await screen.findByText(/담당자가 없습니다/)).toBeInTheDocument();
+        expect(onDone).not.toHaveBeenCalled();
+    });
+
+    it('reads what the work needs now from its state', () => {
+        const saved = view({saved: true});
+        expect(nextKind({...item, status: 'done'}, saved, [run({})])).toBe('closed');
+        expect(nextKind(item, saved, [run({status: 'running'})])).toBe('running');
+        expect(nextKind(item, saved, [run({status: 'waiting'})])).toBe('run_waiting');
+        expect(nextKind(item, saved, [run({status: 'running', paused: true})])).toBe('run_waiting');
+        expect(nextKind(item, view({saved: true, autoStart: review}), [])).toBe('stopped');
+        expect(nextKind(item, view({autoStart: {...review, status: 'planning'}}), [])).toBe('preparing');
+        expect(nextKind({...item, status: 'waiting'}, saved, [run({})])).toBe('result');
+        expect(nextKind({...item, status: 'blocked'}, saved, [run({status: 'failed'})])).toBe('trouble');
+        expect(nextKind(item, saved, [])).toBe('ready');
+        expect(nextKind(item, view(), [])).toBe('no_plan');
+        expect(nextKind({...item, status: 'in_progress'}, view(), [])).toBe('manual');
+    });
+});

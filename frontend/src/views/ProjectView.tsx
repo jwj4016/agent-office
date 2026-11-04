@@ -83,7 +83,7 @@ export function ProjectView({route, onRoute, onChanged}: {
                 {route.tab === 'status' ? <Status project={p} onRoute={onRoute}/> : null}
                 {route.tab === 'requests' ? <ServiceRequests project={p} onTeam={() => go('team')}
                                                               onOpenWork={(projectId, workItemId) => onRoute({view: 'project', projectId, tab: 'work', workItemId})}/> : null}
-                {route.tab === 'work' ? <Work project={p} workItemId={route.workItemId} onTeam={() => go('team')}
+                {route.tab === 'work' ? <Work project={p} workItemId={route.workItemId} onTeam={() => go('team')} onRequest={() => go('requests')}
                                               onOpenRun={(runId) => onRoute({view: 'project', projectId: p.id, tab: 'runs', runId})}/> : null}
                 {route.tab === 'docs' ? <Documents project={p}/> : null}
                 {route.tab === 'office' ? <Office project={p} onRoute={onRoute}/> : null}

@@ -394,12 +394,30 @@ table.list th { font-size: var(--fs-xs); color: var(--text-2); font-weight: 600;
 table.list tbody tr { transition: background var(--t-fast) var(--ease-out); }
 table.list tbody tr:hover { background: var(--surface-2); }
 table.list td.actions { text-align: right; white-space: nowrap; }
-/* The work list: at most two lines a title, and when the detail pane takes
-   room the columns that matter least give way so the status stays in view. */
-.work-table { container-type: inline-size; }
-.work-title { font-weight: 500; }
-.work-title > span { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
-@container (max-width: 760px) { .work-table .col-extra { display: none; } }
+/* The work list, grouped by who the work waits for. A row keeps its next
+   step in view when the detail pane takes room. */
+.work-group { display: flex; flex-direction: column; gap: var(--s-2); container-type: inline-size; }
+.work-group-title { margin: 0; font-size: var(--fs-lg); font-weight: 700; }
+.work-group.you .work-group-title { color: var(--warning-text); }
+.work-group-count { font-weight: 500; color: var(--text-2); }
+.work-group.you .work-group-count { color: inherit; }
+.work-rows { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); overflow: hidden; }
+.work-group.you .work-rows { border-color: var(--warning-text); }
+.work-rows li + li { border-top: 1px solid var(--border); }
+.work-row {
+    display: flex; align-items: center; gap: var(--s-1) var(--s-4); width: 100%; min-height: 44px; padding: var(--s-3) var(--s-4);
+    font: inherit; color: inherit; text-align: left; background: transparent; border: 0; cursor: pointer;
+    transition: background var(--t-fast) var(--ease-out);
+}
+.work-row:hover { background: var(--surface-2); }
+.work-row.selected { background: var(--primary-soft); }
+.work-row-main { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.work-row-title { font-weight: 500; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.work-row-dept { flex: 0 0 120px; font-size: var(--fs-sm); color: var(--text-2); }
+.work-row-next { flex: 0 0 120px; font-size: var(--fs-sm); color: var(--text-2); }
+.work-row-next.you { color: var(--warning-text); font-weight: 600; }
+.work-row-next.working { color: var(--primary-text); }
+@container (max-width: 600px) { .work-row-dept { display: none; } }
 
 /* ---------- progress ---------- */
 
@@ -513,6 +531,23 @@ details > summary::marker { color: var(--text-2); }
 .detail .kv { font-size: var(--fs-md); line-height: 1.6; }
 .detail .card.subtle.small { font-size: var(--fs-md); line-height: 1.6; }
 .detail .field-hint { font-size: var(--fs-sm); }
+.detail-label { margin: 0; font-size: var(--fs-sm); font-weight: 600; color: var(--text-2); }
+.clamp-4 { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden; }
+.link-btn { padding: 0; font: inherit; font-size: var(--fs-sm); color: var(--primary-text); background: none; border: 0; text-decoration: underline; cursor: pointer; }
+/* What the work needs now, at the top of its detail. */
+.next-step { display: flex; flex-direction: column; gap: var(--s-2); padding: 14px; border-radius: var(--r-lg); background: var(--surface-2); }
+.next-step.ai { background: var(--ai-soft); }
+.next-step.you { background: var(--warning-soft); }
+.next-step.bad { background: var(--danger-soft); }
+.next-step.ok { background: var(--success-soft); }
+.next-step-head { font-size: var(--fs-xs); font-weight: 600; color: var(--text-2); }
+.next-step.ai .next-step-head { color: var(--ai-text); }
+.next-step.you .next-step-head { color: var(--warning-text); }
+.next-step.bad .next-step-head { color: var(--danger-text); }
+.next-step.ok .next-step-head { color: var(--success-text); }
+.next-step-title { font-size: var(--fs-lg); font-weight: 700; line-height: 1.35; }
+.next-step-body { line-height: 1.6; }
+.next-step-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); }
 .detail-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--s-2); }
 .scrim { display: none; }
 @media (max-width: 1200px) {

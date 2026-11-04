@@ -3,16 +3,17 @@ import {type ReactNode, useEffect, useState} from 'react';
 import {api} from '../api';
 import {t} from '../i18n';
 import {useLoad} from '../live';
-import type {Assignment, Project, Department, WorkCause, WorkFilter, WorkItem, WorkKind, WorkNote, WorkPriority, WorkStatus} from '../types';
+import type {Assignment, AutoStart, Project, Department, WorkCause, WorkFilter, WorkItem, WorkKind, WorkNote, WorkPriority, WorkStatus} from '../types';
 import {
     Banner, Button, DetailHeader, EmptyState, ErrorBox, Field, Icon, Loading, Section, StatusBadge, type Tone, shortTime, useAction, useDetail,
     useToast,
 } from '../ui';
+import {AutomationPanel} from './Automation';
 import {WorkCollaboration} from './Collab';
 import {DeliveryInbox, eventLabel, WorkEvents} from './Deliveries';
 import {DepartmentDecisions} from './Judgments';
 import {VersionBadge, WorkDocuments} from './Documents';
-import {WorkRun} from './WorkRuns';
+import {Expandable, WorkTabs} from './WorkRuns';
 
 export const workStatuses: WorkStatus[] = ['received', 'ready', 'in_progress', 'waiting', 'blocked', 'done', 'cancelled'];
 export const workPriorities: WorkPriority[] = ['urgent', 'high', 'normal', 'low'];
@@ -24,6 +25,29 @@ const priorityTone: Record<WorkPriority, Tone> = {urgent: 'bad', high: 'warn', n
 
 export const isClosed = (s: WorkStatus) => s === 'done' || s === 'cancelled';
 export const needsReason = (s: WorkStatus) => s === 'waiting' || s === 'blocked';
+
+// WorkGroup is who the work waits for, which is how the list is grouped.
+export type WorkGroup = 'you' | 'working' | 'after' | 'closed';
+
+// workNext says who a work item waits for and what happens next. The run
+// reasons are the ones the app writes when a run moves the work on.
+export function workNext(w: WorkItem, auto: AutoStart | undefined, all: WorkItem[]): { group: WorkGroup; label: string } {
+    if (isClosed(w.status)) return {group: 'closed', label: t.workStatus[w.status]};
+    if (auto?.status === 'review') return {group: 'you', label: '시작할지 정하기'};
+    if (w.status === 'blocked') return {group: 'you', label: '막힌 이유 확인'};
+    if (w.status === 'waiting') {
+        if (w.statusReason.startsWith('실행이 끝났습니다')) return {group: 'you', label: '결과 보고 완료하기'};
+        if (w.statusReason.startsWith('실행이 사람의')) return {group: 'you', label: '승인·입력하기'};
+        return {group: 'you', label: '내용 확인하기'};
+    }
+    if (w.status === 'in_progress') return {group: 'working', label: '작업 중'};
+    const waiting = (w.afterIds ?? []).some((id) => { const x = all.find((o) => o.id === id); return !!x && !isClosed(x.status); });
+    if (waiting) return {group: 'after', label: '앞 업무 대기'};
+    if (auto && ['pending', 'planning', 'approved'].includes(auto.status)) return {group: 'working', label: auto.status === 'planning' ? 'AI가 계획 작성 중' : '자동 시작 준비 중'};
+    return {group: 'you', label: '시작하기'};
+}
+
+const groupTitle: Record<WorkGroup, string> = {you: '사장님 확인 필요', working: '작업 중', after: '앞 업무 대기', closed: '닫힌 업무'};
 
 // today is the local date in the YYYY-MM-DD form due dates use.
 export function today(now = new Date()) {
@@ -147,7 +171,7 @@ function CauseCard({c, link}: { c: WorkCause; link: (id: string | undefined, tit
 
 type Context = {
     project: Project; departments: Department[]; categories: string[]; assignments: Assignment[]; goals: WorkItem[];
-    onOpenRun: (runId: string) => void;
+    onOpenRun: (runId: string) => void; onSelect: (id: string) => void;
 };
 
 const deptName = (ctx: Context, id: string) => ctx.departments.find((d) => d.id === id)?.name ?? '';
@@ -159,15 +183,22 @@ const defaultFilter: WorkFilter = {status: 'open'};
 // Work is the service's work list: shared goals and each department's
 // work, filtered by status, department, priority, category and due date.
 // workItemId opens that item's panel, e.g. when coming from the inbox.
-export function Work({project, workItemId, onTeam, onOpenRun}: {
-    project: Project; workItemId?: string; onTeam: () => void; onOpenRun: (runId: string) => void;
+export function Work({project, workItemId, onTeam, onRequest, onOpenRun}: {
+    project: Project; workItemId?: string; onTeam: () => void; onRequest: () => void; onOpenRun: (runId: string) => void;
 }) {
     const [filter, setFilter] = useState<WorkFilter>(defaultFilter);
+    const [showFilter, setShowFilter] = useState(false);
+    const [showDept, setShowDept] = useState<boolean | null>(null);
+    const [selected, setSelected] = useState('');
     const departments = useLoad(() => api.departments(project.id), [project.id], project.id);
     const categories = useLoad(() => api.categories(project.id), [project.id], project.id);
     const assignments = useLoad(() => api.assignments(project.id), [project.id], project.id);
     const all = useLoad(() => api.workItems(project.id), [project.id], project.id);
     const list = useLoad(() => api.workItems(project.id, {...filter, kind: 'work'}), [project.id, JSON.stringify(filter)], project.id);
+    const autos = useLoad(() => api.autoStarts(project.id), [project.id], project.id);
+    const questions = useLoad(() => api.judgments(project.id, 'open,manual'), [project.id], project.id);
+    const proposals = useLoad(() => api.proposals(project.id, 'proposed'), [project.id], project.id);
+    const deliveries = useLoad(() => api.deliveries(project.id, {status: 'open'}), [project.id], project.id);
     const setDetail = useDetail();
     const archived = project.status === 'archived';
 
@@ -176,8 +207,8 @@ export function Work({project, workItemId, onTeam, onOpenRun}: {
     if (!departments.data || !categories.data || !assignments.data || !all.data) return <Loading/>;
 
     const goals = all.data.filter((w) => w.kind === 'goal');
-    const ctx: Context = {project, departments: departments.data, categories: categories.data, assignments: assignments.data, goals, onOpenRun};
-    const refresh = () => { all.reload(); list.reload(); };
+    const ctx: Context = {project, departments: departments.data, categories: categories.data, assignments: assignments.data, goals, onOpenRun, onSelect: setSelected};
+    const refresh = () => { all.reload(); list.reload(); autos.reload(); };
     const open = (id: string) => setDetail(<WorkPanel key={id} ctx={ctx} id={id} onChanged={refresh}/>);
     const create = (kind: WorkKind, parentId = '') => setDetail(
         <WorkForm key={`new-${kind}-${parentId}`} ctx={ctx} initial={{...emptyWork, kind, parentId}}
@@ -186,15 +217,21 @@ export function Work({project, workItemId, onTeam, onOpenRun}: {
     const openGoals = goals.filter((g) => !isClosed(g.status));
     const set = (patch: Partial<WorkFilter>) => setFilter({...filter, ...patch});
     const filtered = JSON.stringify(filter) !== JSON.stringify(defaultFilter);
+    const closedView = filter.status === 'closed';
+    const everything = all.data;
+    const autoOf = (id: string) => (autos.data ?? []).find((a) => a.workItemId === id);
+    const rows = (list.data ?? []).map((w) => ({w, next: workNext(w, autoOf(w.id), everything)}));
+    const deptCount = (questions.data?.length ?? 0) + (proposals.data?.length ?? 0) + (deliveries.data?.length ?? 0);
+    const deptOpen = showDept ?? deptCount > 0;
 
     return (
         <div className="stack loose">
             {workItemId ? <OpenOnce key={workItemId} open={() => open(workItemId)}/> : null}
             <div className="row between">
-                <p className="muted">부서가 맡은 일과 여러 부서의 일을 묶는 공동 목표입니다. 업무는 사람이 완료를 확인할 때까지 남습니다.</p>
+                <p className="muted" style={{flex: '1 1 280px'}}>요청에서 생긴 일이 어디까지 왔는지 보는 곳입니다. 사장님이 볼 일이 맨 위에 옵니다.</p>
                 <span className="row nowrap">
-                    <Button icon={Target} disabled={archived || activeDepts.length === 0} onClick={() => create('goal')}>공동 목표 추가</Button>
-                    <Button variant="primary" icon={Plus} disabled={archived} onClick={() => create('work')}>업무 추가</Button>
+                    <Button icon={Plus} disabled={archived} onClick={() => create('work')}>직접 추가</Button>
+                    <Button variant="primary" icon={MessageSquarePlus} disabled={archived} onClick={onRequest}>요청하기</Button>
                 </span>
             </div>
             {activeDepts.length === 0 ? (
@@ -204,11 +241,49 @@ export function Work({project, workItemId, onTeam, onOpenRun}: {
                 </Banner>
             ) : null}
 
-            <Section title={<><Icon icon={Target} size={18}/>공동 목표</>} label="공동 목표" count={openGoals.length}>
-                {openGoals.length === 0 ? <p className="muted small">진행 중인 공동 목표가 없습니다.</p> : (
+            <ErrorBox error={list.error}/>
+            {!list.data ? <Loading/> : rows.length === 0 ? (
+                <EmptyState compact icon={ListTodo} title={filtered ? '조건에 맞는 업무가 없습니다' : '진행 중인 업무가 없습니다'}
+                            actions={!filtered && !archived ? <Button variant="primary" icon={MessageSquarePlus} onClick={onRequest}>요청하기</Button> : null}>
+                    {filtered ? '조회 조건을 바꿔 보세요.' : '회사에 요청하면 담당 부서가 일을 맡습니다.'}
+                </EmptyState>
+            ) : (['you', 'working', 'after', 'closed'] as WorkGroup[]).map((g) => {
+                const inGroup = rows.filter((r) => r.next.group === g);
+                if (inGroup.length === 0) return null;
+                return (
+                    <section key={g} className={`work-group ${g}`} aria-label={groupTitle[g]}>
+                        <h2 className="work-group-title">{groupTitle[g]} <span className="work-group-count">{inGroup.length}</span></h2>
+                        <ul className="work-rows">
+                            {inGroup.map(({w, next}) => (
+                                <li key={w.id}>
+                                    <button type="button" className={`work-row${selected === w.id ? ' selected' : ''}`} onClick={() => open(w.id)}
+                                            aria-label={`${w.title} 업무 보기`} title={w.title} aria-current={selected === w.id ? 'true' : undefined}>
+                                        <span className="work-row-main">
+                                            <span className="work-row-title">{w.title}</span>
+                                            {g === 'you' && w.statusReason && !w.statusReason.startsWith('실행이 끝났습니다') ? <span className="muted xsmall">{w.statusReason}</span> : null}
+                                            {w.parentId ? <span className="muted xsmall">목표: {goalTitle(ctx, w.parentId)}</span> : null}
+                                            {w.priority === 'urgent' || overdue(w) ? (
+                                                <span className="row">
+                                                    {w.priority === 'urgent' ? <StatusBadge tone="bad">{t.workPriority.urgent}</StatusBadge> : null}
+                                                    {overdue(w) ? <StatusBadge tone="bad" icon={CalendarClock}>{w.dueAt} 지남</StatusBadge> : null}
+                                                </span>
+                                            ) : null}
+                                        </span>
+                                        <span className="work-row-dept">{deptName(ctx, w.departmentId) || '미배정'}</span>
+                                        <span className={`work-row-next ${g}`}>{next.label}</span>
+                                    </button>
+                                </li>
+                            ))}
+                        </ul>
+                    </section>
+                );
+            })}
+
+            {openGoals.length ? (
+                <Section title={<><Icon icon={Target} size={18}/>공동 목표</>} label="공동 목표" count={openGoals.length}>
                     <div className="grid-cards">
                         {openGoals.map((g) => {
-                            const p = goalProgress(g.id, all.data ?? []);
+                            const p = goalProgress(g.id, everything);
                             return (
                                 <button key={g.id} className="card clickable stack tight" style={{textAlign: 'left'}} onClick={() => open(g.id)}
                                         aria-label={`${g.title} 공동 목표 보기`}>
@@ -219,10 +294,17 @@ export function Work({project, workItemId, onTeam, onOpenRun}: {
                             );
                         })}
                     </div>
-                )}
-            </Section>
+                </Section>
+            ) : null}
 
-            <Section title={<><Icon icon={ListTodo} size={18}/>업무</>} label="업무" count={list.data?.length}>
+            <div className="row" role="group" aria-label="더 보기">
+                <Button size="sm" onClick={() => set({status: closedView ? 'open' : 'closed'})}>{closedView ? '진행 중인 업무 보기' : '끝난 업무 보기'}</Button>
+                <Button size="sm" aria-expanded={deptOpen} onClick={() => setShowDept(!deptOpen)}>부서 판단·전달 {deptCount}</Button>
+                <Button size="sm" aria-expanded={showFilter || filtered} onClick={() => setShowFilter(!showFilter)}>찾기·거르기</Button>
+                <Button size="sm" variant="ghost" icon={Target} disabled={archived || activeDepts.length === 0} onClick={() => create('goal')}>공동 목표 추가</Button>
+            </div>
+
+            {showFilter || filtered ? (
                 <div className="toolbar work-filters" role="group" aria-label="업무 조회 조건">
                     <label className="row nowrap small">상태
                         <select value={filter.status ?? ''} onChange={(e) => set({status: e.target.value})}>
@@ -251,41 +333,12 @@ export function Work({project, workItemId, onTeam, onOpenRun}: {
                                onChange={(e) => set({dueBefore: e.target.value})}/></label>
                     {filtered ? <Button size="sm" variant="ghost" onClick={() => setFilter(defaultFilter)}>조건 초기화</Button> : null}
                 </div>
-                <ErrorBox error={list.error}/>
-                {!list.data ? <Loading/> : list.data.length === 0 ? (
-                    <EmptyState compact icon={ListTodo} title={filtered ? '조건에 맞는 업무가 없습니다' : '아직 업무가 없습니다'}
-                                actions={!filtered && !archived ? <Button variant="primary" icon={Plus} onClick={() => create('work')}>업무 추가</Button> : null}>
-                        {filtered ? '조회 조건을 바꿔 보세요.' : '부서가 맡을 일을 등록하세요. 공동 목표 아래에 둘 수도 있습니다.'}
-                    </EmptyState>
-                ) : (
-                    <div className="table-wrap work-table">
-                        <table className="list">
-                            <thead><tr><th>업무</th><th>부서</th><th>상태</th><th className="col-extra">우선순위</th><th className="col-extra">기한</th><th className="col-extra">분류</th></tr></thead>
-                            <tbody>
-                            {list.data.map((w) => (
-                                <tr key={w.id}>
-                                    <td>
-                                        <button className="btn ghost small wrap work-title" onClick={() => open(w.id)} aria-label={`${w.title} 업무 보기`} title={w.title}>
-                                            <span>{w.title}</span></button>
-                                        {w.parentId ? <div className="muted xsmall">목표: {goalTitle(ctx, w.parentId)}</div> : null}
-                                    </td>
-                                    <td className="small">{deptName(ctx, w.departmentId) || <span className="muted">미배정</span>}</td>
-                                    <td><WorkStatusBadge status={w.status} reason={w.statusReason}/></td>
-                                    <td className="col-extra"><StatusBadge tone={priorityTone[w.priority]}>{t.workPriority[w.priority]}</StatusBadge></td>
-                                    <td className="col-extra small nowrap">{w.dueAt ? (
-                                        overdue(w) ? <StatusBadge tone="bad" icon={CalendarClock}>{w.dueAt} 지남</StatusBadge> : w.dueAt
-                                    ) : <span className="muted">—</span>}</td>
-                                    <td className="col-extra small">{w.categories.join(', ') || <span className="muted">—</span>}</td>
-                                </tr>
-                            ))}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
-            </Section>
+            ) : null}
 
-            <DepartmentDecisions project={project}/>
-            <DeliveryInbox project={project} departments={departments.data}/>
+            {deptOpen ? <>
+                <DepartmentDecisions project={project}/>
+                <DeliveryInbox project={project} departments={departments.data}/>
+            </> : null}
         </div>
     );
 }
@@ -304,21 +357,40 @@ function WorkPanel({ctx, id, onChanged}: { ctx: Context; id: string; onChanged: 
     const edit = () => setDetail(<WorkForm key={`edit-${id}`} ctx={ctx} initial={w} onSaved={() => { onChanged(); reopen(); }}/>);
     const addChild = () => setDetail(<WorkForm key={`new-under-${id}`} ctx={ctx} initial={{...emptyWork, kind: 'work', parentId: id}}
                                                onSaved={(c) => { onChanged(); setDetail(<WorkPanel key={c.id} ctx={ctx} id={c.id} onChanged={onChanged}/>); }}/>);
+    if (w.kind === 'work') {
+        const dept = ctx.departments.find((x) => x.id === w.departmentId);
+        const openWork = (other: string) => setDetail(<WorkPanel key={other} ctx={ctx} id={other} onChanged={onChanged}/>);
+        return (
+            <div className="stack">
+                <SelectRow ctx={ctx} id={id}/>
+                <DetailHeader title={w.title} onClose={() => setDetail(null)}>
+                    <div className="small muted">{deptName(ctx, w.departmentId) || '담당 부서 없음'} · <WorkAssignee ctx={ctx} item={w}/></div>
+                </DetailHeader>
+                <WorkTabs project={ctx.project} item={w} assignments={ctx.assignments} departments={ctx.departments} categories={ctx.categories}
+                          onChanged={changed} onOpenRun={ctx.onOpenRun}
+                          onOpenRules={dept ? () => setDetail(<AutomationPanel key={`auto-${dept.id}`} project={ctx.project} department={dept}/>) : undefined}
+                          summary={<WorkSummary ctx={ctx} item={w} onEdit={edit} onChanged={changed} onOpenWork={openWork}/>}
+                          documents={<WorkDocuments project={ctx.project} item={w}/>}
+                          record={<>
+                              <WorkLineageSection project={ctx.project} item={w} onOpenWork={openWork}/>
+                              <History ctx={ctx} itemId={w.id} notes={d.data.notes} disabled={archived} onAdded={d.reload}/>
+                              <WorkEvents project={ctx.project} workItemId={w.id} departments={ctx.departments}/>
+                          </>}/>
+            </div>
+        );
+    }
     return (
         <div className="stack">
-            <DetailHeader title={<>{w.kind === 'goal' ? <Icon icon={Target} size={18}/> : null}{w.title}</>} onClose={() => setDetail(null)}>
+            <DetailHeader title={<><Icon icon={Target} size={18}/>{w.title}</>} onClose={() => setDetail(null)}>
                 <div className="row">
-                    <StatusBadge tone="info">{w.kind === 'goal' ? '공동 목표' : '업무'}</StatusBadge>
+                    <StatusBadge tone="info">공동 목표</StatusBadge>
                     <WorkStatusBadge status={w.status} reason={w.statusReason}/>
                     <StatusBadge tone={priorityTone[w.priority]} icon={Flag}>{t.workPriority[w.priority]}</StatusBadge>
                 </div>
             </DetailHeader>
             <dl className="kv">
-                <dt>{w.kind === 'goal' ? '책임 부서' : '담당 부서'}</dt><dd>{deptName(ctx, w.departmentId) || '미배정'}</dd>
-                <dt>담당자</dt><dd>{w.kind === 'work' ? <WorkAssignee ctx={ctx} item={w}/> : personName(ctx, w.assigneeAssignmentId) || '—'}</dd>
-                {w.kind === 'work' ? <><dt>공동 목표</dt><dd>{w.parentId ? (
-                    <button className="btn ghost small wrap" onClick={() => setDetail(<WorkPanel key={w.parentId} ctx={ctx} id={w.parentId} onChanged={onChanged}/>)}>
-                        {goalTitle(ctx, w.parentId) || '목표 보기'}</button>) : '—'}</dd></> : null}
+                <dt>책임 부서</dt><dd>{deptName(ctx, w.departmentId) || '미배정'}</dd>
+                <dt>담당자</dt><dd>{personName(ctx, w.assigneeAssignmentId) || '—'}</dd>
                 {w.afterIds?.length ? <><dt>앞 업무</dt><dd><AfterWork projectId={ctx.project.id} ids={w.afterIds}
                     open={(other) => setDetail(<WorkPanel key={other} ctx={ctx} id={other} onChanged={onChanged}/>)}/></dd></> : null}
                 <dt>기한</dt><dd>{w.dueAt ? <>{w.dueAt}{overdue(w) ? <> <StatusBadge tone="bad">지남</StatusBadge></> : null}</> : '—'}</dd>
@@ -327,20 +399,8 @@ function WorkPanel({ctx, id, onChanged}: { ctx: Context; id: string; onChanged: 
                 <dt>설명</dt><dd className="pre">{w.description || <span className="muted">적지 않음</span>}</dd>
             </dl>
             <div><Button size="sm" icon={Pencil} disabled={archived} onClick={edit}>{t.common.edit}</Button></div>
-            {w.kind === 'work' ? (
-                <WorkLineageSection project={ctx.project} item={w}
-                                    onOpenWork={(other) => setDetail(<WorkPanel key={other} ctx={ctx} id={other} onChanged={onChanged}/>)}/>
-            ) : null}
-
             <StatusChanger key={`${w.status}-${w.updatedAt}`} ctx={ctx} item={w} disabled={archived} onChanged={changed}/>
 
-            {w.kind === 'work' ? (
-                <WorkRun project={ctx.project} item={w} assignments={ctx.assignments} departments={ctx.departments} categories={ctx.categories}
-                         onChanged={changed} onOpenRun={ctx.onOpenRun}/>
-            ) : null}
-            {w.kind === 'work' ? (
-                <WorkDocuments project={ctx.project} item={w}/>
-            ) : null}
             <WorkCollaboration project={ctx.project} item={w} departments={ctx.departments} onChanged={changed}
                                onOpenWork={(other) => setDetail(<WorkPanel key={other} ctx={ctx} id={other} onChanged={onChanged}/>)}/>
 
@@ -373,6 +433,73 @@ function WorkPanel({ctx, id, onChanged}: { ctx: Context; id: string; onChanged: 
 
             <History ctx={ctx} itemId={w.id} notes={d.data.notes} disabled={archived} onAdded={d.reload}/>
         </div>
+    );
+}
+
+// SelectRow marks the open work in the list while its detail is shown.
+function SelectRow({ctx, id}: { ctx: Context; id: string }) {
+    useEffect(() => {
+        ctx.onSelect(id);
+        return () => ctx.onSelect('');
+    }, [id]);
+    return null;
+}
+
+// causeLine says in one line why the work started.
+function causeLine(c: WorkCause) {
+    if (c.via === 'request') return '사람의 요청으로 등록했습니다.';
+    if (c.via === 'collab') return `${c.fromDepartmentName}의 협업 요청으로 맡았습니다.`;
+    return `${c.departmentName}에서 제안해 등록했습니다.`;
+}
+
+// WorkSummary is the first thing to read about a work item: what it is,
+// why it started and when it counts as done. Changing it is under ‘더보기’.
+function WorkSummary({ctx, item, onEdit, onChanged, onOpenWork}: {
+    ctx: Context; item: WorkItem; onEdit: () => void; onChanged: () => void; onOpenWork: (id: string) => void;
+}) {
+    const lineage = useLoad(() => api.workLineage(ctx.project.id, item.id), [ctx.project.id, item.id, item.updatedAt], ctx.project.id);
+    const collab = useLoad(() => api.workCollab(ctx.project.id, item.id), [ctx.project.id, item.id, item.updatedAt], ctx.project.id);
+    const [more, setMore] = useState<boolean | null>(null);
+    const archived = ctx.project.status === 'archived';
+    const setDetail = useDetail();
+    const c = collab.data;
+    const moreOpen = more ?? (!!c && c.requests.length + c.incoming.length + c.checks.length > 0);
+    const cause = lineage.data?.causes[0];
+    const hasFacts = item.parentId || item.afterIds?.length || item.dueAt || item.categories.length || item.priority === 'urgent';
+    return (
+        <>
+            <div className="stack tight">
+                <h3 className="detail-label">무슨 일인가요</h3>
+                {item.description ? <Expandable text={item.description}/> : <span className="muted">적지 않음</span>}
+            </div>
+            {cause ? (
+                <div className="stack tight">
+                    <h3 className="detail-label">왜 시작했나요</h3>
+                    <span>{causeLine(cause)}</span>
+                </div>
+            ) : null}
+            <div className="stack tight">
+                <h3 className="detail-label">끝났다고 볼 조건</h3>
+                {item.doneCriteria ? <Expandable text={item.doneCriteria}/> : <span className="muted">적지 않음</span>}
+            </div>
+            {hasFacts ? (
+                <dl className="kv">
+                    {item.priority === 'urgent' ? <><dt>우선순위</dt><dd><StatusBadge tone="bad" icon={Flag}>{t.workPriority.urgent}</StatusBadge></dd></> : null}
+                    {item.parentId ? <><dt>공동 목표</dt><dd>
+                        <button className="btn ghost small wrap" onClick={() => setDetail(<WorkPanel key={item.parentId} ctx={ctx} id={item.parentId} onChanged={onChanged}/>)}>
+                            {goalTitle(ctx, item.parentId) || '목표 보기'}</button></dd></> : null}
+                    {item.afterIds?.length ? <><dt>앞 업무</dt><dd><AfterWork projectId={ctx.project.id} ids={item.afterIds} open={onOpenWork}/></dd></> : null}
+                    {item.dueAt ? <><dt>기한</dt><dd>{item.dueAt}{overdue(item) ? <> <StatusBadge tone="bad">지남</StatusBadge></> : null}</dd></> : null}
+                    {item.categories.length ? <><dt>분류</dt><dd>{item.categories.join(', ')}</dd></> : null}
+                </dl>
+            ) : null}
+            <div><Button size="sm" variant="ghost" aria-expanded={moreOpen} onClick={() => setMore(!moreOpen)}>더보기: 편집·상태 변경·다른 부서에 요청</Button></div>
+            {moreOpen ? <>
+                <div><Button size="sm" icon={Pencil} disabled={archived} onClick={onEdit}>{t.common.edit}</Button></div>
+                <StatusChanger key={`${item.status}-${item.updatedAt}`} ctx={ctx} item={item} disabled={archived} onChanged={onChanged}/>
+                <WorkCollaboration project={ctx.project} item={item} departments={ctx.departments} onChanged={onChanged} onOpenWork={onOpenWork}/>
+            </> : null}
+        </>
     );
 }
 
